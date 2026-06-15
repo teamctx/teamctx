@@ -218,6 +218,19 @@ made a conservative additive helper; context used the PR evidence sooner and did
 less work, but modified the existing function directly. Future scoring must
 separate economics, risk awareness, and patch quality.
 
+
+## Claude Quality Scoring
+
+The first deterministic quality scorer confirms that E-033 should be treated
+as a positive economics signal, not a full quality win. Baseline scored 7/8
+and context scored 6/8. Both were marked `review` because neither captured a
+validation attempt; the context run also changed the existing `rotate_token`
+API in the same-file collision scenario.
+
+The benchmark now separates runtime economics from patch quality. This is the
+right shape for the Ambara-era savings claim inside TeamCtx: prove saved lookup
+work and cost, then prove quality is preserved or improved.
+
 ## Open Product Questions
 
 - Is `Working context` better than `Context for this task` as the container label?
@@ -262,8 +275,8 @@ separate economics, risk awareness, and patch quality.
   project`, and `Working context`.
 - Record first manual paired benchmark results before connector or backend build
   planning.
-- Add explicit patch-quality scoring to the Claude agent-runtime harness before
-  running all six primary scenarios.
+- Run all six primary scenarios through the Claude agent-runtime harness now that
+  quality scoring is part of the output.
 - Defer real connectors until benchmark evidence supports the context surface.
 - If language remains contested, run the E-011 language variant track on three
   scenarios before the full benchmark.

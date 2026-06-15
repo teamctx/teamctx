@@ -10,6 +10,7 @@ import click
 
 from teamctx.benchmark import export_benchmark_pack
 from teamctx.claude_benchmark import AgentVariant, run_claude_agent_suite
+from teamctx.claude_quality import assess_claude_run_dir
 from teamctx.context import context_cards
 from teamctx.core.cards import find_card
 from teamctx.core.fixtures import FixtureError, load_fixture
@@ -208,10 +209,38 @@ def claude_agent_benchmark_command(
         scenario_ids=scenario_ids,
         max_budget_usd=max_budget_usd,
     )
+    assessments = assess_claude_run_dir(fixtures_dir, output_dir)
     total_cost = sum(run.metrics.total_cost_usd for run in runs)
+    review_count = sum(1 for item in assessments if item.quality_level == "review")
+    fail_count = sum(1 for item in assessments if item.quality_level == "fail")
     click.echo(
         f"Ran {len(runs)} Claude agent benchmark runs to {output_dir} "
-        f"(reported cost: ${total_cost:.6f})"
+        f"(reported cost: ${total_cost:.6f}; review: {review_count}; fail: {fail_count})"
+    )
+
+
+@main.command("claude-agent-assess")
+@click.option(
+    "--fixtures-dir",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Directory of benchmark fixture JSON files.",
+)
+@click.option(
+    "--run-dir",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Directory containing Claude agent run artifacts.",
+)
+def claude_agent_assess_command(fixtures_dir: Path, run_dir: Path) -> None:
+    """Assess saved Claude Code benchmark artifacts."""
+
+    assessments = assess_claude_run_dir(fixtures_dir, run_dir)
+    review_count = sum(1 for item in assessments if item.quality_level == "review")
+    fail_count = sum(1 for item in assessments if item.quality_level == "fail")
+    click.echo(
+        f"Assessed {len(assessments)} Claude agent benchmark runs in {run_dir} "
+        f"(review: {review_count}; fail: {fail_count})"
     )
 
 
