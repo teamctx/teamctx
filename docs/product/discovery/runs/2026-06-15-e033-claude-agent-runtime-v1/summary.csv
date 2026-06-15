@@ -1,0 +1,3 @@
+fixture_id,model,variant,run_dir,exit_code,is_error,duration_ms,num_turns,total_cost_usd,input_tokens,cache_creation_input_tokens,cache_read_input_tokens,output_tokens,tool_calls,files_read,bash_commands,permission_denials,tool_names
+primary-01-overlapping-file-change-v1,sonnet,baseline,primary-01-overlapping-file-change-v1-sonnet-baseline,0,False,36561,8,0.1721997,6,20445,73239,1836,7,4,0,0,"{""Edit"": 1, ""Glob"": 2, ""Read"": 4}"
+primary-01-overlapping-file-change-v1,sonnet,context,primary-01-overlapping-file-change-v1-sonnet-context,0,False,31345,7,0.1064415,6,8911,88375,1763,6,3,0,0,"{""Edit"": 1, ""Glob"": 2, ""Read"": 3}"

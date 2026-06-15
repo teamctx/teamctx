@@ -205,6 +205,19 @@ Product conclusion: working context can change behavior in the desired
 direction, but the benchmark must distinguish chat-answer evaluation from
 actual agent-terminal execution before full-packet scoring.
 
+
+## Claude Agent Runtime Pilot
+
+The first Claude Code runtime benchmark on `primary-01-overlapping-file-change-v1`
+showed a positive economics signal: the TeamCtx context variant used one fewer
+turn, one fewer tool call, one fewer file read, about 5.2 fewer seconds, and
+about 38% lower reported cost than baseline.
+
+The quality signal is mixed. Baseline found the same PR evidence by lookup and
+made a conservative additive helper; context used the PR evidence sooner and did
+less work, but modified the existing function directly. Future scoring must
+separate economics, risk awareness, and patch quality.
+
 ## Open Product Questions
 
 - Is `Working context` better than `Context for this task` as the container label?
@@ -249,8 +262,8 @@ actual agent-terminal execution before full-packet scoring.
   project`, and `Working context`.
 - Record first manual paired benchmark results before connector or backend build
   planning.
-- Run the next external pilot after tightening the answer format or using an
-  actual agent-tool harness, so pseudo terminal output does not pollute scoring.
+- Add explicit patch-quality scoring to the Claude agent-runtime harness before
+  running all six primary scenarios.
 - Defer real connectors until benchmark evidence supports the context surface.
 - If language remains contested, run the E-011 language variant track on three
   scenarios before the full benchmark.

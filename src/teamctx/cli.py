@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import cast
 
 import click
 
 from teamctx.benchmark import export_benchmark_pack
+from teamctx.claude_benchmark import AgentVariant, run_claude_agent_suite
 from teamctx.context import context_cards
 from teamctx.core.cards import find_card
 from teamctx.core.fixtures import FixtureError, load_fixture
@@ -159,6 +161,58 @@ def benchmark_export_command(fixtures_dir: Path, output_dir: Path) -> None:
         raise click.ClickException(str(exc)) from exc
 
     click.echo(f"Exported {len(exports)} benchmark scenarios to {output_dir}")
+
+
+@main.command("claude-agent-benchmark")
+@click.option(
+    "--fixtures-dir",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Directory of benchmark fixture JSON files.",
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Directory to write Claude agent run artifacts.",
+)
+@click.option("--scenario", "scenario_ids", multiple=True, help="Fixture id to run.")
+@click.option("--model", "models", multiple=True, default=("sonnet",), help="Claude model alias.")
+@click.option(
+    "--variant",
+    type=click.Choice(["baseline", "context", "both"]),
+    default="both",
+    show_default=True,
+    help="Prompt variant to run.",
+)
+@click.option("--max-budget-usd", default=0.25, show_default=True, type=float, help="Per-run cap.")
+def claude_agent_benchmark_command(
+    fixtures_dir: Path,
+    output_dir: Path,
+    scenario_ids: tuple[str, ...],
+    models: tuple[str, ...],
+    variant: str,
+    max_budget_usd: float,
+) -> None:
+    """Run Claude Code against disposable benchmark repositories."""
+
+    variants: tuple[AgentVariant, ...] = (
+        ("baseline", "context") if variant == "both" else (cast(AgentVariant, variant),)
+    )
+
+    runs = run_claude_agent_suite(
+        fixtures_dir,
+        output_dir,
+        models=models,
+        variants=variants,
+        scenario_ids=scenario_ids,
+        max_budget_usd=max_budget_usd,
+    )
+    total_cost = sum(run.metrics.total_cost_usd for run in runs)
+    click.echo(
+        f"Ran {len(runs)} Claude agent benchmark runs to {output_dir} "
+        f"(reported cost: ${total_cost:.6f})"
+    )
 
 
 def _scenario_aliases(fixture: Fixture) -> set[str]:

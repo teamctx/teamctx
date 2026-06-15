@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-01-overlapping-file-change-v1",
+  "model": "sonnet",
+  "variant": "baseline",
+  "run_dir": "primary-01-overlapping-file-change-v1-sonnet-baseline",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 36561,
+  "num_turns": 8,
+  "total_cost_usd": 0.1721997,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 20445,
+  "cache_read_input_tokens": 73239,
+  "output_tokens": 1836,
+  "tool_calls": 7,
+  "tool_names": {
+    "Edit": 1,
+    "Glob": 2,
+    "Read": 4
+  },
+  "files_read": 4,
+  "bash_commands": 0,
+  "permission_denials": 0,
+  "result_preview": "The updated `src/auth/token.py` adds `rotate_token_with_retry` which:\n\n- Retries only transient `TimeoutError`-backed failures (via `should_retry_rotation`)\n- Gives up after a configurable window defaulting to 30 seconds\n- Lets permanent failures (e.g. `ValueError`) propagate immediately without retrying\n- Leaves `rotate_token` and `should_retry_rotation` untouched for legacy-client compatibility\n\n**Risk noticed:** PR #482 is open and also modifying this file. The changes there involve \"retry-wi"
+}

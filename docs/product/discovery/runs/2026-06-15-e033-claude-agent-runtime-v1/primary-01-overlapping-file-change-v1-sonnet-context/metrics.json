@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-01-overlapping-file-change-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "run_dir": "primary-01-overlapping-file-change-v1-sonnet-context",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 31345,
+  "num_turns": 7,
+  "total_cost_usd": 0.1064415,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 8911,
+  "cache_read_input_tokens": 88375,
+  "output_tokens": 1763,
+  "tool_calls": 6,
+  "tool_names": {
+    "Edit": 1,
+    "Glob": 2,
+    "Read": 3
+  },
+  "files_read": 3,
+  "bash_commands": 0,
+  "permission_denials": 0,
+  "result_preview": "The retry loop uses `should_retry_rotation` (which PR #482 is also modifying) as the single policy point, so when that PR lands its retry-window / legacy-client changes will apply automatically without a second merge conflict in `rotate_token`.\n\nFinal state of `rotate_token`: retries up to 3 times on errors that pass `should_retry_rotation`, then raises `TokenRotationError`.\n\n---\n\nAGENT_BENCHMARK_RESULT\nrisk_noticed: yes\nlookup_saved: yes\nfirst_useful_action: read src/auth/token.py and pr-482.md"
+}
