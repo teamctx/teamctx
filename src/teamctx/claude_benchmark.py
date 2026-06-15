@@ -19,6 +19,7 @@ from teamctx.core.models import Fixture
 from teamctx.render import render_context_cards
 
 AgentVariant = Literal["baseline", "context"]
+SourceAccessMode = Literal["full", "none"]
 
 ALLOWED_TOOLS = (
     "Read,Edit,Write,LS,Glob,Grep,"
@@ -71,6 +72,7 @@ class ClaudeRunMetrics:
     fixture_id: str
     model: str
     variant: AgentVariant
+    source_access: SourceAccessMode
     run_dir: str
     exit_code: int
     is_error: bool
@@ -109,18 +111,32 @@ def benchmark_fixture_paths(fixtures_dir: Path) -> list[Path]:
     return sorted(path for path in fixtures_dir.glob("*.json") if path.is_file())
 
 
-def render_agent_prompt(fixture: Fixture, variant: AgentVariant) -> str:
+def render_agent_prompt(
+    fixture: Fixture,
+    variant: AgentVariant,
+    *,
+    source_access: SourceAccessMode = "full",
+) -> str:
+    available_context = "local files and local source snapshots"
+    if source_access == "none":
+        available_context = "local files"
+
     lines = [
         "You are Claude Code running in a disposable benchmark repository.",
-        "Complete the task if you can do so safely from local files and local source snapshots.",
+        f"Complete the task if you can do so safely from {available_context}.",
         "Do not ask the user for information that can be found locally.",
         "Keep the work minimal; this is a benchmark, not a full production change.",
         "",
         "Task:",
         fixture.task,
         "",
-        "Local source snapshots may be under source-snapshots/. Inspect them only if useful.",
     ]
+    if source_access == "full":
+        lines.append(
+            "Local source snapshots may be under source-snapshots/. Inspect them only if useful."
+        )
+    else:
+        lines.append("No local source snapshots are available in this run.")
     if variant == "context":
         cards = agent_prompt_cards(fixture)
         lines.extend(
@@ -155,17 +171,25 @@ def render_agent_prompt(fixture: Fixture, variant: AgentVariant) -> str:
     return "\n".join(lines) + "\n"
 
 
-def prepare_agent_workspace(fixture: Fixture, workspace: Path) -> None:
+def prepare_agent_workspace(
+    fixture: Fixture,
+    workspace: Path,
+    *,
+    source_access: SourceAccessMode = "full",
+) -> None:
     if workspace.exists():
         shutil.rmtree(workspace)
     workspace.mkdir(parents=True)
+
+    source_note = "Source snapshots are local stand-ins for provider lookups."
+    if source_access == "none":
+        source_note = "Source snapshots are intentionally withheld for this run."
 
     _write_text(
         workspace / "README.md",
         f"# Auth Service Benchmark Repo\n\n"
         f"Disposable benchmark workspace for `{fixture.fixture_id}`.\n\n"
-        "The code is intentionally small. Source snapshots are local stand-ins for provider\n"
-        "lookups an agent might otherwise perform through GitHub, Jira, or docs tools.\n",
+        f"The code is intentionally small. {source_note}\n",
     )
     _write_text(workspace / "src/auth/token.py", TOKEN_FILE)
     _write_text(workspace / "tests/test_token_rotation.py", TOKEN_TEST)
@@ -178,7 +202,8 @@ def prepare_agent_workspace(fixture: Fixture, workspace: Path) -> None:
         "- Confirm token rotation rollout owner.\n"
         "- Check dashboards after deploy.\n",
     )
-    _write_source_snapshots(workspace)
+    if source_access == "full":
+        _write_source_snapshots(workspace)
     _init_git_repo(workspace)
 
 
@@ -189,21 +214,25 @@ def run_claude_agent(
     model: str,
     output_dir: Path,
     max_budget_usd: float,
+    source_access: SourceAccessMode = "full",
     timeout_seconds: int = 240,
 ) -> ClaudeAgentRun:
-    run_name = f"{fixture.fixture_id}-{model}-{variant}".replace("/", "-")
+    run_name = f"{fixture.fixture_id}-{model}-{variant}"
+    if source_access != "full":
+        run_name = f"{run_name}-source-{source_access}"
+    run_name = run_name.replace("/", "-")
     run_dir = output_dir / run_name
     if run_dir.exists():
         shutil.rmtree(run_dir)
     run_dir.mkdir(parents=True)
 
-    prompt = render_agent_prompt(fixture, variant)
+    prompt = render_agent_prompt(fixture, variant, source_access=source_access)
     prompt_path = run_dir / "prompt.txt"
     prompt_path.write_text(prompt, encoding="utf-8")
 
     with tempfile.TemporaryDirectory(prefix=f"teamctx-{fixture.fixture_id}-") as tmp:
         workspace = Path(tmp) / "workspace"
-        prepare_agent_workspace(fixture, workspace)
+        prepare_agent_workspace(fixture, workspace, source_access=source_access)
         command = claude_command(model=model, max_budget_usd=max_budget_usd, prompt=prompt)
         completed = subprocess.run(
             command,
@@ -232,6 +261,7 @@ def run_claude_agent(
         fixture_id=fixture.fixture_id,
         model=model,
         variant=variant,
+        source_access=source_access,
         run_dir=run_dir.name,
         exit_code=completed.returncode,
     )
@@ -259,6 +289,7 @@ def run_claude_agent_suite(
     variants: Iterable[AgentVariant] = ("baseline", "context"),
     scenario_ids: Iterable[str] = (),
     max_budget_usd: float = 0.25,
+    source_access: SourceAccessMode = "full",
 ) -> list[ClaudeAgentRun]:
     wanted = set(scenario_ids)
     runs: list[ClaudeAgentRun] = []
@@ -276,6 +307,7 @@ def run_claude_agent_suite(
                         model=model,
                         output_dir=output_dir,
                         max_budget_usd=max_budget_usd,
+                        source_access=source_access,
                     )
                 )
     write_summary(output_dir / "summary.csv", [run.metrics for run in runs])
@@ -329,6 +361,7 @@ def parse_claude_stream(
     variant: AgentVariant,
     run_dir: str,
     exit_code: int,
+    source_access: SourceAccessMode = "full",
 ) -> ClaudeRunMetrics:
     tool_names: Counter[str] = Counter()
     files_read = 0
@@ -363,6 +396,7 @@ def parse_claude_stream(
         fixture_id=fixture_id,
         model=model,
         variant=variant,
+        source_access=source_access,
         run_dir=run_dir,
         exit_code=exit_code,
         is_error=bool(final.get("is_error", exit_code != 0)),
@@ -392,6 +426,7 @@ def write_summary(path: Path, metrics: Iterable[ClaudeRunMetrics]) -> None:
                 "fixture_id",
                 "model",
                 "variant",
+                "source_access",
                 "run_dir",
                 "exit_code",
                 "is_error",
@@ -423,12 +458,12 @@ def write_summary_markdown(path: Path, metrics: Iterable[ClaudeRunMetrics]) -> N
     lines = [
         "# Claude Agent Benchmark Summary",
         "",
-        "| Fixture | Model | Variant | Cost | Turns | Tools | Files read | Error |",
-        "| --- | --- | --- | ---: | ---: | ---: | ---: | --- |",
+        "| Fixture | Model | Variant | Source access | Cost | Turns | Tools | Files read | Error |",
+        "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |",
     ]
     for row in rows:
         lines.append(
-            f"| `{row.fixture_id}` | `{row.model}` | {row.variant} | "
+            f"| `{row.fixture_id}` | `{row.model}` | {row.variant} | {row.source_access} | "
             f"{row.total_cost_usd:.6f} | {row.num_turns} | {row.tool_calls} | "
             f"{row.files_read} | {str(row.is_error).lower()} |"
         )

@@ -101,6 +101,9 @@ knowledge system.
   warning-context overhead, but does not beat baseline while broad local source
   snapshots remain exposed. The token-savings product lever is source access
   routing plus prompt gating, not prompt gating alone.
+- The benchmark harness now needs source-access variants. E-038 adds a
+  `full` versus `none` source access control so future runs can isolate prompt
+  context from broad source browsing.
 
 ## Provisional Language Set
 

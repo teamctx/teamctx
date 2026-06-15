@@ -9,7 +9,7 @@ from typing import cast
 import click
 
 from teamctx.benchmark import export_benchmark_pack
-from teamctx.claude_benchmark import AgentVariant, run_claude_agent_suite
+from teamctx.claude_benchmark import AgentVariant, SourceAccessMode, run_claude_agent_suite
 from teamctx.claude_quality import assess_claude_run_dir
 from teamctx.context import agent_prompt_cards, context_cards
 from teamctx.core.cards import find_card
@@ -187,6 +187,13 @@ def benchmark_export_command(fixtures_dir: Path, output_dir: Path) -> None:
     help="Prompt variant to run.",
 )
 @click.option("--max-budget-usd", default=0.25, show_default=True, type=float, help="Per-run cap.")
+@click.option(
+    "--source-access",
+    type=click.Choice(["full", "none"]),
+    default="full",
+    show_default=True,
+    help="Whether benchmark source snapshots are available in the disposable workspace.",
+)
 def claude_agent_benchmark_command(
     fixtures_dir: Path,
     output_dir: Path,
@@ -194,6 +201,7 @@ def claude_agent_benchmark_command(
     models: tuple[str, ...],
     variant: str,
     max_budget_usd: float,
+    source_access: str,
 ) -> None:
     """Run Claude Code against disposable benchmark repositories."""
 
@@ -208,6 +216,7 @@ def claude_agent_benchmark_command(
         variants=variants,
         scenario_ids=scenario_ids,
         max_budget_usd=max_budget_usd,
+        source_access=cast(SourceAccessMode, source_access),
     )
     assessments = assess_claude_run_dir(fixtures_dir, output_dir)
     total_cost = sum(run.metrics.total_cost_usd for run in runs)

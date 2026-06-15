@@ -6,6 +6,7 @@ from pathlib import Path
 
 from teamctx.claude_benchmark import (
     AgentVariant,
+    SourceAccessMode,
     benchmark_fixture_paths,
     claude_command,
     parse_claude_stream,
@@ -32,9 +33,21 @@ def test_render_agent_prompt_adds_working_context_only_for_context_variant() -> 
 
     assert "No TeamCtx working context" in baseline
     assert "Working context" not in baseline
+    assert "Local source snapshots may be under source-snapshots/" in context
     assert "Working context" in context
     assert "Another open PR changed src/auth/token.py 11 minutes ago." in context
     assert "AGENT_BENCHMARK_RESULT" in context
+
+
+def test_render_agent_prompt_can_withhold_source_snapshots() -> None:
+    fixture = load_fixture(first_fixture_path())
+
+    prompt = render_agent_prompt(fixture, "context", source_access="none")
+
+    assert "Complete the task if you can do so safely from local files." in prompt
+    assert "No local source snapshots are available in this run." in prompt
+    assert "source-snapshots/" not in prompt
+    assert "Another open PR changed src/auth/token.py 11 minutes ago." in prompt
 
 
 def test_prepare_agent_workspace_creates_code_and_source_snapshots(tmp_path: Path) -> None:
@@ -49,6 +62,18 @@ def test_prepare_agent_workspace_creates_code_and_source_snapshots(tmp_path: Pat
     assert "src/auth/token.py" in (workspace / "source-snapshots/github/pr-482.md").read_text(
         encoding="utf-8"
     )
+    assert (workspace / ".git").exists()
+
+
+def test_prepare_agent_workspace_can_withhold_source_snapshots(tmp_path: Path) -> None:
+    fixture = load_fixture(first_fixture_path())
+    workspace = tmp_path / "workspace"
+
+    prepare_agent_workspace(fixture, workspace, source_access="none")
+
+    assert (workspace / "src/auth/token.py").exists()
+    assert not (workspace / "source-snapshots").exists()
+    assert "withheld" in (workspace / "README.md").read_text(encoding="utf-8")
     assert (workspace / ".git").exists()
 
 
@@ -125,6 +150,7 @@ def test_parse_claude_stream_counts_tools_and_cost() -> None:
     assert metrics.bash_commands == 1
     assert metrics.total_cost_usd == 0.12
     assert metrics.output_tokens == 40
+    assert metrics.source_access == "full"
     assert metrics.tool_names == {"Bash": 1, "Read": 1}
 
 
@@ -159,6 +185,7 @@ def test_write_summary_uses_lf_csv(tmp_path: Path) -> None:
     with path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     assert rows[0]["fixture_id"] == "fixture"
+    assert rows[0]["source_access"] == "full"
     assert rows[0]["tool_names"] == "{}"
 
 
@@ -181,3 +208,9 @@ def test_agent_variant_type_is_limited() -> None:
     variant: AgentVariant = "baseline"
 
     assert variant == "baseline"
+
+
+def test_source_access_mode_type_is_limited() -> None:
+    mode: SourceAccessMode = "none"
+
+    assert mode == "none"
