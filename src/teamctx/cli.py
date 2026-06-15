@@ -189,7 +189,7 @@ def benchmark_export_command(fixtures_dir: Path, output_dir: Path) -> None:
 @click.option("--max-budget-usd", default=0.25, show_default=True, type=float, help="Per-run cap.")
 @click.option(
     "--source-access",
-    type=click.Choice(["full", "none"]),
+    type=click.Choice(["full", "none", "status_only"]),
     default="full",
     show_default=True,
     help="Whether benchmark source snapshots are available in the disposable workspace.",

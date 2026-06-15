@@ -76,6 +76,35 @@ def select_agent_prompt_cards(
     return sort_cards(cards)
 
 
+def select_source_status_cards(
+    fixture: Fixture,
+    *,
+    selected_card_ids: Iterable[str] = (),
+    relevance_tags: Iterable[str] = (),
+    include_default: bool = True,
+) -> list[ContextCard]:
+    selected = set(selected_card_ids)
+    relevance = set(relevance_tags)
+    cards: list[ContextCard] = []
+
+    for card in fixture.expected_cards:
+        if card.id in selected:
+            cards.append(card)
+            continue
+
+        if card.relevance is not None and card.relevance in relevance:
+            cards.append(card)
+            continue
+
+        if not include_default:
+            continue
+
+        if card_allowed_in_source_status(fixture, card):
+            cards.append(card)
+
+    return sort_cards(cards)
+
+
 def card_allowed_in_agent_prompt(fixture: Fixture, card: ContextCard) -> bool:
     if not card.default_agent_visible or card.relevance is not None:
         return False
@@ -101,6 +130,24 @@ def card_allowed_in_agent_prompt(fixture: Fixture, card: ContextCard) -> bool:
     return True
 
 
+def card_allowed_in_source_status(fixture: Fixture, card: ContextCard) -> bool:
+    if not card.default_agent_visible or card.relevance is not None:
+        return False
+
+    if not card.refs:
+        return False
+
+    has_source_status = False
+    for ref in card.refs:
+        signal = find_signal(fixture, ref)
+        if signal is None:
+            return False
+        if source_signal_allowed_in_source_status(signal):
+            has_source_status = True
+
+    return has_source_status
+
+
 def source_signal_allowed_in_agent_prompt(signal: SourceSignal) -> bool:
     if not signal.policy.can_render_to_agent:
         return False
@@ -111,6 +158,12 @@ def source_signal_allowed_in_agent_prompt(signal: SourceSignal) -> bool:
     if signal.freshness != "fresh":
         return False
     return signal.signal_type in AGENT_PROMPT_SIGNAL_TYPES
+
+
+def source_signal_allowed_in_source_status(signal: SourceSignal) -> bool:
+    if not signal.policy.can_render_to_agent:
+        return False
+    return signal.visibility == "warning_only" or signal.freshness in SOURCE_HEALTH_FRESHNESS
 
 
 def guidance_allowed_in_agent_prompt(guidance: GuidanceRecord) -> bool:

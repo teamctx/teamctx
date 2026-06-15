@@ -15,6 +15,7 @@ from teamctx.claude_benchmark import (
     sanitize_claude_stream,
     write_summary,
 )
+from teamctx.context import source_status_cards
 from teamctx.core.fixtures import load_fixture
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,6 +24,10 @@ BENCHMARK_FIXTURES = ROOT / "docs/product/discovery/fixtures/benchmark/primary"
 
 def first_fixture_path() -> Path:
     return BENCHMARK_FIXTURES / "primary-01-overlapping-file-change-v1.json"
+
+
+def primary_fixture_path(fixture_id: str) -> Path:
+    return BENCHMARK_FIXTURES / f"{fixture_id}.json"
 
 
 def test_render_agent_prompt_adds_working_context_only_for_context_variant() -> None:
@@ -50,6 +55,35 @@ def test_render_agent_prompt_can_withhold_source_snapshots() -> None:
     assert "Another open PR changed src/auth/token.py 11 minutes ago." in prompt
 
 
+def test_render_agent_prompt_status_only_adds_source_status_without_snapshots() -> None:
+    fixture = load_fixture(primary_fixture_path("primary-03-stale-process-doc-v1"))
+
+    prompt = render_agent_prompt(fixture, "context", source_access="status_only")
+
+    assert (
+        "Complete the task if you can do so safely from local files and compact source status."
+        in prompt
+    )
+    assert "Source bodies are not available in this run." in prompt
+    assert "source-snapshots/" not in prompt
+    assert "Source status" in prompt
+    assert "The release checklist source is stale." in prompt
+    assert "No working context for this task." in prompt
+
+
+def test_source_status_cards_include_warning_sources_only() -> None:
+    expected_status_cards = {
+        "primary-03-stale-process-doc-v1": ["card_stale_docs"],
+        "primary-04-safety-blocked-source-change-v1": ["card_blocked_issue_change"],
+        "primary-05-inaccessible-linked-docs-v1": ["card_linked_docs_unavailable"],
+        "primary-01-overlapping-file-change-v1": [],
+    }
+
+    for fixture_id, expected_ids in expected_status_cards.items():
+        fixture = load_fixture(primary_fixture_path(fixture_id))
+        assert [card.id for card in source_status_cards(fixture)] == expected_ids
+
+
 def test_prepare_agent_workspace_creates_code_and_source_snapshots(tmp_path: Path) -> None:
     fixture = load_fixture(first_fixture_path())
     workspace = tmp_path / "workspace"
@@ -74,6 +108,19 @@ def test_prepare_agent_workspace_can_withhold_source_snapshots(tmp_path: Path) -
     assert (workspace / "src/auth/token.py").exists()
     assert not (workspace / "source-snapshots").exists()
     assert "withheld" in (workspace / "README.md").read_text(encoding="utf-8")
+    assert (workspace / ".git").exists()
+
+
+def test_prepare_agent_workspace_status_only_withholds_source_snapshots(tmp_path: Path) -> None:
+    fixture = load_fixture(first_fixture_path())
+    workspace = tmp_path / "workspace"
+
+    prepare_agent_workspace(fixture, workspace, source_access="status_only")
+
+    assert (workspace / "src/auth/token.py").exists()
+    assert not (workspace / "source-snapshots").exists()
+    readme = (workspace / "README.md").read_text(encoding="utf-8")
+    assert "compact source status" in readme
     assert (workspace / ".git").exists()
 
 
@@ -211,6 +258,6 @@ def test_agent_variant_type_is_limited() -> None:
 
 
 def test_source_access_mode_type_is_limited() -> None:
-    mode: SourceAccessMode = "none"
+    mode: SourceAccessMode = "status_only"
 
-    assert mode == "none"
+    assert mode == "status_only"

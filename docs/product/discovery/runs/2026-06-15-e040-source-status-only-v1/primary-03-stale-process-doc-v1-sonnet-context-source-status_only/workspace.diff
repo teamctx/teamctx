@@ -1,0 +1,39 @@
+diff --git a/docs/release-checklist.md b/docs/release-checklist.md
+index 3cadcb4..f8d1bca 100644
+--- a/docs/release-checklist.md
++++ b/docs/release-checklist.md
+@@ -1,7 +1,30 @@
+ # Auth Service Release Checklist
+
+-Last exported: 2026-06-12
++Last updated: 2026-06-15 (release day)
++Last Confluence export: 2026-06-12
+
+-- Run unit tests.
+-- Confirm token rotation rollout owner.
+-- Check dashboards after deploy.
++> **WARNING — stale source:** The Confluence Release Checklist has not been
++> re-exported since 2026-06-12. Steps may have been added or changed since then.
++> Verify against Confluence before signing off on this release.
++
++## Pre-deploy
++
++- [ ] Run unit tests (`pytest tests/`).
++- [ ] Confirm token rotation rollout owner is identified and reachable.
++- [ ] Verify `rotate_token` timeout handling behaves correctly in staging (retries on `TimeoutError`, surfaces `TokenRotationError` to callers).
++- [ ] Confirm `should_retry_rotation` retry logic is consistent with on-call runbook.
++
++## Deploy
++
++- [ ] Deploy auth-service to production.
++
++## Post-deploy
++
++- [ ] Check dashboards after deploy (token rotation error rate, latency).
++- [ ] Confirm token rotation is functioning end-to-end in production.
++- [ ] Notify rollout owner once deploy is confirmed healthy.
++
++## Gap notice
++
++Steps above are derived from local files only. The Confluence source is stale —
++cross-check that page before closing this checklist.

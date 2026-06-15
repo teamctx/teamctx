@@ -109,6 +109,9 @@ knowledge system.
   gated/full-source context with pass-level quality. But total source absence
   loses useful source-health caveats, so the next product shape is status-only
   routing, not hiding sources completely.
+- E-040 status-only source routing is the best current default candidate:
+  compact stale/unavailable/blocked source status reaches the agent, but source
+  bodies are not exposed as a browsable workspace by default.
 
 ## Provisional Language Set
 
@@ -264,6 +267,24 @@ The product claim should not be blanket token savings. The sharper claim is
 that TeamCtx saves lookup work when context is fresh, specific, and task-changing;
 warning/source-health context may add cost to preserve safety or completeness.
 
+## Source Status Only Benchmark
+
+E-040 tested the middle source-routing mode against the three warning scenarios:
+no `source-snapshots/` tree, but compact source status in the prompt when stale,
+blocked, or unavailable source state changes confidence.
+
+The result was the strongest product shape so far. Status-only cost `$0.282821`
+across the three warning scenarios, versus `$0.287766` for no source,
+`$0.354957` for E-035 baseline, and `$0.447406` for E-037 gated/full source.
+Quality stayed at `3 pass`, `0 review`, `0 fail`.
+
+The behavior also improved. Scenario 3 drafted from local files while clearly
+marking the stale Confluence risk. Scenario 4 blocked on safety-filtered Jira
+status. Scenario 5 blocked on inaccessible linked docs. That is the product
+promise in plain terms: TeamCtx should save lookup work without letting missing
+or stale evidence masquerade as confidence.
+
+
 ## Open Product Questions
 
 - Is `Working context` better than `Context for this task` as the container label?
@@ -278,6 +299,8 @@ warning/source-health context may add cost to preserve safety or completeness.
 - What exact context packet does a session action add to the agent prompt/context?
 - How often should access-limited source warnings appear before they become
   noise?
+- What is the lightest open-on-demand path for source bodies when compact status
+  is not enough?
 
 ## Next Experiments
 
@@ -313,3 +336,7 @@ warning/source-health context may add cost to preserve safety or completeness.
 - Defer real connectors until benchmark evidence supports the context surface.
 - If language remains contested, run the E-011 language variant track on three
   scenarios before the full benchmark.
+- Extend status-only source routing to the full six-scenario benchmark or one
+  larger daily-driver task set.
+- Design and test the source-body open-on-demand path without turning TeamCtx
+  into a source dump.

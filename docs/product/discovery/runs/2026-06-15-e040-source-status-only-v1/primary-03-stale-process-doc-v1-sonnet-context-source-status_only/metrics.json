@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-03-stale-process-doc-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_only",
+  "run_dir": "primary-03-stale-process-doc-v1-sonnet-context-source-status_only",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 39838,
+  "num_turns": 7,
+  "total_cost_usd": 0.1069701,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 9140,
+  "cache_read_input_tokens": 89107,
+  "output_tokens": 1692,
+  "tool_calls": 6,
+  "tool_names": {
+    "Bash": 1,
+    "Edit": 1,
+    "Read": 4
+  },
+  "files_read": 4,
+  "bash_commands": 1,
+  "permission_denials": 0,
+  "result_preview": "Done. Here's a summary of what I did and why:\n\n**What changed:** `docs/release-checklist.md` expanded from 3 bare bullet points to a structured pre/deploy/post-deploy checklist with actionable items derived from the local code (`token.py`, `test_token_rotation.py`).\n\n**Key risk flagged:** The checklist source (Confluence) was last exported 2026-06-12, three days before today's release. I added a prominent warning at the top and a closing gap notice, because missing checklist items from a stale s"
+}

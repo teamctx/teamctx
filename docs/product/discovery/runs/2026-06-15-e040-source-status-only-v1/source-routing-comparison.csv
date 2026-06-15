@@ -1,0 +1,5 @@
+run,source_access,cost,turns,tool_calls,files_read,cost_delta_vs_baseline,cost_delta_vs_full_source,cost_delta_vs_no_source,turn_delta_vs_full_source,tool_delta_vs_full_source,read_delta_vs_full_source
+E-035 baseline/full source,full,0.354957,28,25,20,0.000000,-0.092450,0.067191,-2,-2,-1
+E-037 gated/full source,full,0.447406,30,27,21,0.092450,0.000000,0.159641,0,0,0
+E-039 gated/no source,none,0.287766,22,19,14,-0.067191,-0.159641,0.000000,-8,-8,-7
+E-040 gated/status-only,status_only,0.282821,21,18,9,-0.072136,-0.164585,-0.004944,-9,-9,-12

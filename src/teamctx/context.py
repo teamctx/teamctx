@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from teamctx.core.cards import select_agent_prompt_cards, select_cards
+from teamctx.core.cards import select_agent_prompt_cards, select_cards, select_source_status_cards
 from teamctx.core.models import ContextCard, Fixture
 from teamctx.render import render_context_cards
 
@@ -32,6 +32,21 @@ def agent_prompt_cards(
     include_default: bool = True,
 ) -> list[ContextCard]:
     return select_agent_prompt_cards(
+        fixture,
+        selected_card_ids=selected_card_ids,
+        relevance_tags=relevance_tags,
+        include_default=include_default,
+    )
+
+
+def source_status_cards(
+    fixture: Fixture,
+    *,
+    selected_card_ids: Iterable[str] = (),
+    relevance_tags: Iterable[str] = (),
+    include_default: bool = True,
+) -> list[ContextCard]:
+    return select_source_status_cards(
         fixture,
         selected_card_ids=selected_card_ids,
         relevance_tags=relevance_tags,

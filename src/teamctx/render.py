@@ -33,6 +33,26 @@ def render_context_cards(cards: Iterable[ContextCard]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_source_status_cards(cards: Iterable[ContextCard]) -> str:
+    grouped: OrderedDict[str, list[ContextCard]] = OrderedDict()
+    for card in cards:
+        grouped.setdefault(card.section, []).append(card)
+
+    lines = ["Source status"]
+    if not grouped:
+        lines.extend(["", "No source status for this task."])
+        return "\n".join(lines) + "\n"
+
+    for section, section_cards in grouped.items():
+        lines.extend(["", section])
+        for card in section_cards:
+            lines.append(f"- {card.text}")
+            lines.append(f"  Why this matters: {card.why_this_matters}")
+            lines.append(f"  Source: {card.source}")
+
+    return "\n".join(lines) + "\n"
+
+
 def render_benchmark_prompt(fixture: Fixture, cards: Iterable[ContextCard]) -> str:
     context = render_context_cards(cards).rstrip()
     return (
