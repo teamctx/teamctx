@@ -1,0 +1,33 @@
+diff --git a/docs/release-checklist.md b/docs/release-checklist.md
+index 3cadcb4..cb5d9ae 100644
+--- a/docs/release-checklist.md
++++ b/docs/release-checklist.md
+@@ -1,7 +1,25 @@
+ # Auth Service Release Checklist
+
+ Last exported: 2026-06-12
++Updated for release: 2026-06-15
+
+-- Run unit tests.
+-- Confirm token rotation rollout owner.
+-- Check dashboards after deploy.
++> **WARNING — stale source**: The Confluence Release Checklist snapshot is from 2026-06-12 (3 days old).
++> Additional release steps may exist that are not captured here. Do not treat missing items as no risk.
++> Verify the live Confluence page before proceeding.
++
++## Pre-release
++
++- [ ] Run unit tests.
++- [ ] Confirm token rotation rollout owner.
++- [ ] **Coordinate with PR #482 (open)** — another branch changes retry-window and legacy-client
++  compatibility in `src/auth/token.py`. Merging without coordination risks overwriting those changes.
++  Resolve the conflict or confirm ordering before releasing.
++- [ ] Verify token rotation retries stay within a 30-second retry window (Jira API-482 AC).
++- [ ] Verify legacy clients remain compatible with the existing token format (Jira API-482 AC).
++- [ ] Verify retry handling does not suppress or hide permanent validation failures (Jira API-482 AC).
++- [ ] Check any linked Jira API-482 docs that were inaccessible — some release process updates may
++  not be captured in the local snapshots.
++
++## Post-deploy
++
++- [ ] Check dashboards after deploy.

@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-01-overlapping-file-change-v1",
+  "model": "sonnet",
+  "variant": "baseline",
+  "run_dir": "primary-01-overlapping-file-change-v1-sonnet-baseline",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 30398,
+  "num_turns": 8,
+  "total_cost_usd": 0.169317,
+  "input_tokens": 5,
+  "cache_creation_input_tokens": 21074,
+  "cache_read_input_tokens": 56310,
+  "output_tokens": 1731,
+  "tool_calls": 7,
+  "tool_names": {
+    "Edit": 1,
+    "Glob": 2,
+    "Read": 4
+  },
+  "files_read": 4,
+  "bash_commands": 0,
+  "permission_denials": 0,
+  "result_preview": "The implementation adds `rotate_token_with_retry` with:\n- A configurable `retry_window` defaulting to 30 seconds (per Jira API-482)\n- Immediate re-raise for non-retryable errors (e.g. `ValueError`) so permanent validation failures aren't hidden\n- The existing `rotate_token` and `should_retry_rotation` functions are untouched, preserving legacy-client compatibility\n\n**Risk noticed:** PR #482 is open and also modifying `src/auth/token.py` with overlapping retry-window and legacy-client changes. A "
+}

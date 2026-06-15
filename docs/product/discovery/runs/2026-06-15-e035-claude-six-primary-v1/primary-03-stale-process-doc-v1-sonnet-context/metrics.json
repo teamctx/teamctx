@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-03-stale-process-doc-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "run_dir": "primary-03-stale-process-doc-v1-sonnet-context",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 42516,
+  "num_turns": 10,
+  "total_cost_usd": 0.12139230000000001,
+  "input_tokens": 7,
+  "cache_creation_input_tokens": 9599,
+  "cache_read_input_tokens": 108191,
+  "output_tokens": 2088,
+  "tool_calls": 9,
+  "tool_names": {
+    "Edit": 1,
+    "Glob": 1,
+    "Read": 7
+  },
+  "files_read": 7,
+  "bash_commands": 0,
+  "permission_denials": 0,
+  "result_preview": "The checklist has been updated. Here's what changed and why:\n\n**Added warning banner** \u2014 the Confluence source is 3 days stale; any missing items cannot be assumed safe.\n\n**New pre-release items added from local evidence:**\n- Coordinate with **PR #482** (open, touches the same `src/auth/token.py`) before merging \u2014 retry-window and legacy-client compatibility changes conflict\n- Three items from **Jira API-482 acceptance criteria** not previously in the checklist: 30s retry window, legacy client c"
+}

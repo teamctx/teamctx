@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-01-overlapping-file-change-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "run_dir": "primary-01-overlapping-file-change-v1-sonnet-context",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 43923,
+  "num_turns": 7,
+  "total_cost_usd": 0.11781119999999999,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 9906,
+  "cache_read_input_tokens": 90224,
+  "output_tokens": 2086,
+  "tool_calls": 6,
+  "tool_names": {
+    "Edit": 1,
+    "Glob": 2,
+    "Read": 3
+  },
+  "files_read": 3,
+  "bash_commands": 0,
+  "permission_denials": 0,
+  "result_preview": "Added `rotate_token_with_retry` as a new function rather than modifying the existing `rotate_token`. This keeps the existing function intact so PR #482's retry-window and legacy-client changes to `rotate_token` won't conflict with this addition. The new function wraps `rotate_token`, calls `should_retry_rotation` on the underlying cause, and retries up to `max_attempts` times.\n\n---\n\n**Note on the overlapping PR:** PR #482 is open and modifying the same file with retry-window and legacy-client co"
+}

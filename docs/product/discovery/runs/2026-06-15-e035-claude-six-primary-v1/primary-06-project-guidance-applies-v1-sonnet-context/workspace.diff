@@ -1,0 +1,33 @@
+diff --git a/src/auth/token.py b/src/auth/token.py
+index 49c8881..1f5f394 100644
+--- a/src/auth/token.py
++++ b/src/auth/token.py
+@@ -2,6 +2,10 @@
+
+ from __future__ import annotations
+
++import time
++
++RETRY_WINDOW_SECONDS = 30
++
+
+ class TokenRotationError(RuntimeError):
+     """Raised when token rotation cannot be completed."""
+@@ -16,8 +20,12 @@ def should_retry_rotation(error: Exception) -> bool:
+ def rotate_token(client: object, token: str) -> str:
+     """Rotate an auth token using the configured client."""
+
+-    try:
+-        rotate = getattr(client, "rotate")
+-        return rotate(token)
+-    except TimeoutError as exc:
+-        raise TokenRotationError("token rotation timed out") from exc
++    deadline = time.monotonic() + RETRY_WINDOW_SECONDS
++    rotate = getattr(client, "rotate")
++    while True:
++        try:
++            return rotate(token)
++        except TimeoutError as exc:
++            if time.monotonic() >= deadline:
++                raise TokenRotationError("token rotation timed out") from exc
++            # within retry window — retry the rotation

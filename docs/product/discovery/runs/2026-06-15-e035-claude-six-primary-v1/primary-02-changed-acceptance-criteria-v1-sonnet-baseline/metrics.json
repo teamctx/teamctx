@@ -1,0 +1,27 @@
+{
+  "fixture_id": "primary-02-changed-acceptance-criteria-v1",
+  "model": "sonnet",
+  "variant": "baseline",
+  "run_dir": "primary-02-changed-acceptance-criteria-v1-sonnet-baseline",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 73325,
+  "num_turns": 13,
+  "total_cost_usd": 0.21005400000000002,
+  "input_tokens": 12,
+  "cache_creation_input_tokens": 12534,
+  "cache_read_input_tokens": 224630,
+  "output_tokens": 4495,
+  "tool_calls": 12,
+  "tool_names": {
+    "Bash": 1,
+    "Edit": 3,
+    "Glob": 1,
+    "Read": 6,
+    "Write": 1
+  },
+  "files_read": 6,
+  "bash_commands": 1,
+  "permission_denials": 1,
+  "result_preview": "The implementation is complete. Here's a summary of what was done:\n\n**Changes made:**\n\n`src/auth/token.py`:\n- Added `import time` and `RETRY_WINDOW_SECONDS = 30` constant\n- Added `rotate_token_with_retry(client, token)` \u2014 retries transient `TimeoutError`s within the 30-second window; non-retryable failures (e.g. `ValueError`) propagate immediately without being hidden; existing `rotate_token` is untouched for legacy compatibility\n\n`tests/test_token_rotation.py`:\n- Added `test_rotate_token_with_r"
+}

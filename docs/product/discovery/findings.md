@@ -231,6 +231,20 @@ The benchmark now separates runtime economics from patch quality. This is the
 right shape for the Ambara-era savings claim inside TeamCtx: prove saved lookup
 work and cost, then prove quality is preserved or improved.
 
+
+## Claude Six-Scenario Runtime Benchmark
+
+The six-scenario Claude Code runtime benchmark produced a mixed but useful
+product signal. TeamCtx context reduced cost and tool work on the two strongest
+direct-signal scenarios: same-file PR collision and changed acceptance criteria.
+Across all six scenarios, context cost more overall: baseline total reported
+cost was `0.8382276`; context total reported cost was `0.9118254`.
+
+Quality was acceptable after task-aware scoring: `8 pass`, `4 review`, `0 fail`.
+The product claim should not be blanket token savings. The sharper claim is
+that TeamCtx saves lookup work when context is fresh, specific, and task-changing;
+warning/source-health context may add cost to preserve safety or completeness.
+
 ## Open Product Questions
 
 - Is `Working context` better than `Context for this task` as the container label?
@@ -275,8 +289,8 @@ work and cost, then prove quality is preserved or improved.
   project`, and `Working context`.
 - Record first manual paired benchmark results before connector or backend build
   planning.
-- Run all six primary scenarios through the Claude agent-runtime harness now that
-  quality scoring is part of the output.
+- Design context-gating rules that separate default prompt context from source-health
+  or `show why` context before building real connectors.
 - Defer real connectors until benchmark evidence supports the context surface.
 - If language remains contested, run the E-011 language variant track on three
   scenarios before the full benchmark.

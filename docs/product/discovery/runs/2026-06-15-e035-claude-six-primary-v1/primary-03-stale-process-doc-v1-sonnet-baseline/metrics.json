@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-03-stale-process-doc-v1",
+  "model": "sonnet",
+  "variant": "baseline",
+  "run_dir": "primary-03-stale-process-doc-v1-sonnet-baseline",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 43913,
+  "num_turns": 9,
+  "total_cost_usd": 0.12278789999999998,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 10444,
+  "cache_read_input_tokens": 91453,
+  "output_tokens": 2178,
+  "tool_calls": 8,
+  "tool_names": {
+    "Bash": 1,
+    "Read": 6,
+    "Write": 1
+  },
+  "files_read": 6,
+  "bash_commands": 1,
+  "permission_denials": 0,
+  "result_preview": "The release checklist has been updated. Here's a summary of what changed and why:\n\n**Added three prominent warnings at the top:**\n1. The Confluence source doc is stale (3 days old) \u2014 steps may be missing\n2. PR #482 is open and modifies the same `token.py` being released \u2014 overwrite risk\n3. Some Jira-linked docs were inaccessible \u2014 process may be incomplete\n\n**Added missing pre-deploy steps from Jira API-482 acceptance criteria** (updated after the current branch started, not reflected in old che"
+}

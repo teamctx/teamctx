@@ -52,12 +52,19 @@ def result_stream(result_text: str) -> str:
     return json.dumps({"type": "result", "result": result_text}) + "\n"
 
 
-def write_run(run_dir: Path, *, diff_text: str, result_text: str, variant: str) -> None:
+def write_run(
+    run_dir: Path,
+    *,
+    diff_text: str,
+    result_text: str,
+    variant: str,
+    fixture_id: str = "primary-01-overlapping-file-change-v1",
+) -> None:
     run_dir.mkdir(parents=True)
     (run_dir / "metrics.json").write_text(
         json.dumps(
             {
-                "fixture_id": "primary-01-overlapping-file-change-v1",
+                "fixture_id": fixture_id,
                 "model": "sonnet",
                 "variant": variant,
                 "exit_code": 0,
@@ -158,6 +165,56 @@ index 1111111..2222222 100644
 
     assert assessment.quality_level == "fail"
     assert assessment.source_snapshots_touched is True
+
+
+def test_quality_passes_doc_update_when_no_explicit_target_file(tmp_path: Path) -> None:
+    fixture = load_fixture(
+        ROOT
+        / "docs/product/discovery/fixtures/benchmark/primary"
+        / "primary-03-stale-process-doc-v1.json"
+    )
+    diff = """diff --git a/docs/release-checklist.md b/docs/release-checklist.md
+index 1111111..2222222 100644
+--- a/docs/release-checklist.md
++++ b/docs/release-checklist.md
+@@ -1 +1,2 @@
+ # Auth Service Release Checklist
++Verify the live Confluence page because the source is stale.
+"""
+    run_dir = tmp_path / "run"
+    write_run(
+        run_dir,
+        diff_text=diff,
+        result_text=benchmark_result(),
+        variant="context",
+        fixture_id="primary-03-stale-process-doc-v1",
+    )
+
+    assessment = assess_claude_run(fixture, run_dir)
+
+    assert assessment.quality_level == "pass"
+    assert assessment.quality_score == assessment.max_quality_score
+
+
+def test_quality_passes_inaccessible_docs_block_without_diff(tmp_path: Path) -> None:
+    fixture = load_fixture(
+        ROOT
+        / "docs/product/discovery/fixtures/benchmark/primary"
+        / "primary-05-inaccessible-linked-docs-v1.json"
+    )
+    run_dir = tmp_path / "run"
+    write_run(
+        run_dir,
+        diff_text="",
+        result_text=benchmark_result(blocked="yes", lookup="unclear"),
+        variant="context",
+        fixture_id="primary-05-inaccessible-linked-docs-v1",
+    )
+
+    assessment = assess_claude_run(fixture, run_dir)
+
+    assert assessment.quality_level == "pass"
+    assert assessment.changed_files == []
 
 
 def test_write_quality_summary_uses_lf_csv(tmp_path: Path) -> None:

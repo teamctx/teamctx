@@ -1,0 +1,24 @@
+{
+  "fixture_id": "primary-05-inaccessible-linked-docs-v1",
+  "model": "sonnet",
+  "variant": "baseline",
+  "run_dir": "primary-05-inaccessible-linked-docs-v1-sonnet-baseline",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 54030,
+  "num_turns": 11,
+  "total_cost_usd": 0.1319307,
+  "input_tokens": 7,
+  "cache_creation_input_tokens": 9894,
+  "cache_read_input_tokens": 112919,
+  "output_tokens": 2578,
+  "tool_calls": 10,
+  "tool_names": {
+    "Bash": 2,
+    "Read": 8
+  },
+  "files_read": 8,
+  "bash_commands": 2,
+  "permission_denials": 0,
+  "result_preview": "I have enough information to assess this task. Let me summarize what I found:\n\n**Situation:**\n- Jira API-482 references a release process update with acceptance criteria around token rotation retry behavior\n- The Confluence release checklist snapshot is **stale** (last refresh: 2026-06-12, today is 2026-06-15)\n- The `source-snapshots/docs/access-report.md` explicitly states: *\"Some docs linked from Jira API-482 could not be checked with the current access. Do not assume the release process updat"
+}

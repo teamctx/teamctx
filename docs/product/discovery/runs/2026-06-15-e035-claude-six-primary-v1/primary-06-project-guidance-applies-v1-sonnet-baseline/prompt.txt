@@ -1,0 +1,19 @@
+You are Claude Code running in a disposable benchmark repository.
+Complete the task if you can do so safely from local files and local source snapshots.
+Do not ask the user for information that can be found locally.
+Keep the work minimal; this is a benchmark, not a full production change.
+
+Task:
+Update auth-service token rotation to use the new retry window.
+
+Local source snapshots may be under source-snapshots/. Inspect them only if useful.
+
+No TeamCtx working context is provided for this run.
+Proceed normally. Ask only if needed information is not available locally.
+
+At the end, include this exact block:
+AGENT_BENCHMARK_RESULT
+risk_noticed: yes|no
+lookup_saved: yes|no|unclear
+first_useful_action: <short phrase>
+blocked: yes|no

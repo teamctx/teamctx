@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-02-changed-acceptance-criteria-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "run_dir": "primary-02-changed-acceptance-criteria-v1-sonnet-context",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 64580,
+  "num_turns": 9,
+  "total_cost_usd": 0.17364659999999998,
+  "input_tokens": 8,
+  "cache_creation_input_tokens": 11521,
+  "cache_read_input_tokens": 134522,
+  "output_tokens": 4276,
+  "tool_calls": 8,
+  "tool_names": {
+    "Bash": 1,
+    "Edit": 2,
+    "Glob": 1,
+    "Read": 4
+  },
+  "files_read": 4,
+  "bash_commands": 1,
+  "permission_denials": 1,
+  "result_preview": "Tests couldn't run (no approval), but the implementation is complete. Here's a summary of what was done and what to be aware of:\n\n**Changes made:**\n\n- `src/auth/token.py`: Added `import time` and a `_RETRY_WINDOW_SECONDS = 30` constant. Rewrote `rotate_token` with a retry loop: sets a `time.monotonic()` deadline, retries on `TimeoutError` until the window expires (then raises `TokenRotationError`), and lets any non-retryable error (e.g. `ValueError`) propagate immediately.\n\n- `tests/test_token_r"
+}

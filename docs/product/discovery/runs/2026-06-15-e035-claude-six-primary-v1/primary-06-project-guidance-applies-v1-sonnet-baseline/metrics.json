@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-06-project-guidance-applies-v1",
+  "model": "sonnet",
+  "variant": "baseline",
+  "run_dir": "primary-06-project-guidance-applies-v1-sonnet-baseline",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 38017,
+  "num_turns": 7,
+  "total_cost_usd": 0.1038996,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 8736,
+  "cache_read_input_tokens": 87752,
+  "output_tokens": 1676,
+  "tool_calls": 6,
+  "tool_names": {
+    "Edit": 1,
+    "Glob": 1,
+    "Read": 4
+  },
+  "files_read": 4,
+  "bash_commands": 0,
+  "permission_denials": 0,
+  "result_preview": "The change adds:\n- `RETRY_WINDOW_SECONDS = 30` constant from the acceptance criteria\n- `rotate_token` now loops and retries within the 30-second window, stopping immediately on non-retryable errors (e.g. `ValueError`) so permanent validation failures are never hidden\n- The existing `should_retry_rotation` predicate is reused as the retry gate\n\n**Risk noticed:** PR #482 warns that another branch is modifying the same file (`src/auth/token.py`) with overlapping retry-window and legacy-client compa"
+}

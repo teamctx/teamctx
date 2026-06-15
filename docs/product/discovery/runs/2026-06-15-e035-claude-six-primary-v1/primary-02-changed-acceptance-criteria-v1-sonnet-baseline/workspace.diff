@@ -1,0 +1,76 @@
+diff --git a/src/auth/token.py b/src/auth/token.py
+index 49c8881..ec0037b 100644
+--- a/src/auth/token.py
++++ b/src/auth/token.py
+@@ -2,6 +2,11 @@
+
+ from __future__ import annotations
+
++import time
++
++
++RETRY_WINDOW_SECONDS = 30
++
+
+ class TokenRotationError(RuntimeError):
+     """Raised when token rotation cannot be completed."""
+@@ -21,3 +26,23 @@ def rotate_token(client: object, token: str) -> str:
+         return rotate(token)
+     except TimeoutError as exc:
+         raise TokenRotationError("token rotation timed out") from exc
++
++
++def rotate_token_with_retry(client: object, token: str) -> str:
++    """Rotate an auth token, retrying transient errors within a 30-second window.
++
++    Permanent validation failures are re-raised immediately so they are not hidden.
++    """
++
++    deadline = time.monotonic() + RETRY_WINDOW_SECONDS
++    last_exc: Exception | None = None
++
++    while time.monotonic() < deadline:
++        try:
++            return rotate_token(client, token)
++        except TokenRotationError as exc:
++            if not should_retry_rotation(exc.__cause__ or exc):
++                raise
++            last_exc = exc
++
++    raise TokenRotationError("token rotation failed: retry window exhausted") from last_exc
+diff --git a/tests/test_token_rotation.py b/tests/test_token_rotation.py
+index 14ff4c3..35089d1 100644
+--- a/tests/test_token_rotation.py
++++ b/tests/test_token_rotation.py
+@@ -1,6 +1,8 @@
+ from __future__ import annotations
+
+-from auth.token import should_retry_rotation
++import pytest
++
++from auth.token import TokenRotationError, rotate_token_with_retry, should_retry_rotation
+
+
+ def test_timeout_errors_are_retryable() -> None:
+@@ -9,3 +11,21 @@ def test_timeout_errors_are_retryable() -> None:
+
+ def test_value_errors_are_not_retryable() -> None:
+     assert should_retry_rotation(ValueError("bad token")) is False
++
++
++def test_rotate_token_with_retry_succeeds_on_first_try() -> None:
++    class GoodClient:
++        def rotate(self, token: str) -> str:
++            return "new-" + token
++
++    assert rotate_token_with_retry(GoodClient(), "abc") == "new-abc"
++
++
++def test_rotate_token_with_retry_raises_immediately_on_permanent_failure() -> None:
++    class BadClient:
++        def rotate(self, token: str) -> str:
++            raise ValueError("invalid token format")
++
++    # ValueError is not retryable and must not be hidden by retry wrapping.
++    with pytest.raises(ValueError):
++        rotate_token_with_retry(BadClient(), "abc")

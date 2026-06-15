@@ -1,0 +1,90 @@
+diff --git a/src/auth/token.py b/src/auth/token.py
+index 49c8881..066616f 100644
+--- a/src/auth/token.py
++++ b/src/auth/token.py
+@@ -2,6 +2,10 @@
+
+ from __future__ import annotations
+
++import time
++
++_RETRY_WINDOW_SECONDS = 30
++
+
+ class TokenRotationError(RuntimeError):
+     """Raised when token rotation cannot be completed."""
+@@ -14,10 +18,16 @@ def should_retry_rotation(error: Exception) -> bool:
+
+
+ def rotate_token(client: object, token: str) -> str:
+-    """Rotate an auth token using the configured client."""
+-
+-    try:
+-        rotate = getattr(client, "rotate")
+-        return rotate(token)
+-    except TimeoutError as exc:
+-        raise TokenRotationError("token rotation timed out") from exc
++    """Rotate an auth token, retrying transient failures within a 30-second window."""
++
++    rotate = getattr(client, "rotate")
++    deadline = time.monotonic() + _RETRY_WINDOW_SECONDS
++
++    while True:
++        try:
++            return rotate(token)
++        except Exception as exc:
++            if not should_retry_rotation(exc):
++                raise
++            if time.monotonic() >= deadline:
++                raise TokenRotationError("token rotation timed out") from exc
+diff --git a/tests/test_token_rotation.py b/tests/test_token_rotation.py
+index 14ff4c3..b3a3312 100644
+--- a/tests/test_token_rotation.py
++++ b/tests/test_token_rotation.py
+@@ -1,6 +1,10 @@
+ from __future__ import annotations
+
+-from auth.token import should_retry_rotation
++from unittest.mock import MagicMock, patch
++
++import pytest
++
++from auth.token import TokenRotationError, rotate_token, should_retry_rotation
+
+
+ def test_timeout_errors_are_retryable() -> None:
+@@ -9,3 +13,34 @@ def test_timeout_errors_are_retryable() -> None:
+
+ def test_value_errors_are_not_retryable() -> None:
+     assert should_retry_rotation(ValueError("bad token")) is False
++
++
++def test_rotate_token_retries_on_timeout_and_succeeds() -> None:
++    client = MagicMock()
++    client.rotate.side_effect = [TimeoutError("slow"), "new-token"]
++
++    result = rotate_token(client, "old-token")
++
++    assert result == "new-token"
++    assert client.rotate.call_count == 2
++
++
++def test_rotate_token_raises_after_retry_window() -> None:
++    client = MagicMock()
++    client.rotate.side_effect = TimeoutError("slow")
++
++    # monotonic() called once to set deadline, once to check it after the error
++    with patch("auth.token.time") as mock_time:
++        mock_time.monotonic.side_effect = [0.0, 30.0]
++        with pytest.raises(TokenRotationError):
++            rotate_token(client, "old-token")
++
++
++def test_rotate_token_does_not_retry_permanent_errors() -> None:
++    client = MagicMock()
++    client.rotate.side_effect = ValueError("bad token")
++
++    with pytest.raises(ValueError):
++        rotate_token(client, "old-token")
++
++    assert client.rotate.call_count == 1

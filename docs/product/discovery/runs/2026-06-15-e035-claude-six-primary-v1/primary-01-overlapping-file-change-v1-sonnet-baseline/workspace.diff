@@ -1,0 +1,49 @@
+diff --git a/src/auth/token.py b/src/auth/token.py
+index 49c8881..197211d 100644
+--- a/src/auth/token.py
++++ b/src/auth/token.py
+@@ -2,6 +2,10 @@
+
+ from __future__ import annotations
+
++import time
++
++RETRY_WINDOW_SECONDS = 30
++
+
+ class TokenRotationError(RuntimeError):
+     """Raised when token rotation cannot be completed."""
+@@ -21,3 +25,33 @@ def rotate_token(client: object, token: str) -> str:
+         return rotate(token)
+     except TimeoutError as exc:
+         raise TokenRotationError("token rotation timed out") from exc
++
++
++def rotate_token_with_retry(
++    client: object,
++    token: str,
++    *,
++    retry_window: float = RETRY_WINDOW_SECONDS,
++) -> str:
++    """Rotate a token, retrying transient errors within *retry_window* seconds.
++
++    Permanent failures (e.g. ValueError) are re-raised immediately so they are
++    not hidden behind repeated attempts.
++    """
++
++    deadline = time.monotonic() + retry_window
++    last_exc: Exception | None = None
++
++    while True:
++        try:
++            return rotate_token(client, token)
++        except TokenRotationError as exc:
++            cause = exc.__cause__
++            if cause is not None and not should_retry_rotation(cause):
++                raise
++            last_exc = exc
++
++        if time.monotonic() >= deadline:
++            raise TokenRotationError(
++                f"token rotation failed after {retry_window}s retry window"
++            ) from last_exc

@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-06-project-guidance-applies-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "run_dir": "primary-06-project-guidance-applies-v1-sonnet-context",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 52678,
+  "num_turns": 8,
+  "total_cost_usd": 0.12622650000000002,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 9830,
+  "cache_read_input_tokens": 87795,
+  "output_tokens": 2726,
+  "tool_calls": 7,
+  "tool_names": {
+    "Edit": 1,
+    "Glob": 2,
+    "Read": 4
+  },
+  "files_read": 4,
+  "bash_commands": 0,
+  "permission_denials": 0,
+  "result_preview": "The change adds:\n- `RETRY_WINDOW_SECONDS = 30` constant (from API-482 acceptance criteria)\n- A retry loop in `rotate_token` that keeps retrying on `TimeoutError` until the 30-second deadline is exceeded, then raises `TokenRotationError`\n- Permanent failures (e.g. `ValueError` for bad token format) fall through uncaught and propagate immediately \u2014 satisfying the \"don't hide permanent validation failures\" criterion\n- Token format/interface is unchanged, preserving legacy client compatibility\n\n**Ri"
+}
