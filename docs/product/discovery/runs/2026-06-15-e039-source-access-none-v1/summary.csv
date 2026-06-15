@@ -1,0 +1,4 @@
+fixture_id,model,variant,source_access,run_dir,exit_code,is_error,duration_ms,num_turns,total_cost_usd,input_tokens,cache_creation_input_tokens,cache_read_input_tokens,output_tokens,tool_calls,files_read,bash_commands,permission_denials,tool_names
+primary-03-stale-process-doc-v1,sonnet,context,none,primary-03-stale-process-doc-v1-sonnet-context-source-none,0,False,33761,8,0.10921349999999999,6,9239,88955,1805,7,5,1,0,"{""Bash"": 1, ""Edit"": 1, ""Read"": 5}"
+primary-04-safety-blocked-source-change-v1,sonnet,context,none,primary-04-safety-blocked-source-change-v1-sonnet-context-source-none,0,False,25555,7,0.089409,5,8134,68950,1327,6,5,1,0,"{""Bash"": 1, ""Read"": 5}"
+primary-05-inaccessible-linked-docs-v1,sonnet,context,none,primary-05-inaccessible-linked-docs-v1-sonnet-context-source-none,0,False,25255,7,0.08914319999999999,5,8311,69374,1230,6,4,2,0,"{""Bash"": 2, ""Read"": 4}"

@@ -104,6 +104,11 @@ knowledge system.
 - The benchmark harness now needs source-access variants. E-038 adds a
   `full` versus `none` source access control so future runs can isolate prompt
   context from broad source browsing.
+- E-039 source-access `none` was the first strong cost-saving benchmark
+  result on the warning scenarios: cheaper than E-035 baseline and E-037
+  gated/full-source context with pass-level quality. But total source absence
+  loses useful source-health caveats, so the next product shape is status-only
+  routing, not hiding sources completely.
 
 ## Provisional Language Set
 

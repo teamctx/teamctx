@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-03-stale-process-doc-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "none",
+  "run_dir": "primary-03-stale-process-doc-v1-sonnet-context-source-none",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 33761,
+  "num_turns": 8,
+  "total_cost_usd": 0.10921349999999999,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 9239,
+  "cache_read_input_tokens": 88955,
+  "output_tokens": 1805,
+  "tool_calls": 7,
+  "tool_names": {
+    "Bash": 1,
+    "Edit": 1,
+    "Read": 5
+  },
+  "files_read": 5,
+  "bash_commands": 1,
+  "permission_denials": 0,
+  "result_preview": "Updated `docs/release-checklist.md` for today's release (2026-06-15). Key changes:\n\n- **Date updated** from 2026-06-12 (3 days stale) to 2026-06-15.\n- **Structured** into pre-deploy and post-deploy sections with checkboxes.\n- **Added** staging verification step for `TokenRotationError` retry behavior, referencing the existing test (`test_token_rotation.py`).\n- **Added** environment timeout threshold confirmation, since `rotate_token` raises `TokenRotationError` on `TimeoutError` and the threshol"
+}

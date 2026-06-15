@@ -1,0 +1,24 @@
+diff --git a/docs/release-checklist.md b/docs/release-checklist.md
+index 3cadcb4..7c5d8c6 100644
+--- a/docs/release-checklist.md
++++ b/docs/release-checklist.md
+@@ -1,7 +1,15 @@
+ # Auth Service Release Checklist
+
+-Last exported: 2026-06-12
++Last exported: 2026-06-15
+
+-- Run unit tests.
+-- Confirm token rotation rollout owner.
+-- Check dashboards after deploy.
++## Pre-deploy
++
++- [ ] Run unit tests (`pytest`).
++- [ ] Confirm token rotation rollout owner is assigned.
++- [ ] Verify `TokenRotationError` retry behavior passes in staging (timeout path covered by `test_token_rotation.py`).
++- [ ] Confirm timeout thresholds for `rotate_token` are set correctly in the target environment.
++
++## Post-deploy
++
++- [ ] Check dashboards after deploy.
++- [ ] Confirm token rotation is completing without elevated error rates.
