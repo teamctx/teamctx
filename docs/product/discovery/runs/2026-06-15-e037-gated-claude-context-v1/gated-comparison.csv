@@ -1,0 +1,4 @@
+fixture_id,baseline_cost,old_context_cost,gated_context_cost,gated_minus_baseline_cost,gated_minus_old_context_cost,baseline_turns,old_context_turns,gated_context_turns,gated_minus_baseline_turns,gated_minus_old_context_turns,baseline_tools,old_context_tools,gated_context_tools,gated_minus_baseline_tools,gated_minus_old_context_tools,baseline_reads,old_context_reads,gated_context_reads,gated_minus_baseline_reads,gated_minus_old_context_reads,baseline_quality,old_context_quality,gated_context_quality
+primary-03-stale-process-doc-v1,0.122788,0.121392,0.185906,0.063118,0.064513,9,10,9,0,-1,8,9,8,0,-1,6,7,5,-1,-2,pass 6/6,pass 6/6,pass 6/6
+primary-04-safety-blocked-source-change-v1,0.100238,0.230924,0.132884,0.032646,-0.098039,8,14,11,3,-3,7,13,10,3,-3,6,8,8,2,0,pass 6/6,pass 7/7,pass 6/6
+primary-05-inaccessible-linked-docs-v1,0.131931,0.141825,0.128616,-0.003314,-0.013209,11,12,10,-1,-2,10,11,9,-1,-2,8,9,8,0,-1,pass 6/6,pass 6/6,pass 6/6

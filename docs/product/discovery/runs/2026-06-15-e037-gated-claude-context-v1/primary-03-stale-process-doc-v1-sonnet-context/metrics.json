@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-03-stale-process-doc-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "run_dir": "primary-03-stale-process-doc-v1-sonnet-context",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 40864,
+  "num_turns": 9,
+  "total_cost_usd": 0.18590579999999998,
+  "input_tokens": 7,
+  "cache_creation_input_tokens": 20868,
+  "cache_read_input_tokens": 92756,
+  "output_tokens": 2190,
+  "tool_calls": 8,
+  "tool_names": {
+    "Bash": 2,
+    "Read": 5,
+    "Write": 1
+  },
+  "files_read": 5,
+  "bash_commands": 2,
+  "permission_denials": 0,
+  "result_preview": "The checklist at `docs/release-checklist.md` has been updated. Here's a summary of what changed and why:\n\n**Added a staleness warning** \u2014 the Confluence source was last refreshed 2026-06-12 (3 days before today's release) and explicitly warns against treating omissions as safe. Surfaced this prominently.\n\n**Added a PR #482 conflict item** \u2014 PR #482 is still open and modifies `src/auth/token.py`, the same file in this release. The conflict involves retry-window and legacy-client compatibility cha"
+}

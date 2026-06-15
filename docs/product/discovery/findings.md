@@ -97,6 +97,10 @@ knowledge system.
   fresh task-changing cards and active project guidance can enter by default,
   while stale, unavailable, and blocked source-health cards require explicit
   selection or a relevance path.
+- E-037 targeted Claude rerun confirms prompt gating reduces old
+  warning-context overhead, but does not beat baseline while broad local source
+  snapshots remain exposed. The token-savings product lever is source access
+  routing plus prompt gating, not prompt gating alone.
 
 ## Provisional Language Set
 
