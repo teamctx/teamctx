@@ -1,0 +1,7 @@
+fixture_id,model,baseline_response_file,context_response_file,score,over_trust,language_confusion,token_waste,lookup_saved,notes
+primary-01-overlapping-file-change-v1,,responses/MODEL/primary-01-overlapping-file-change-v1-baseline.md,responses/MODEL/primary-01-overlapping-file-change-v1-context.md,,,,,,
+primary-02-changed-acceptance-criteria-v1,,responses/MODEL/primary-02-changed-acceptance-criteria-v1-baseline.md,responses/MODEL/primary-02-changed-acceptance-criteria-v1-context.md,,,,,,
+primary-03-stale-process-doc-v1,,responses/MODEL/primary-03-stale-process-doc-v1-baseline.md,responses/MODEL/primary-03-stale-process-doc-v1-context.md,,,,,,
+primary-04-safety-blocked-source-change-v1,,responses/MODEL/primary-04-safety-blocked-source-change-v1-baseline.md,responses/MODEL/primary-04-safety-blocked-source-change-v1-context.md,,,,,,
+primary-05-inaccessible-linked-docs-v1,,responses/MODEL/primary-05-inaccessible-linked-docs-v1-baseline.md,responses/MODEL/primary-05-inaccessible-linked-docs-v1-context.md,,,,,,
+primary-06-project-guidance-applies-v1,,responses/MODEL/primary-06-project-guidance-applies-v1-baseline.md,responses/MODEL/primary-06-project-guidance-applies-v1-context.md,,,,,,

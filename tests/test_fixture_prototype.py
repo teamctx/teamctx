@@ -5,7 +5,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from teamctx.cli import main
-from teamctx.context import context_cards
+from teamctx.context import agent_prompt_cards, context_cards
 from teamctx.core.fixtures import load_fixture
 from teamctx.render import render_benchmark_prompt, render_context_cards
 from teamctx.session import add_card_to_session, read_session
@@ -75,7 +75,7 @@ def test_session_use_includes_advisory_note(tmp_path: Path) -> None:
 def test_benchmark_prompt_matches_golden() -> None:
     fixture = load_fixture(FIXTURE)
 
-    assert render_benchmark_prompt(fixture, context_cards(fixture)) == golden(
+    assert render_benchmark_prompt(fixture, agent_prompt_cards(fixture)) == golden(
         "benchmark-context-prompt.txt"
     )
 

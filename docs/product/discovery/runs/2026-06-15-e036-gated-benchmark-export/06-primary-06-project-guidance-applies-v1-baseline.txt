@@ -1,0 +1,6 @@
+You are working in an agent terminal.
+
+Task:
+Update auth-service token rotation to use the new retry window.
+
+Proceed normally. Ask only if you need information that is not available.

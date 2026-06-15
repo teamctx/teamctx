@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from teamctx.context import context_cards
+from teamctx.context import agent_prompt_cards
 from teamctx.core.fixtures import load_fixture
 from teamctx.core.models import Fixture
 from teamctx.render import render_context_cards
@@ -122,7 +122,7 @@ def render_agent_prompt(fixture: Fixture, variant: AgentVariant) -> str:
         "Local source snapshots may be under source-snapshots/. Inspect them only if useful.",
     ]
     if variant == "context":
-        cards = context_cards(fixture)
+        cards = agent_prompt_cards(fixture)
         lines.extend(
             [
                 "",

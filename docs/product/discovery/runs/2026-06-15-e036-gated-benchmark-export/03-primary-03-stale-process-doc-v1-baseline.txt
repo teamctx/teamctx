@@ -1,0 +1,6 @@
+You are working in an agent terminal.
+
+Task:
+Prepare release checklist updates for today's auth-service release.
+
+Proceed normally. Ask only if you need information that is not available.

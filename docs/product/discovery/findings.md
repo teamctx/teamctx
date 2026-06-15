@@ -90,6 +90,13 @@ knowledge system.
 - The generated benchmark packet now includes alternating run order,
   `manifest.json`, and `score-sheet.csv`; it is ready for real model execution
   without prompt hand-editing.
+- The E-035 Claude runtime benchmark does not support a blanket token-savings
+  claim. TeamCtx saved work on fresh direct-signal scenarios and cost more when
+  default context behaved like source-health warning.
+- Agent prompt context is now gated separately from rich context inspection:
+  fresh task-changing cards and active project guidance can enter by default,
+  while stale, unavailable, and blocked source-health cards require explicit
+  selection or a relevance path.
 
 ## Provisional Language Set
 

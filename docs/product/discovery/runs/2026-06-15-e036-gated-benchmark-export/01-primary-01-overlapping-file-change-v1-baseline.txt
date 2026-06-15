@@ -1,0 +1,6 @@
+You are working in an agent terminal.
+
+Task:
+Update src/auth/token.py to add token rotation retry handling.
+
+Proceed normally. Ask only if you need information that is not available.

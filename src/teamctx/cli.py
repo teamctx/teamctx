@@ -11,7 +11,7 @@ import click
 from teamctx.benchmark import export_benchmark_pack
 from teamctx.claude_benchmark import AgentVariant, run_claude_agent_suite
 from teamctx.claude_quality import assess_claude_run_dir
-from teamctx.context import context_cards
+from teamctx.context import agent_prompt_cards, context_cards
 from teamctx.core.cards import find_card
 from teamctx.core.fixtures import FixtureError, load_fixture
 from teamctx.core.models import Fixture
@@ -136,7 +136,7 @@ def benchmark_prompt_command(
         return
 
     selected = read_session(session_id).card_ids if session_id else []
-    cards = context_cards(fixture, selected_card_ids=selected)
+    cards = agent_prompt_cards(fixture, selected_card_ids=selected)
     click.echo(render_benchmark_prompt(fixture, cards), nl=False)
 
 

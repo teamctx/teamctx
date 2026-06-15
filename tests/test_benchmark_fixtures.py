@@ -8,8 +8,9 @@ from click.testing import CliRunner
 
 from teamctx.benchmark import export_benchmark_pack
 from teamctx.cli import main
-from teamctx.context import context_cards
+from teamctx.context import agent_prompt_cards, context_cards
 from teamctx.core.fixtures import load_fixture
+from teamctx.core.models import Fixture
 from teamctx.render import render_baseline_prompt, render_benchmark_prompt
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,6 +33,10 @@ def benchmark_fixture_paths() -> list[Path]:
     return sorted(BENCHMARK_FIXTURES.glob("primary-*.json"))
 
 
+def load_primary_fixture(fixture_id: str) -> Fixture:
+    return load_fixture(BENCHMARK_FIXTURES / f"{fixture_id}.json")
+
+
 def test_primary_benchmark_fixture_count() -> None:
     assert len(benchmark_fixture_paths()) == 6
 
@@ -39,9 +44,10 @@ def test_primary_benchmark_fixture_count() -> None:
 def test_primary_benchmark_fixtures_load_and_generate_prompts() -> None:
     for path in benchmark_fixture_paths():
         fixture = load_fixture(path)
-        cards = context_cards(fixture)
+        cards = agent_prompt_cards(fixture)
         baseline = render_baseline_prompt(fixture)
         context = render_benchmark_prompt(fixture, cards)
+        card_ids = {card.id for card in cards}
 
         assert fixture.expected_cards
         assert "Working context" not in baseline
@@ -52,8 +58,45 @@ def test_primary_benchmark_fixtures_load_and_generate_prompts() -> None:
         assert "Working context" in context
         assert "Treat source-backed items as evidence" in context
         for card in fixture.expected_cards:
-            if card.default_agent_visible and card.relevance is None:
+            if card.id in card_ids:
                 assert card.text in context
+            else:
+                assert card.text not in context
+
+
+def test_agent_prompt_gating_separates_action_context_from_source_health() -> None:
+    expected_prompt_cards = {
+        "primary-01-overlapping-file-change-v1": ["card_pr_collision"],
+        "primary-02-changed-acceptance-criteria-v1": ["card_issue_changed"],
+        "primary-03-stale-process-doc-v1": [],
+        "primary-04-safety-blocked-source-change-v1": [],
+        "primary-05-inaccessible-linked-docs-v1": [],
+        "primary-06-project-guidance-applies-v1": ["card_project_guidance"],
+    }
+
+    for fixture_id, expected_ids in expected_prompt_cards.items():
+        fixture = load_primary_fixture(fixture_id)
+        assert [card.id for card in agent_prompt_cards(fixture)] == expected_ids
+
+
+def test_source_health_cards_still_exist_in_rich_context() -> None:
+    for fixture_id in (
+        "primary-03-stale-process-doc-v1",
+        "primary-04-safety-blocked-source-change-v1",
+        "primary-05-inaccessible-linked-docs-v1",
+    ):
+        fixture = load_primary_fixture(fixture_id)
+
+        assert agent_prompt_cards(fixture) == []
+        assert [card.id for card in context_cards(fixture)] == [fixture.expected_cards[0].id]
+
+
+def test_explicit_selection_can_include_source_health_card_in_agent_prompt() -> None:
+    fixture = load_primary_fixture("primary-03-stale-process-doc-v1")
+
+    cards = agent_prompt_cards(fixture, selected_card_ids=("card_stale_docs",))
+
+    assert [card.id for card in cards] == ["card_stale_docs"]
 
 
 def test_primary_benchmark_prompts_avoid_banned_terms() -> None:
@@ -61,7 +104,7 @@ def test_primary_benchmark_prompts_avoid_banned_terms() -> None:
         fixture = load_fixture(path)
         prompts = [
             render_baseline_prompt(fixture),
-            render_benchmark_prompt(fixture, context_cards(fixture)),
+            render_benchmark_prompt(fixture, agent_prompt_cards(fixture)),
         ]
         for prompt in prompts:
             lower = prompt.lower()
@@ -79,6 +122,19 @@ def test_cli_benchmark_prompt_accepts_fixture_id_without_hard_coded_scenario() -
 
     assert result.exit_code == 0
     assert "Another open PR changed src/auth/token.py 11 minutes ago." in result.output
+
+
+def test_cli_benchmark_prompt_omits_source_health_by_default() -> None:
+    runner = CliRunner()
+    path = BENCHMARK_FIXTURES / "primary-03-stale-process-doc-v1.json"
+
+    result = runner.invoke(
+        main, ["benchmark-prompt", "--variant", "context", "--fixture", str(path)]
+    )
+
+    assert result.exit_code == 0
+    assert "No working context for this task." in result.output
+    assert "The release checklist source is stale." not in result.output
 
 
 def test_cli_benchmark_prompt_rejects_mismatched_scenario() -> None:
@@ -119,7 +175,7 @@ def test_export_benchmark_pack_writes_prompt_files_and_run_sheet(tmp_path: Path)
     fixture = load_fixture(BENCHMARK_FIXTURES / f"{first.fixture_id}.json")
     assert first.baseline_path.read_text(encoding="utf-8") == render_baseline_prompt(fixture)
     assert first.context_path.read_text(encoding="utf-8") == render_benchmark_prompt(
-        fixture, context_cards(fixture)
+        fixture, agent_prompt_cards(fixture)
     )
 
 

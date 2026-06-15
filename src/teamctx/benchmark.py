@@ -7,7 +7,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from teamctx.context import context_cards
+from teamctx.context import agent_prompt_cards
 from teamctx.core.fixtures import load_fixture
 from teamctx.render import render_baseline_prompt, render_benchmark_prompt
 
@@ -34,7 +34,7 @@ def export_benchmark_pack(fixtures_dir: Path, output_dir: Path) -> list[Benchmar
 
     for index, path in enumerate(paths, start=1):
         fixture = load_fixture(path)
-        cards = context_cards(fixture)
+        cards = agent_prompt_cards(fixture)
         prefix = f"{index:02d}-{fixture.fixture_id}"
         baseline_path = output_dir / f"{prefix}-baseline.txt"
         context_path = output_dir / f"{prefix}-context.txt"
