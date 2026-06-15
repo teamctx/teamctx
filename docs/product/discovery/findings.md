@@ -192,6 +192,19 @@ scoring definitions beside the packet.
 This makes the first external model pilot operationally ready without adding
 connector or backend commitments.
 
+
+## OpenRouter Smoke Pilot
+
+The first real paired benchmark run used `primary-01-overlapping-file-change-v1`
+against two OpenRouter models. `openai/gpt-5.4-mini` showed a positive context
+effect: it paused for same-file PR evidence before editing. `openai/gpt-5.5`
+did not provide a clean signal because the context response emitted pseudo
+terminal/tool-call text and hit the completion-token cap.
+
+Product conclusion: working context can change behavior in the desired
+direction, but the benchmark must distinguish chat-answer evaluation from
+actual agent-terminal execution before full-packet scoring.
+
 ## Open Product Questions
 
 - Is `Working context` better than `Context for this task` as the container label?
@@ -236,8 +249,8 @@ connector or backend commitments.
   project`, and `Working context`.
 - Record first manual paired benchmark results before connector or backend build
   planning.
-- Run the first external model pilot using the response path convention in
-  `runs/2026-06-15-e029-primary-benchmark-export/score-sheet.csv`.
+- Run the next external pilot after tightening the answer format or using an
+  actual agent-tool harness, so pseudo terminal output does not pollute scoring.
 - Defer real connectors until benchmark evidence supports the context surface.
 - If language remains contested, run the E-011 language variant track on three
   scenarios before the full benchmark.

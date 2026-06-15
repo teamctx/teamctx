@@ -1,0 +1,28 @@
+{
+  "id": "gen-1781489265-mDaaoNPtjwn9t1fgJG1x",
+  "model": "openai/gpt-5.4-mini-20260317",
+  "usage": {
+    "prompt_tokens": 42,
+    "completion_tokens": 26,
+    "total_tokens": 68,
+    "cost": 0.0001485,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.0001485,
+      "upstream_inference_prompt_cost": 3.15e-05,
+      "upstream_inference_completions_cost": 0.000117
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  },
+  "created": 1781489265
+}

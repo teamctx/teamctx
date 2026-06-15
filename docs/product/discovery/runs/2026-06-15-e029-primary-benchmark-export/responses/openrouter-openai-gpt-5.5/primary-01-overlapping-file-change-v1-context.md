@@ -1,0 +1,2 @@
+I'll inspect the repository and the current `src/auth/token.py` before making changes.{"cmd": "sed -n '1,240p' src/auth/token.py && echo '---' && git status --short && echo '---' && grep -R \"rotation\\|rotate\\|token\" -n tests src | head -100", "timeout": 120000}{"cmd": "pwd && ls", "timeout": 120000}{"cmd": "sed -n '1,260p' src/auth/token.py", "timeout": 120000}ls
+{"cmd": "python - <<'PY'\nfrom pathlib import Path\np=Path('src/auth/token.py')\nprint(p.exists())\nprint(p.read_text()[:2000])\nPY", "timeout": 120000}{"cmd": "echo hello", "timeout": 120000}
