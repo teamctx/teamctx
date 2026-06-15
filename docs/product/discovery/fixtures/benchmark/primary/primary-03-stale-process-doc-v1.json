@@ -1,0 +1,47 @@
+{
+  "fixture_id": "primary-03-stale-process-doc-v1",
+  "date": "2026-06-15",
+  "task": "Prepare release checklist updates for today's auth-service release.",
+  "scope": {
+    "service": "auth-service",
+    "release": "2026-06-15"
+  },
+  "source_signals": [
+    {
+      "id": "sig_release_docs_stale",
+      "signal_type": "stale_source",
+      "source_family": "docs",
+      "scope": {
+        "service": "auth-service",
+        "release": "2026-06-15"
+      },
+      "evidence_summary": "The release checklist source is stale.",
+      "source_display": "Confluence Release Checklist",
+      "freshness": "stale",
+      "confidence": "high",
+      "visibility": "warning_only",
+      "created_at": "2026-06-15T00:00:00Z",
+      "observed_at": "2026-06-15T00:00:00Z",
+      "expires_at": "2026-06-15T04:00:00Z",
+      "policy": {
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false
+      }
+    }
+  ],
+  "guidance_records": [],
+  "expected_cards": [
+    {
+      "id": "card_stale_docs",
+      "section": "Verify before relying",
+      "text": "The release checklist source is stale.",
+      "why_this_matters": "missing checklist updates should not be treated as no risk.",
+      "source": "Confluence Release Checklist",
+      "refs": [
+        "sig_release_docs_stale"
+      ]
+    }
+  ]
+}

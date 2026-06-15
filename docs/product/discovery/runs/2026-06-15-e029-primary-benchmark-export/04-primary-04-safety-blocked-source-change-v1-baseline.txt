@@ -1,0 +1,6 @@
+You are working in an agent terminal.
+
+Task:
+Finish auth-service compatibility work from the linked Jira issue.
+
+Proceed normally. Ask only if you need information that is not available.

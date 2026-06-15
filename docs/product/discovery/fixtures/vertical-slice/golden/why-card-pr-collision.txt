@@ -1,0 +1,8 @@
+Show why
+
+This appears because the current task includes src/auth/token.py, and GitHub PR #482 also changed that file recently.
+
+Source: GitHub PR metadata
+Freshness: fresh
+Scope: auth-service, src/auth/token.py
+Agent visibility: shown as evidence, not instruction

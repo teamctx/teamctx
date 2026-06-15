@@ -1,0 +1,207 @@
+{
+  "fixture_id": "auth-token-retry-v1",
+  "date": "2026-06-15",
+  "task": "Update src/auth/token.py to add token rotation retry handling for API-482.",
+  "scope": {
+    "repo": "auth-service",
+    "branch": "feature/token-retry",
+    "service": "auth-service",
+    "issue": "API-482",
+    "files": [
+      "src/auth/token.py"
+    ]
+  },
+  "source_signals": [
+    {
+      "id": "sig_local_changed_token_py",
+      "signal_type": "changed_since_start",
+      "source_family": "local_workspace",
+      "scope": {
+        "repo": "auth-service",
+        "branch": "feature/token-retry",
+        "files": [
+          "src/auth/token.py"
+        ]
+      },
+      "evidence_summary": "src/auth/token.py changed on main after this branch started.",
+      "source_display": "local git metadata",
+      "freshness": "fresh",
+      "confidence": "medium",
+      "visibility": "visible",
+      "created_at": "2026-06-15T00:00:00Z",
+      "observed_at": "2026-06-15T00:00:00Z",
+      "expires_at": "2026-06-15T04:00:00Z",
+      "policy": {
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false
+      }
+    },
+    {
+      "id": "sig_pr_482_collision",
+      "signal_type": "collision",
+      "source_family": "git_hosting",
+      "scope": {
+        "repo": "auth-service",
+        "files": [
+          "src/auth/token.py"
+        ]
+      },
+      "evidence_summary": "Another open PR changed src/auth/token.py 11 minutes ago.",
+      "source_display": "GitHub PR #482",
+      "freshness": "fresh",
+      "confidence": "high",
+      "visibility": "visible",
+      "created_at": "2026-06-15T00:00:00Z",
+      "observed_at": "2026-06-15T00:00:00Z",
+      "expires_at": "2026-06-15T01:00:00Z",
+      "policy": {
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false
+      }
+    },
+    {
+      "id": "sig_jira_api_482_changed",
+      "signal_type": "changed_since_start",
+      "source_family": "issue_tracker",
+      "scope": {
+        "service": "auth-service",
+        "issue": "API-482"
+      },
+      "evidence_summary": "The linked issue changed after this branch started.",
+      "source_display": "Jira API-482",
+      "freshness": "fresh",
+      "confidence": "high",
+      "visibility": "visible",
+      "created_at": "2026-06-15T00:00:00Z",
+      "observed_at": "2026-06-15T00:00:00Z",
+      "expires_at": "2026-06-15T04:00:00Z",
+      "policy": {
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false
+      }
+    },
+    {
+      "id": "sig_release_docs_stale",
+      "signal_type": "stale_source",
+      "source_family": "docs",
+      "scope": {
+        "service": "auth-service",
+        "release": "2026-06-15"
+      },
+      "evidence_summary": "The release checklist source is stale.",
+      "source_display": "Confluence Release Checklist",
+      "freshness": "stale",
+      "confidence": "high",
+      "visibility": "warning_only",
+      "created_at": "2026-06-15T00:00:00Z",
+      "observed_at": "2026-06-15T00:00:00Z",
+      "expires_at": "2026-06-15T02:00:00Z",
+      "policy": {
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false
+      }
+    },
+    {
+      "id": "sig_auth_notes_match",
+      "signal_type": "advisory_match",
+      "source_family": "local_notes",
+      "scope": {
+        "service": "auth-service"
+      },
+      "evidence_summary": "A note in the selected Engineering/Auth folder may be relevant to this auth flow.",
+      "source_display": "Obsidian folder Engineering/Auth",
+      "freshness": "fresh",
+      "confidence": "medium",
+      "visibility": "visible",
+      "created_at": "2026-06-15T00:00:00Z",
+      "observed_at": "2026-06-15T00:00:00Z",
+      "expires_at": "session_end",
+      "policy": {
+        "can_render_to_user": true,
+        "can_render_to_agent": false,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": true
+      }
+    }
+  ],
+  "guidance_records": [
+    {
+      "id": "guide_legacy_token_compat",
+      "status": "active",
+      "body": "Token rotation must preserve compatibility for legacy clients.",
+      "scope": {
+        "service": "auth-service",
+        "applies_to": [
+          "token rotation"
+        ]
+      },
+      "source_display": "approved project guidance, originally from Jira API-482",
+      "freshness": "fresh",
+      "confidence": "high"
+    }
+  ],
+  "expected_cards": [
+    {
+      "id": "card_pr_collision",
+      "section": "Needs attention",
+      "text": "Another open PR changed src/auth/token.py 11 minutes ago.",
+      "why_this_matters": "you are editing the same file.",
+      "source": "GitHub PR #482",
+      "refs": [
+        "sig_pr_482_collision"
+      ]
+    },
+    {
+      "id": "card_issue_changed",
+      "section": "Needs attention",
+      "text": "The linked issue changed after this branch started.",
+      "why_this_matters": "acceptance criteria may have changed.",
+      "source": "Jira API-482",
+      "refs": [
+        "sig_jira_api_482_changed"
+      ]
+    },
+    {
+      "id": "card_project_guidance",
+      "section": "Project guidance",
+      "text": "Token rotation must preserve compatibility for legacy clients.",
+      "why_this_matters": "this applies to auth-service token changes.",
+      "source": "approved project guidance, originally from Jira API-482",
+      "refs": [
+        "guide_legacy_token_compat"
+      ]
+    },
+    {
+      "id": "card_stale_docs",
+      "section": "Verify before relying",
+      "text": "The release checklist source is stale.",
+      "why_this_matters": "missing checklist updates should not be treated as no risk.",
+      "source": "Confluence Release Checklist",
+      "refs": [
+        "sig_release_docs_stale"
+      ],
+      "default_agent_visible": false,
+      "relevance": "release_task_only",
+      "why_hidden_by_default": "The current task is not release-scoped."
+    },
+    {
+      "id": "card_auth_notes_advisory",
+      "section": "Good to know",
+      "text": "A note in the selected Engineering/Auth folder may be relevant to this auth flow.",
+      "why_this_matters": "it may explain a local token rotation convention.",
+      "source": "Obsidian folder Engineering/Auth",
+      "refs": [
+        "sig_auth_notes_match"
+      ],
+      "default_agent_visible": false
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "fixture_id": "primary-01-overlapping-file-change-v1",
+      "baseline_prompt": "01-primary-01-overlapping-file-change-v1-baseline.txt",
+      "context_prompt": "01-primary-01-overlapping-file-change-v1-context.txt",
+      "first_prompt": "baseline"
+    },
+    {
+      "fixture_id": "primary-02-changed-acceptance-criteria-v1",
+      "baseline_prompt": "02-primary-02-changed-acceptance-criteria-v1-baseline.txt",
+      "context_prompt": "02-primary-02-changed-acceptance-criteria-v1-context.txt",
+      "first_prompt": "context"
+    },
+    {
+      "fixture_id": "primary-03-stale-process-doc-v1",
+      "baseline_prompt": "03-primary-03-stale-process-doc-v1-baseline.txt",
+      "context_prompt": "03-primary-03-stale-process-doc-v1-context.txt",
+      "first_prompt": "baseline"
+    },
+    {
+      "fixture_id": "primary-04-safety-blocked-source-change-v1",
+      "baseline_prompt": "04-primary-04-safety-blocked-source-change-v1-baseline.txt",
+      "context_prompt": "04-primary-04-safety-blocked-source-change-v1-context.txt",
+      "first_prompt": "context"
+    },
+    {
+      "fixture_id": "primary-05-inaccessible-linked-docs-v1",
+      "baseline_prompt": "05-primary-05-inaccessible-linked-docs-v1-baseline.txt",
+      "context_prompt": "05-primary-05-inaccessible-linked-docs-v1-context.txt",
+      "first_prompt": "baseline"
+    },
+    {
+      "fixture_id": "primary-06-project-guidance-applies-v1",
+      "baseline_prompt": "06-primary-06-project-guidance-applies-v1-baseline.txt",
+      "context_prompt": "06-primary-06-project-guidance-applies-v1-context.txt",
+      "first_prompt": "context"
+    }
+  ]
+}

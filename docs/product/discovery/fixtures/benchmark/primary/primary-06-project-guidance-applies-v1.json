@@ -1,0 +1,38 @@
+{
+  "fixture_id": "primary-06-project-guidance-applies-v1",
+  "date": "2026-06-15",
+  "task": "Update auth-service token rotation to use the new retry window.",
+  "scope": {
+    "service": "auth-service",
+    "issue": "API-482"
+  },
+  "source_signals": [],
+  "guidance_records": [
+    {
+      "id": "guide_legacy_token_compat",
+      "status": "active",
+      "body": "Token rotation must preserve compatibility for legacy clients.",
+      "scope": {
+        "service": "auth-service",
+        "applies_to": [
+          "token rotation"
+        ]
+      },
+      "source_display": "approved project guidance, originally from Jira API-482",
+      "freshness": "fresh",
+      "confidence": "high"
+    }
+  ],
+  "expected_cards": [
+    {
+      "id": "card_project_guidance",
+      "section": "Project guidance",
+      "text": "Token rotation must preserve compatibility for legacy clients.",
+      "why_this_matters": "this applies to auth-service token changes.",
+      "source": "approved project guidance, originally from Jira API-482",
+      "refs": [
+        "guide_legacy_token_compat"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "fixture_id": "primary-04-safety-blocked-source-change-v1",
+  "date": "2026-06-15",
+  "task": "Finish auth-service compatibility work from the linked Jira issue.",
+  "scope": {
+    "service": "auth-service",
+    "issue": "API-482"
+  },
+  "source_signals": [
+    {
+      "id": "sig_jira_api_482_blocked_change",
+      "signal_type": "blocked_source",
+      "source_family": "issue_tracker",
+      "scope": {
+        "service": "auth-service",
+        "issue": "API-482"
+      },
+      "evidence_summary": "The linked Jira issue changed after this branch started, and part of the issue was blocked by safety policy.",
+      "source_display": "Jira API-482",
+      "freshness": "blocked",
+      "confidence": "high",
+      "visibility": "warning_only",
+      "created_at": "2026-06-15T00:00:00Z",
+      "observed_at": "2026-06-15T00:00:00Z",
+      "expires_at": "2026-06-15T04:00:00Z",
+      "policy": {
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false
+      }
+    }
+  ],
+  "guidance_records": [],
+  "expected_cards": [
+    {
+      "id": "card_blocked_issue_change",
+      "section": "Needs attention",
+      "text": "The linked Jira issue changed after this branch started.",
+      "why_this_matters": "acceptance criteria may have changed, but part of the issue was blocked by safety policy.",
+      "source": "Jira API-482",
+      "refs": [
+        "sig_jira_api_482_blocked_change"
+      ]
+    }
+  ]
+}

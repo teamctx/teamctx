@@ -1,0 +1,6 @@
+Working context
+
+Verify before relying
+- The release checklist source is stale.
+  Why this matters: missing checklist updates should not be treated as no risk.
+  Source: Confluence Release Checklist

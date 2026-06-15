@@ -1,0 +1,14 @@
+Working context
+
+Needs attention
+- Another open PR changed src/auth/token.py 11 minutes ago.
+  Why this matters: you are editing the same file.
+  Source: GitHub PR #482
+- The linked issue changed after this branch started.
+  Why this matters: acceptance criteria may have changed.
+  Source: Jira API-482
+
+Project guidance
+- Token rotation must preserve compatibility for legacy clients.
+  Why this matters: this applies to auth-service token changes.
+  Source: approved project guidance, originally from Jira API-482

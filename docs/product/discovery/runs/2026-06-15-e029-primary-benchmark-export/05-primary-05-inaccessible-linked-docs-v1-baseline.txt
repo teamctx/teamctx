@@ -1,0 +1,6 @@
+You are working in an agent terminal.
+
+Task:
+Implement the release process update linked from the issue.
+
+Proceed normally. Ask only if you need information that is not available.

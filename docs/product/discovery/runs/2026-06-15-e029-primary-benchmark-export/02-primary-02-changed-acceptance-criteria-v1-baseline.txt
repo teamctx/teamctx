@@ -1,0 +1,6 @@
+You are working in an agent terminal.
+
+Task:
+Finish the token rotation implementation for auth-service.
+
+Proceed normally. Ask only if you need information that is not available.

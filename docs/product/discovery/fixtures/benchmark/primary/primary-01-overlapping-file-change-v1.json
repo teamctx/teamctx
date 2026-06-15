@@ -1,0 +1,52 @@
+{
+  "fixture_id": "primary-01-overlapping-file-change-v1",
+  "date": "2026-06-15",
+  "task": "Update src/auth/token.py to add token rotation retry handling.",
+  "scope": {
+    "repo": "auth-service",
+    "service": "auth-service",
+    "files": [
+      "src/auth/token.py"
+    ]
+  },
+  "source_signals": [
+    {
+      "id": "sig_pr_482_collision",
+      "signal_type": "collision",
+      "source_family": "git_hosting",
+      "scope": {
+        "repo": "auth-service",
+        "files": [
+          "src/auth/token.py"
+        ]
+      },
+      "evidence_summary": "Another open PR changed src/auth/token.py 11 minutes ago.",
+      "source_display": "GitHub PR #482",
+      "freshness": "fresh",
+      "confidence": "high",
+      "visibility": "visible",
+      "created_at": "2026-06-15T00:00:00Z",
+      "observed_at": "2026-06-15T00:00:00Z",
+      "expires_at": "2026-06-15T04:00:00Z",
+      "policy": {
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false
+      }
+    }
+  ],
+  "guidance_records": [],
+  "expected_cards": [
+    {
+      "id": "card_pr_collision",
+      "section": "Needs attention",
+      "text": "Another open PR changed src/auth/token.py 11 minutes ago.",
+      "why_this_matters": "you are editing the same file.",
+      "source": "GitHub PR #482",
+      "refs": [
+        "sig_pr_482_collision"
+      ]
+    }
+  ]
+}

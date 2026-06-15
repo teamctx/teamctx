@@ -1,5 +1,8 @@
 # Build Plan
 
+This file is the short sequencing overview. The operational engineering plan is
+maintained in [Implementation Plan](implementation-plan.md).
+
 ## Phase 0: Foundation
 
 Goal: establish the OSS project shape and prove the core semantics before live

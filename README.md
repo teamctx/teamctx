@@ -74,6 +74,7 @@ See:
 - [Architecture](docs/engineering/architecture.md)
 - [Source Integration Layer](docs/engineering/source-integration-layer.md)
 - [Build Plan](docs/engineering/build-plan.md)
+- [Implementation Plan](docs/engineering/implementation-plan.md)
 - [Security And Privacy](docs/engineering/security-privacy.md)
 - [Quality Bar](docs/engineering/quality-bar.md)
 
