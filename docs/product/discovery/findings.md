@@ -154,6 +154,11 @@ knowledge system.
   The user-facing command set is `refresh`, `context`, `why`, and `open-source`;
   docs now avoid memory/ledger/registry/promotion language and frame missing
   source access as source status.
+- E-051 proved the live GitHub overlap path against public PR metadata: a
+  configured GitHub repo/path produced a `Needs attention` card from open PR
+  metadata while source body remained status-only. Sprint 01 scope is now
+  complete; next sprint should dogfood the same path on an owned repo with a
+  seeded open PR.
 
 ## Provisional Language Set
 
