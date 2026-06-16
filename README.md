@@ -37,27 +37,39 @@ Every card is deterministic, source-backed, permission-aware, and explainable.
 - No private chat, email, or DM ingestion.
 - No sentiment, performance, or people summaries.
 
-## First Interfaces
+## First Runnable Slice
 
-```bash
-teamctx status
-teamctx cards --repo org/app --branch feature/foo --path src/auth/token.py
-teamctx fixtures smoke docs/fixtures/production-day.json
-teamctx serve
-```
+The current prototype is terminal-first. Configure one GitHub repo, refresh local
+context, then render it before an agent starts risky work.
 
-Example card:
+Example `.teamctx/config.json`:
 
 ```json
 {
-  "kind": "overlapping_change",
-  "severity": "warning",
-  "message": "Open PR #482 changed src/auth/token.py 11 minutes ago.",
-  "source_url": "https://github.com/org/app/pull/482",
-  "reason": "same repo and same file path",
-  "updated_at": "2026-06-14T16:20:00Z"
+  "schema_version": "teamctx.project_config.v0",
+  "github": {
+    "repo": "org/app",
+    "token_env": "GITHUB_TOKEN",
+    "include_title": false
+  },
+  "default_output": ".teamctx/context.json"
 }
 ```
+
+Commands:
+
+```bash
+teamctx refresh --path src/auth/token.py --task "Update token rotation"
+teamctx context --contract .teamctx/context.json
+teamctx why card_github_pr_482_collision --contract .teamctx/context.json
+teamctx open-source card_github_pr_482_collision --contract .teamctx/context.json
+```
+
+The GitHub probe is intentionally narrow. It reads open PR metadata and changed
+file paths only. It does not read comments, review bodies, raw patches, commit
+bodies, author identity, or broad repository search results. If access is
+missing, `teamctx` writes source status instead of treating missing context as
+confidence.
 
 ## Project Contract
 

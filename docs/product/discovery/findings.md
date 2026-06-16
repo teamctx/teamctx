@@ -150,6 +150,10 @@ knowledge system.
   `refresh` can now read GitHub repo, token environment variable name, title
   policy, and default output from `.teamctx/config.json`; unknown config fields
   are rejected.
+- E-050 captured the first scripted terminal demo and product language memo.
+  The user-facing command set is `refresh`, `context`, `why`, and `open-source`;
+  docs now avoid memory/ledger/registry/promotion language and frame missing
+  source access as source status.
 
 ## Provisional Language Set
 
