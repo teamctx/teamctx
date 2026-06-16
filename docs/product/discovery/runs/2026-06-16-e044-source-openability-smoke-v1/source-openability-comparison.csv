@@ -1,0 +1,3 @@
+fixture_id,e043_cost,e044_cost,cost_delta,e043_quality,e044_quality,read
+primary-01-overlapping-file-change-v1,0.075760,0.074399,-0.001360,review 7/8,review 7/8,API preservation improved from no to yes; remaining review is no validation attempt.
+primary-02-changed-acceptance-criteria-v1,0.212760,0.154788,-0.057972,pass 7/7,pass 7/7,"Body-available path still opened Jira, added tests, and passed."

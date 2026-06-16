@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-01-overlapping-file-change-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-01-overlapping-file-change-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 25139,
+  "num_turns": 3,
+  "total_cost_usd": 0.0743994,
+  "input_tokens": 4,
+  "cache_creation_input_tokens": 7105,
+  "cache_read_input_tokens": 48108,
+  "output_tokens": 1155,
+  "tool_calls": 2,
+  "tool_names": {
+    "Edit": 1,
+    "Read": 1
+  },
+  "files_read": 1,
+  "bash_commands": 0,
+  "permission_denials": 0,
+  "result_preview": "Added `rotate_token_with_retry` as a new function that wraps the existing `rotate_token` and retries on `TimeoutError`-caused failures (via the existing `should_retry_rotation` predicate). Existing APIs are unchanged to minimize collision risk with PR #482.\n\n**Collision note:** PR #482 modified this same file and its body is unavailable. If that PR also added retry logic, this change may conflict \u2014 a review pass is recommended before merging.\n\n---\n\nAGENT_BENCHMARK_RESULT\nrisk_noticed: yes\nlookup"
+}

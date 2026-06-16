@@ -121,6 +121,9 @@ knowledge system.
 - E-043 corrected the broader product read: `status_open` beats full source
   snapshots in aggregate, but it is a capability layered on status-only routing,
   not a universal instruction to open sources.
+- E-044 smoke-tested source-openability language. It preserved the existing API
+  in the collision scenario and kept the Jira body-available path working, but
+  still needs a larger rerun.
 
 ## Provisional Language Set
 
@@ -352,6 +355,22 @@ default; open-on-demand should appear when a source body is available and likely
 to change the task.
 
 
+## Source Openability Smoke
+
+E-044 added a `Source opening` section to `status_open` prompts. It labels each
+source as body available or body unavailable and adds collision-specific guidance
+when an overlapping source body is unavailable: preserve existing APIs or leave a
+review note if the missing body prevents a safe patch.
+
+The two-scenario smoke was promising. The same-file PR collision preserved the
+existing `rotate_token` API, improving on the E-043 failure mode, though it still
+scored `review` because it did not validate. The changed-acceptance-criteria
+scenario still opened `Jira API-482`, added tests, ran tests, and passed.
+
+This supports source-openability language as part of the product surface, but it
+is not settled until it runs across the broader scenario set.
+
+
 ## Open Product Questions
 
 - Is `Working context` better than `Context for this task` as the container label?
@@ -370,8 +389,9 @@ to change the task.
   is not enough?
 - Should the user-facing label be `Open source`, `Open original`, or something
   more concrete like `Open PR` / `Open issue`?
-- How should context show source-body availability so agents do not waste tool
-  calls opening blocked, unavailable, or status-only sources?
+- Does `body available` / `body unavailable` feel like product language, or
+  should source-openability be expressed as concrete actions like `Open issue`
+  versus `Status only`?
 - What collision instruction makes agents preserve existing APIs when a same-file
   source body is unavailable?
 
@@ -411,10 +431,12 @@ to change the task.
   scenarios before the full benchmark.
 - Extend status-only source routing to the full six-scenario benchmark or one
   larger daily-driver task set.
-- Add source-openability language to the prompt/context so agents know whether a
-  source body is available before opening it.
-- Add a collision-specific scenario or scoring rule that rewards additive or
-  review-blocking behavior when an overlapping PR body is unavailable.
+- Rerun source-openability on the full six primary scenarios or a four-scenario
+  slice covering collision, changed criteria, stale, and blocked/unavailable
+  source-health cases.
+- Add a collision-specific scoring rule that rewards additive or review-blocking
+  behavior when an overlapping PR body is unavailable, plus validation when code
+  changes are made.
 - Decide whether source opening should be an agent command, an MCP read-only
   tool, or both for the first real product surface. E-043 points toward MCP/tool
   as the product boundary and CLI command as the human/debug surface.

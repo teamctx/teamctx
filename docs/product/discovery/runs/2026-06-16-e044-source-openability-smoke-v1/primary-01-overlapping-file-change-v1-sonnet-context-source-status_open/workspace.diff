@@ -1,0 +1,28 @@
+diff --git a/src/auth/token.py b/src/auth/token.py
+index 49c8881..88ad238 100644
+--- a/src/auth/token.py
++++ b/src/auth/token.py
+@@ -21,3 +21,23 @@ def rotate_token(client: object, token: str) -> str:
+         return rotate(token)
+     except TimeoutError as exc:
+         raise TokenRotationError("token rotation timed out") from exc
++
++
++def rotate_token_with_retry(
++    client: object,
++    token: str,
++    max_attempts: int = 3,
++) -> str:
++    """Rotate a token, retrying on retryable errors up to max_attempts times."""
++
++    last_exc: Exception | None = None
++    for attempt in range(max_attempts):
++        try:
++            return rotate_token(client, token)
++        except TokenRotationError as exc:
++            cause = exc.__cause__
++            if cause is not None and should_retry_rotation(cause) and attempt < max_attempts - 1:
++                last_exc = exc
++                continue
++            raise
++    raise TokenRotationError("token rotation failed after retries") from last_exc

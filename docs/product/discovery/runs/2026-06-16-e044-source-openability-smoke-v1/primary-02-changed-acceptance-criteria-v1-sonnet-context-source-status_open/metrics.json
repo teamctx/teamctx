@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-02-changed-acceptance-criteria-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-02-changed-acceptance-criteria-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 59048,
+  "num_turns": 8,
+  "total_cost_usd": 0.1547883,
+  "input_tokens": 7,
+  "cache_creation_input_tokens": 11511,
+  "cache_read_input_tokens": 114971,
+  "output_tokens": 3414,
+  "tool_calls": 7,
+  "tool_names": {
+    "Bash": 3,
+    "Edit": 2,
+    "Read": 2
+  },
+  "files_read": 2,
+  "bash_commands": 3,
+  "permission_denials": 0,
+  "result_preview": "All 7 tests pass. Here's what was done:\n\n**Changes made to `src/auth/token.py`:**\n- Added a retry loop in `rotate_token` with a 30-second deadline (`_RETRY_WINDOW_SECONDS = 30`)\n- Non-retryable errors (e.g. `ValueError` for bad token format) are re-raised immediately \u2014 they are never hidden\n- Retryable errors (`TimeoutError`) are retried until the deadline, then `TokenRotationError` is raised\n- The `rotate` interface is unchanged, preserving legacy client compatibility\n\n**The Jira change mattere"
+}

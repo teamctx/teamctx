@@ -136,6 +136,27 @@ def test_render_agent_prompt_status_open_advertises_open_source_without_snapshot
     assert "source-snapshots/" not in prompt
     assert "The linked Jira issue changed after this branch started." in prompt
     assert "Source: Jira API-482" in prompt
+    assert "Source opening" in prompt
+    assert "Jira API-482: body available." in prompt
+    assert "Open only sources listed as body available" in prompt
+
+
+def test_render_agent_prompt_status_open_marks_unavailable_collision_body() -> None:
+    fixture = load_fixture(primary_fixture_path("primary-01-overlapping-file-change-v1"))
+
+    prompt = render_agent_prompt(fixture, "context", source_access="status_open")
+
+    assert "GitHub PR #482: body unavailable." in prompt
+    assert "TeamCtx can show the status, but not the source body." in prompt
+    assert "Collision handling: preserve existing APIs" in prompt
+
+
+def test_render_agent_prompt_status_open_handles_no_opening_targets() -> None:
+    fixture = load_fixture(primary_fixture_path("primary-06-project-guidance-applies-v1"))
+
+    prompt = render_agent_prompt(fixture, "context", source_access="status_open")
+
+    assert "No source opening targets for this task." in prompt
 
 
 def test_prepare_agent_workspace_status_open_writes_source_opener(tmp_path: Path) -> None:
