@@ -142,6 +142,10 @@ knowledge system.
   changed paths normalize into Core Contract V0. It excludes comments, patches,
   commit bodies, author identity, and broad repo search. Missing credentials or
   failed access produce source status instead of silent confidence.
+- E-048 connected Core Contract documents to the terminal flow: `refresh`,
+  `context --contract`, `why --contract`, and `open-source --contract`. Missing
+  GitHub credentials can now produce a local context file with source status
+  that renders plainly in the terminal.
 
 ## Provisional Language Set
 

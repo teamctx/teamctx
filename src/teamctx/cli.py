@@ -16,8 +16,18 @@ from teamctx.claude_benchmark import AgentVariant, SourceAccessMode, run_claude_
 from teamctx.claude_quality import assess_claude_run_dir
 from teamctx.connectors.github import run_github_pr_probe
 from teamctx.context import agent_prompt_cards, context_cards
+from teamctx.contract_documents import (
+    ContractDocumentError,
+    load_contract_document,
+    write_contract_document,
+)
+from teamctx.contract_render import (
+    render_contract_context,
+    render_contract_open_source,
+    render_contract_why,
+)
 from teamctx.core.cards import find_card
-from teamctx.core.contracts import RequestContext
+from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.core.models import Fixture
 from teamctx.fixtures import FixtureError, load_fixture
 from teamctx.render import render_baseline_prompt, render_benchmark_prompt, render_context_cards
@@ -61,44 +71,96 @@ def github_pr_probe_command(
 ) -> None:
     """Emit Core Contract V0 context from GitHub PR metadata."""
 
-    observed_at = _utc_now_string()
-    request_context = RequestContext(
-        schema_version="teamctx.request_context.v0",
-        request_id=f"github-pr-probe:{repo}:{observed_at}",
+    document = _github_contract_document(
         repo=repo,
+        paths=paths,
         branch=branch,
         task=task,
-        paths=list(paths),
-        linked_issues=[],
-        requested_at=observed_at,
-        requesting_principal=None,
-    )
-    document = run_github_pr_probe(
-        repo=repo,
-        token=os.environ.get(token_env),
-        request_context=request_context,
-        observed_at=observed_at,
-        include_titles=include_title,
+        token_env=token_env,
+        include_title=include_title,
     )
     click.echo(json.dumps(document.model_dump(mode="json"), indent=2), nl=True)
+
+
+@main.command("refresh")
+@click.option("--github-repo", "repo", required=True, help="GitHub repository in owner/name form.")
+@click.option("--path", "paths", multiple=True, required=True, help="Current task file path.")
+@click.option("--branch", default=None, help="Current branch name.")
+@click.option("--task", default="Refresh TeamCtx context.", show_default=True, help="Task text.")
+@click.option("--token-env", default="GITHUB_TOKEN", show_default=True, help="Token env var name.")
+@click.option(
+    "--include-title/--omit-title",
+    default=False,
+    show_default=True,
+    help="Whether PR titles are allowed in normalized metadata.",
+)
+@click.option(
+    "--output",
+    "output_path",
+    default=Path(".teamctx/context.json"),
+    show_default=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Where to write the Core Contract document.",
+)
+def refresh_command(
+    repo: str,
+    paths: tuple[str, ...],
+    branch: str | None,
+    task: str,
+    token_env: str,
+    include_title: bool,
+    output_path: Path,
+) -> None:
+    """Refresh local TeamCtx context from configured source metadata."""
+
+    document = _github_contract_document(
+        repo=repo,
+        paths=paths,
+        branch=branch,
+        task=task,
+        token_env=token_env,
+        include_title=include_title,
+    )
+    try:
+        write_contract_document(output_path, document)
+    except ContractDocumentError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Refreshed context at {output_path}")
 
 
 @main.command("context")
 @click.option(
     "--fixture",
     "fixture_path",
-    required=True,
+    required=False,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Prototype fixture path.",
+)
+@click.option(
+    "--contract",
+    "contract_path",
+    required=False,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Core Contract document path.",
 )
 @click.option("--session", "session_id", default=None, help="Include cards used in a session.")
 @click.option("--include-relevance", multiple=True, help="Include cards for a relevance tag.")
 def context_command(
-    fixture_path: Path,
+    fixture_path: Path | None,
+    contract_path: Path | None,
     session_id: str | None,
     include_relevance: tuple[str, ...],
 ) -> None:
-    """Render prototype working context from a fixture."""
+    """Render working context."""
+
+    if contract_path is not None:
+        _raise_if_both_context_inputs(fixture_path, contract_path)
+        document = _load_contract_or_raise(contract_path)
+        click.echo(render_contract_context(document), nl=False)
+        return
+
+    if fixture_path is None:
+        raise click.ClickException("Provide --fixture or --contract.")
 
     fixture = _load_or_raise(fixture_path)
     selected = read_session(session_id).card_ids if session_id else []
@@ -115,12 +177,31 @@ def context_command(
 @click.option(
     "--fixture",
     "fixture_path",
-    required=True,
+    required=False,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Prototype fixture path.",
 )
-def why_command(card_id: str, fixture_path: Path) -> None:
-    """Show why a prototype card appears."""
+@click.option(
+    "--contract",
+    "contract_path",
+    required=False,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Core Contract document path.",
+)
+def why_command(card_id: str, fixture_path: Path | None, contract_path: Path | None) -> None:
+    """Show why a context card appears."""
+
+    if contract_path is not None:
+        _raise_if_both_context_inputs(fixture_path, contract_path)
+        document = _load_contract_or_raise(contract_path)
+        try:
+            click.echo(render_contract_why(document, card_id), nl=False)
+        except KeyError as exc:
+            raise click.ClickException(f"Unknown card id: {card_id}") from exc
+        return
+
+    if fixture_path is None:
+        raise click.ClickException("Provide --fixture or --contract.")
 
     fixture = _load_or_raise(fixture_path)
     try:
@@ -134,12 +215,31 @@ def why_command(card_id: str, fixture_path: Path) -> None:
 @click.option(
     "--fixture",
     "fixture_path",
-    required=True,
+    required=False,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Prototype fixture path.",
 )
-def open_source_command(ref_id: str, fixture_path: Path) -> None:
+@click.option(
+    "--contract",
+    "contract_path",
+    required=False,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Core Contract document path.",
+)
+def open_source_command(ref_id: str, fixture_path: Path | None, contract_path: Path | None) -> None:
     """Open a source body when policy allows it."""
+
+    if contract_path is not None:
+        _raise_if_both_context_inputs(fixture_path, contract_path)
+        document = _load_contract_or_raise(contract_path)
+        try:
+            click.echo(render_contract_open_source(document, ref_id), nl=False)
+        except KeyError as exc:
+            raise click.ClickException(f"Unknown source or card id: {ref_id}") from exc
+        return
+
+    if fixture_path is None:
+        raise click.ClickException("Provide --fixture or --contract.")
 
     fixture = _load_or_raise(fixture_path)
     try:
@@ -322,6 +422,47 @@ def claude_agent_assess_command(fixtures_dir: Path, run_dir: Path) -> None:
     )
 
 
+def _github_contract_document(
+    *,
+    repo: str,
+    paths: tuple[str, ...],
+    branch: str | None,
+    task: str,
+    token_env: str,
+    include_title: bool,
+) -> CoreContractDocument:
+    observed_at = _utc_now_string()
+    request_context = RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id=f"github-pr-probe:{repo}:{observed_at}",
+        repo=repo,
+        branch=branch,
+        task=task,
+        paths=list(paths),
+        linked_issues=[],
+        requested_at=observed_at,
+        requesting_principal=None,
+    )
+    return run_github_pr_probe(
+        repo=repo,
+        token=os.environ.get(token_env),
+        request_context=request_context,
+        observed_at=observed_at,
+        include_titles=include_title,
+    )
+
+
+def _load_contract_or_raise(path: Path) -> CoreContractDocument:
+    try:
+        return load_contract_document(path)
+    except ContractDocumentError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+def _raise_if_both_context_inputs(fixture_path: Path | None, contract_path: Path | None) -> None:
+    if fixture_path is not None and contract_path is not None:
+        raise click.ClickException("Provide only one of --fixture or --contract.")
+
 def _scenario_aliases(fixture: Fixture) -> set[str]:
     aliases = {fixture.fixture_id}
     aliases.add(re.sub(r"-v\d+$", "", fixture.fixture_id))
@@ -335,9 +476,9 @@ def _load_or_raise(path: Path) -> Fixture:
         raise click.ClickException(str(exc)) from exc
 
 
-if __name__ == "__main__":
-    main()
-
-
 def _utc_now_string() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+if __name__ == "__main__":
+    main()
