@@ -146,6 +146,10 @@ knowledge system.
   `context --contract`, `why --contract`, and `open-source --contract`. Missing
   GitHub credentials can now produce a local context file with source status
   that renders plainly in the terminal.
+- E-049 added a small `teamctx.project_config.v0` file for the terminal demo.
+  `refresh` can now read GitHub repo, token environment variable name, title
+  policy, and default output from `.teamctx/config.json`; unknown config fields
+  are rejected.
 
 ## Provisional Language Set
 
