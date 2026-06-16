@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from click.testing import CliRunner
+from pytest import MonkeyPatch
 
 from teamctx.cli import main
 from teamctx.contract_documents import load_contract_document
@@ -15,9 +16,12 @@ from teamctx.contract_render import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-CONTRACT_FIXTURE = (
-    ROOT / "docs/product/discovery/fixtures/contracts/v0/core-contract-document.json"
-)
+CONTRACT_FIXTURE = ROOT / "docs/product/discovery/fixtures/contracts/v0/core-contract-document.json"
+
+
+def write_local_contract(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(CONTRACT_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def test_contract_context_renders_terminal_working_context() -> None:
@@ -85,13 +89,57 @@ def test_cli_open_source_accepts_contract_document() -> None:
     assert "Source body unavailable." in result.output
 
 
-def test_cli_context_requires_one_input() -> None:
+def test_cli_context_defaults_to_local_contract(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     runner = CliRunner()
+    write_local_contract(tmp_path / ".teamctx/context.json")
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(main, ["context"])
+
+    assert result.exit_code == 0
+    assert "Working context" in result.output
+    assert "Another open PR changed src/auth/token.py 11 minutes ago." in result.output
+
+
+def test_cli_why_and_open_source_use_configured_local_contract(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    context_path = tmp_path / "cache/context.json"
+    config_path = tmp_path / ".teamctx/config.json"
+    write_local_contract(context_path)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "default_output": str(context_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    why = runner.invoke(main, ["why", "card_pr_collision"])
+    opened = runner.invoke(main, ["open-source", "card_stale_docs"])
+
+    assert why.exit_code == 0
+    assert "same repository and file path" in why.output
+    assert opened.exit_code == 0
+    assert "Source body unavailable." in opened.output
+
+
+def test_cli_context_without_local_cache_explains_refresh_next_step(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    monkeypatch.chdir(tmp_path)
 
     result = runner.invoke(main, ["context"])
 
     assert result.exit_code != 0
-    assert "Provide --fixture or --contract" in result.output
+    assert "No local TeamCtx context" in result.output
+    assert "teamctx refresh" in result.output
 
 
 def test_cli_refresh_writes_contract_document_and_context_reads_it(tmp_path: Path) -> None:

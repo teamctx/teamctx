@@ -39,31 +39,22 @@ Every card is deterministic, source-backed, permission-aware, and explainable.
 
 ## First Runnable Slice
 
-The current prototype is terminal-first. Configure one GitHub repo, refresh local
+The current prototype is terminal-first. Initialize one GitHub repo, refresh local
 context, then render it before an agent starts risky work.
 
-Example `.teamctx/config.json`:
-
-```json
-{
-  "schema_version": "teamctx.project_config.v0",
-  "github": {
-    "repo": "org/app",
-    "token_env": "GITHUB_TOKEN",
-    "include_title": false
-  },
-  "default_output": ".teamctx/context.json"
-}
-```
-
-Commands:
-
 ```bash
+teamctx init --github-repo org/app --token-env GITHUB_TOKEN
 teamctx refresh --path src/auth/token.py --task "Update token rotation"
-teamctx context --contract .teamctx/context.json
-teamctx why card_github_pr_482_collision --contract .teamctx/context.json
-teamctx open-source card_github_pr_482_collision --contract .teamctx/context.json
+teamctx context
+teamctx why card_github_pr_482_collision
+teamctx open-source card_github_pr_482_collision
 ```
+
+`teamctx init` writes `.teamctx/config.json`. The config stores the token
+environment variable name, not the token value, and `refresh` writes the local
+context document to `.teamctx/context.json` by default. `context`, `why`, and
+`open-source` read that local context path automatically unless you pass an
+explicit fixture or contract file.
 
 The GitHub probe is intentionally narrow. It reads open PR metadata and changed
 file paths only. It does not read comments, review bodies, raw patches, commit

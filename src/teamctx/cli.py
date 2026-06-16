@@ -30,7 +30,15 @@ from teamctx.core.cards import find_card
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.core.models import Fixture
 from teamctx.fixtures import FixtureError, load_fixture
-from teamctx.project_config import ProjectConfig, ProjectConfigError, maybe_load_project_config
+from teamctx.project_config import (
+    DEFAULT_CONFIG_PATH,
+    DEFAULT_OUTPUT_PATH,
+    ProjectConfig,
+    ProjectConfigError,
+    build_project_config,
+    maybe_load_project_config,
+    write_project_config,
+)
 from teamctx.render import render_baseline_prompt, render_benchmark_prompt, render_context_cards
 from teamctx.session import add_card_to_session, read_session
 from teamctx.source_open import SourceOpenError, render_open_source
@@ -48,6 +56,57 @@ def status() -> None:
     """Show local teamctx status."""
 
     click.echo("teamctx is initialized. No sources are configured yet.")
+
+
+@main.command("init")
+@click.option("--github-repo", required=True, help="GitHub repository in owner/name form.")
+@click.option("--token-env", default="GITHUB_TOKEN", show_default=True, help="Token env var name.")
+@click.option(
+    "--include-title/--omit-title",
+    default=False,
+    show_default=True,
+    help="Whether PR titles are allowed in normalized metadata.",
+)
+@click.option(
+    "--output",
+    "output_path",
+    default=Path(DEFAULT_OUTPUT_PATH),
+    show_default=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Where refresh writes the local context document.",
+)
+@click.option(
+    "--config",
+    "config_path",
+    default=DEFAULT_CONFIG_PATH,
+    show_default=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Project config path.",
+)
+@click.option("--force", is_flag=True, help="Overwrite an existing project config.")
+def init_command(
+    github_repo: str,
+    token_env: str,
+    include_title: bool,
+    output_path: Path,
+    config_path: Path,
+    force: bool,
+) -> None:
+    """Create a project-local TeamCtx config."""
+
+    config = build_project_config(
+        github_repo=github_repo,
+        token_env=token_env,
+        include_title=include_title,
+        default_output=str(output_path),
+    )
+    try:
+        write_project_config(config_path, config, overwrite=force)
+    except ProjectConfigError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(f"Wrote project config at {config_path}")
+    click.echo(f"Default context output: {output_path}")
 
 
 @main.command("github-pr-probe")
@@ -104,7 +163,7 @@ def github_pr_probe_command(
 @click.option(
     "--config",
     "config_path",
-    default=Path(".teamctx/config.json"),
+    default=DEFAULT_CONFIG_PATH,
     show_default=True,
     type=click.Path(dir_okay=False, path_type=Path),
     help="Project config path.",
@@ -159,18 +218,30 @@ def refresh_command(
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Core Contract document path.",
 )
+@click.option(
+    "--config",
+    "config_path",
+    default=DEFAULT_CONFIG_PATH,
+    show_default=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Project config path for default local context lookup.",
+)
 @click.option("--session", "session_id", default=None, help="Include cards used in a session.")
 @click.option("--include-relevance", multiple=True, help="Include cards for a relevance tag.")
 def context_command(
     fixture_path: Path | None,
     contract_path: Path | None,
+    config_path: Path,
     session_id: str | None,
     include_relevance: tuple[str, ...],
 ) -> None:
     """Render working context."""
 
+    _raise_if_both_context_inputs(fixture_path, contract_path)
+    if contract_path is None and fixture_path is None:
+        contract_path = _default_contract_path_or_raise(config_path)
+
     if contract_path is not None:
-        _raise_if_both_context_inputs(fixture_path, contract_path)
         document = _load_contract_or_raise(contract_path)
         click.echo(render_contract_context(document), nl=False)
         return
@@ -204,11 +275,27 @@ def context_command(
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Core Contract document path.",
 )
-def why_command(card_id: str, fixture_path: Path | None, contract_path: Path | None) -> None:
+@click.option(
+    "--config",
+    "config_path",
+    default=DEFAULT_CONFIG_PATH,
+    show_default=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Project config path for default local context lookup.",
+)
+def why_command(
+    card_id: str,
+    fixture_path: Path | None,
+    contract_path: Path | None,
+    config_path: Path,
+) -> None:
     """Show why a context card appears."""
 
+    _raise_if_both_context_inputs(fixture_path, contract_path)
+    if contract_path is None and fixture_path is None:
+        contract_path = _default_contract_path_or_raise(config_path)
+
     if contract_path is not None:
-        _raise_if_both_context_inputs(fixture_path, contract_path)
         document = _load_contract_or_raise(contract_path)
         try:
             click.echo(render_contract_why(document, card_id), nl=False)
@@ -242,11 +329,27 @@ def why_command(card_id: str, fixture_path: Path | None, contract_path: Path | N
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Core Contract document path.",
 )
-def open_source_command(ref_id: str, fixture_path: Path | None, contract_path: Path | None) -> None:
+@click.option(
+    "--config",
+    "config_path",
+    default=DEFAULT_CONFIG_PATH,
+    show_default=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Project config path for default local context lookup.",
+)
+def open_source_command(
+    ref_id: str,
+    fixture_path: Path | None,
+    contract_path: Path | None,
+    config_path: Path,
+) -> None:
     """Open a source body when policy allows it."""
 
+    _raise_if_both_context_inputs(fixture_path, contract_path)
+    if contract_path is None and fixture_path is None:
+        contract_path = _default_contract_path_or_raise(config_path)
+
     if contract_path is not None:
-        _raise_if_both_context_inputs(fixture_path, contract_path)
         document = _load_contract_or_raise(contract_path)
         try:
             click.echo(render_contract_open_source(document, ref_id), nl=False)
@@ -492,6 +595,17 @@ def _maybe_load_project_config_or_raise(path: Path) -> ProjectConfig | None:
         raise click.ClickException(str(exc)) from exc
 
 
+def _default_contract_path_or_raise(config_path: Path) -> Path:
+    config = _maybe_load_project_config_or_raise(config_path)
+    contract_path = Path(config.default_output if config is not None else DEFAULT_OUTPUT_PATH)
+    if not contract_path.exists():
+        raise click.ClickException(
+            f"No local TeamCtx context at {contract_path}. "
+            "Run `teamctx refresh`, or provide --fixture or --contract."
+        )
+    return contract_path
+
+
 def _github_contract_document(
     *,
     repo: str,
@@ -532,6 +646,7 @@ def _load_contract_or_raise(path: Path) -> CoreContractDocument:
 def _raise_if_both_context_inputs(fixture_path: Path | None, contract_path: Path | None) -> None:
     if fixture_path is not None and contract_path is not None:
         raise click.ClickException("Provide only one of --fixture or --contract.")
+
 
 def _scenario_aliases(fixture: Fixture) -> set[str]:
     aliases = {fixture.fixture_id}

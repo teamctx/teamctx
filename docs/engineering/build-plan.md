@@ -1,198 +1,118 @@
 # Build Plan
 
-This file is the short sequencing overview. The operational engineering plan is
-maintained in [Implementation Plan](implementation-plan.md).
+This file is the live sequencing overview for TeamCtx. The detailed engineering
+backlog remains in [Implementation Plan](implementation-plan.md), but this file
+tracks the current product-building order after the Ambara pivot and Sprint 01.
 
-## Phase 0: Foundation
+## Built
 
-Goal: establish the OSS project shape and prove the core semantics before live
-connectors.
+Sprint 01 proved the first narrow product spine:
 
-Deliverables:
+- fixture-backed benchmark scenarios for the six primary product moments;
+- source-access benchmark variants, including status-only and status-open flows;
+- Core Contract V0 for source status, source-open targets, guidance, request
+  context, policy decisions, and context cards;
+- a narrow GitHub PR metadata probe for opted-in repos;
+- contract-backed terminal commands: `refresh`, `context`, `why`, and
+  `open-source`;
+- project config for the first demo path;
+- product language docs and a scripted terminal transcript;
+- a live overlapping-PR proof against public GitHub PR metadata.
 
-- Project docs and governance.
-- Python package skeleton.
-- Pure core models for artifacts, relationships, cards, policy, relevance, and
-  rules.
-- Fixture connector.
-- CLI command that reads a fixture and emits cards.
-- Tests for every product claim.
+Important exclusions are still intact: no comments, no review bodies, no raw
+patches, no commit bodies, no author identity, no broad repo search, no LLM in
+the broker, and no source body browsing by default.
 
-Exit criteria:
+## Current Sprint
 
-- `pytest`, `ruff`, and `mypy` pass.
-- Core package has no I/O imports.
-- Fixture production-day scenario is deterministic.
-- Cards include source, URL, reason, severity, and timestamps.
+Current operating plan:
+[Sprint 02: Dogfood The Terminal Loop](../product/sprints/2026-06-16-sprint-02.md).
 
-## Phase 1: Card Engine Contract
+Goal: make TeamCtx usable as a real local terminal tool in an owned repository.
 
-Goal: make the product useful without live integrations.
+Sprint 02 priorities:
 
-Card rules:
+1. Add `teamctx init` and safe project config writing.
+2. Make `context`, `why`, and `open-source` default to the local context document.
+3. Dogfood the GitHub PR metadata path against an owned repo with a seeded open
+   PR.
+4. Update the scripted terminal demo and README to the current command shape.
+5. Add one issue-tracker fixture path without claiming live Jira or Linear
+   support.
+6. Decide whether `open-source` should split into source-specific commands.
 
-- Same repo and same file touched by open PR -> `overlapping_change`.
-- Same repo and same file touched by merged PR after branch start ->
-  `overlapping_change` with reuse/notice severity.
-- Linked issue contains an explicit structured rule -> `linked_issue_rule`.
-- Linked issue acceptance criteria updated after branch start ->
-  `acceptance_criteria_changed`.
-- Linked doc updated after branch start -> `linked_doc_changed`.
-- Configured source unavailable and no successful baseline -> `source_unavailable`.
+## MVP Track
 
-Implementation constraints:
+The MVP is not a connector catalog. It is a dependable terminal loop that saves
+agent/source lookup work without creating a surveillance, memory, or search
+product.
 
-- No LLM.
-- No raw document dump in cards.
-- No comments unless the fixture explicitly marks them as included.
-- No identity fields unless the policy explicitly allows them.
+MVP capabilities:
 
-## Phase 2: Local Cache And Server
+- initialize TeamCtx in a repository;
+- refresh compact working context from configured sources;
+- show source health when configured context is missing, stale, blocked, or
+  unavailable;
+- render task-changing context at agent start and resume points;
+- explain why each card appears;
+- open original source locations only through explicit, policy-gated actions;
+- keep source bodies out of the default agent workspace;
+- prove every public source claim with fixtures, failure-path tests, and source
+  health behavior.
 
-Goal: support real workflows without adding write capabilities.
+MVP source order:
 
-Deliverables:
+1. Local workspace and request scope.
+2. GitHub PR metadata for opted-in repos.
+3. GitLab MR metadata after the forge-review family contract is stable.
+4. Jira or Linear issue metadata through a fixture-proven work-tracker contract.
+5. Confluence or governed docs through explicit links and structured rule blocks.
+6. Approved local note folders, including Obsidian-style vaults, only as selected
+   local sources with clear advisory/review boundaries.
+7. Explicit chat handoffs only after marker, allowlist, and omission rules are
+   proven in fixtures.
 
-- SQLite artifact cache.
-- Source health table.
-- Read-only local API.
-- Optional read-only MCP server.
-- CLI commands:
-  - `teamctx status`
-  - `teamctx refresh`
-  - `teamctx cards`
-  - `teamctx inspect artifact`
-  - `teamctx policy check`
+## Deferred Source Families
 
-Exit criteria:
+These are valuable, but not first until the dogfood loop is reliable:
 
-- Cache never stores secrets after policy enforcement.
-- Health/freshness is visible.
-- Missing context is represented honestly.
+- live Jira;
+- live Linear;
+- live Confluence;
+- live Obsidian vault ingestion;
+- Slack or Teams handoffs;
+- broader forge providers;
+- CI/deploy source health;
+- read-only local API;
+- optional read-only MCP server.
 
-## Phase 3: Connector Family Contract
-
-Goal: make expansion to GitHub, GitLab, Jira, Linear, Confluence, Slack,
-and similar systems deliberate instead of ad hoc.
-
-Deliverables:
-
-- Source family contracts for forge review, work tracking, docs/process, and
-  explicit chat handoff.
-- Connector conformance tests.
-- Fixture examples for every family.
-- Family-specific default-deny field policies.
-- Permission-proof and source-health requirements.
-
-Exit criteria:
-
-- A new vendor connector cannot bypass policy by returning arbitrary fields.
-- Chat handoff connectors cannot ingest DMs, private channels by default,
-  broad history, presence, sentiment, or participation analytics.
-
-## Phase 4: GitHub Connector
-
-Goal: support the first live source with a narrow, safe surface.
-
-Scope:
-
-- Opted-in repos only.
-- PR metadata.
-- Changed files.
-- Labels.
-- State.
-- Created/updated/merged timestamps.
-- Canonical URLs.
-
-Excluded from this phase:
-
-- PR comments.
-- Review bodies.
-- Commit patches.
-- User activity feeds.
-- Broad repo search.
-
-Exit criteria:
-
-- Connector can prove which repos and labels were selected.
-- Secret scanning and URL/path sanitization run before cache.
-- Tests cover malformed and malicious source text.
-
-## Phase 5: Work Tracker Connectors
-
-Goal: support issue-linked rules and acceptance criteria across Jira and Linear.
-
-Scope:
-
-- Opted-in Jira projects or Linear teams only.
-- Issue key/id, summary, status, labels, components/projects, updated timestamp.
-- Structured `teamctx` fields or fenced blocks for rules.
-- Acceptance criteria from explicitly configured field ids.
-
-Excluded from this phase:
-
-- Arbitrary issue comment mining.
-- User/person analytics.
-- Broad JQL beyond configured selectors.
-
-## Phase 6: Docs Connector
-
-Goal: support linked process docs without broad document search.
-
-Scope:
-
-- Explicitly linked pages only.
-- Space allowlists.
-- Page title, URL, updated timestamp.
-- Structured rules blocks.
-- Section-level change hashes where APIs support them.
-
-Excluded from this phase:
-
-- Whole-space semantic search.
-- Private docs.
-- Arbitrary prose summarization.
-
-## Phase 7: Explicit Chat Handoff Connector
-
-Goal: support Slack or Teams-style handoffs without becoming chat mining.
-
-Scope:
-
-- Allowlisted channels only.
-- Explicit `teamctx` marker, label, workflow, or bot mention required.
-- Message URL, timestamp, channel id/name, short sanitized excerpt, and
-  structured rule/handoff fields when present.
-
-Excluded from this phase:
-
-- DMs.
-- Private channels by default.
-- Broad channel history.
-- Presence.
-- Reactions as sentiment.
-- Participation analytics.
-
-## Phase 8: Team Preview
-
-Goal: prove real team value while preserving the privacy boundary.
-
-Deliverables:
-
-- Admin opt-in config.
-- Permission-aware connector mode.
-- Audit log of card requests and returned card ids, without prompt logging.
-- Interrupt budget configuration.
-- Static inspection report for humans.
+Deferred does not mean unimportant. It means the product must first prove that a
+small, source-backed terminal packet changes real coding-agent behavior without
+requiring the user to manage another knowledge system.
 
 ## Engineering Rules
 
 - Public claims require tests.
 - Core stays pure.
 - Connectors are translators, not policy bypasses.
-- Source text remains untrusted.
-- Every card has provenance.
-- Every denial or omission is countable.
-- No live connector is documented as supported until it has fixtures, failure
-  tests, and source-health reporting.
+- Source text remains untrusted evidence, never instructions.
+- Every card has provenance, reason, freshness, and source-health context.
+- Missing context is represented honestly.
+- No live connector is documented as supported until it has fixtures,
+  failure-path tests, policy coverage, and source-health reporting.
+- Config stores credential references, never credential values.
+- Product language avoids memory, ledger, registry, promotion, surveillance, and
+  productivity-tracking framing.
 
+## Release Gates
+
+A public release candidate needs:
+
+- supported card kinds with golden tests;
+- supported source families with conformance tests;
+- malicious-input and source-health tests for supported live connectors;
+- security and privacy docs matching implementation;
+- README claims backed by tests;
+- package build and install checks;
+- no required workflow depending on developer-local credentials;
+- a dogfood transcript from an owned repository.

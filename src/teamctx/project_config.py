@@ -8,6 +8,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+DEFAULT_CONFIG_PATH = Path(".teamctx/config.json")
+DEFAULT_OUTPUT_PATH = ".teamctx/context.json"
+
 
 class ProjectConfigError(ValueError):
     """Raised when project config cannot be loaded or validated."""
@@ -26,7 +29,25 @@ class GitHubSourceConfig(StrictConfigModel):
 class ProjectConfig(StrictConfigModel):
     schema_version: Literal["teamctx.project_config.v0"]
     github: GitHubSourceConfig | None = None
-    default_output: str = ".teamctx/context.json"
+    default_output: str = DEFAULT_OUTPUT_PATH
+
+
+def build_project_config(
+    *,
+    github_repo: str,
+    token_env: str = "GITHUB_TOKEN",
+    include_title: bool = False,
+    default_output: str = DEFAULT_OUTPUT_PATH,
+) -> ProjectConfig:
+    return ProjectConfig(
+        schema_version="teamctx.project_config.v0",
+        github=GitHubSourceConfig(
+            repo=github_repo,
+            token_env=token_env,
+            include_title=include_title,
+        ),
+        default_output=default_output,
+    )
 
 
 def load_project_config(path: Path) -> ProjectConfig:
@@ -51,3 +72,14 @@ def maybe_load_project_config(path: Path) -> ProjectConfig | None:
     if not path.exists():
         return None
     return load_project_config(path)
+
+
+def write_project_config(path: Path, config: ProjectConfig, *, overwrite: bool = False) -> None:
+    if path.exists() and not overwrite:
+        raise ProjectConfigError(f"Project config already exists: {path}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(config.model_dump(mode="json"), indent=2) + "\n",
+        encoding="utf-8",
+    )

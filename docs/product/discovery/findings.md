@@ -159,6 +159,12 @@ knowledge system.
   metadata while source body remained status-only. Sprint 01 scope is now
   complete; next sprint should dogfood the same path on an owned repo with a
   seeded open PR.
+- Sprint 02 should optimize dogfood reliability before source breadth: setup,
+  local context defaults, owned-repo proof, and one issue-tracker fixture are
+  higher leverage than adding more live connectors immediately.
+- `teamctx init` and default local context lookup make the terminal surface feel
+  closer to `git status`: after refresh, the user should not need to know or pass
+  Core Contract file paths during normal work.
 
 ## Provisional Language Set
 
