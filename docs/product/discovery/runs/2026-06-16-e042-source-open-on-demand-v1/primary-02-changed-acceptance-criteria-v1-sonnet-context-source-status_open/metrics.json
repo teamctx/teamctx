@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-02-changed-acceptance-criteria-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-02-changed-acceptance-criteria-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 61344,
+  "num_turns": 10,
+  "total_cost_usd": 0.17560350000000002,
+  "input_tokens": 8,
+  "cache_creation_input_tokens": 12410,
+  "cache_read_input_tokens": 138565,
+  "output_tokens": 3970,
+  "tool_calls": 9,
+  "tool_names": {
+    "Bash": 4,
+    "Edit": 2,
+    "Read": 3
+  },
+  "files_read": 3,
+  "bash_commands": 4,
+  "permission_denials": 0,
+  "result_preview": "All 5 tests pass. Here's what was done:\n\n**Implementation (`src/auth/token.py`):**\n- Added a `RETRY_WINDOW_SECONDS = 30` constant\n- Rewrote `rotate_token` with a `while True` retry loop using `time.monotonic()` to enforce the 30-second window\n- Retries only when `should_retry_rotation` returns `True` (i.e., `TimeoutError`)\n- Non-retryable exceptions (`ValueError`, etc.) are re-raised immediately \u2014 permanent validation failures are not hidden\n\n**Tests (`tests/test_token_rotation.py`):**\n- `test_r"
+}

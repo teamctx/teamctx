@@ -115,6 +115,9 @@ knowledge system.
 - E-041 defines the source-body escape hatch: source bodies open only by explicit
   action, one source at a time, after policy checks. Blocked and unavailable
   sources do not render body text, even if fixture data contains it.
+- E-042 benchmarked that escape hatch: `status_open` opened only `Jira API-482`,
+  preserved pass-level quality, added tests, and cost less than full source on
+  the changed-acceptance-criteria scenario.
 
 ## Provisional Language Set
 
@@ -304,6 +307,24 @@ one source that matters, without returning to the expensive E-037 pattern where
 all source snapshots become a browsable workspace.
 
 
+## Source Open On Demand Benchmark
+
+E-042 compared full source access with `status_open` on the changed acceptance
+criteria scenario. Full source passed, but it browsed the source tree and read an
+extra GitHub PR snapshot after reading Jira. Status open passed by opening only
+`Jira API-482` through `.teamctx/open_source.py`.
+
+Status open cost `$0.175604` versus `$0.210772` for full source, a `-$0.035169`
+reported-cost delta on the one-scenario smoke. It used more turns and Bash
+commands because source opening is explicit, but it read fewer files, added tests,
+and preserved pass-level quality.
+
+This moves the default candidate from plain status-only to status-only plus
+open-on-demand. Compact context should tell the agent what changed confidence;
+open-on-demand should provide the one source body that matters when compact
+context is not enough.
+
+
 ## Open Product Questions
 
 - Is `Working context` better than `Context for this task` as the container label?
@@ -359,5 +380,8 @@ all source snapshots become a browsable workspace.
   scenarios before the full benchmark.
 - Extend status-only source routing to the full six-scenario benchmark or one
   larger daily-driver task set.
-- Add an E-042 benchmark scenario where one explicitly opened source body is
-  useful, then compare status-only plus open-on-demand against full source.
+- Run `status_open` on a larger benchmark slice, starting with the full six
+  primary scenarios or a smaller set that includes both direct-signal and
+  source-health tasks.
+- Decide whether source opening should be an agent command, an MCP read-only
+  tool, or both for the first real product surface.

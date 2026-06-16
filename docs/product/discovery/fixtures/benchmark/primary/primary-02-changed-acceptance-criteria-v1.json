@@ -26,7 +26,7 @@
       "policy": {
         "can_render_to_user": true,
         "can_render_to_agent": true,
-        "can_include_source_text": false,
+        "can_include_source_text": true,
         "requires_review_for_guidance": false
       }
     }
@@ -42,6 +42,14 @@
       "refs": [
         "sig_jira_api_482_changed"
       ]
+    }
+  ],
+  "source_artifacts": [
+    {
+      "id": "artifact_jira_api_482",
+      "source_signal_id": "sig_jira_api_482_changed",
+      "title": "Jira API-482",
+      "body": "Current acceptance criteria:\n\n- Token rotation retries should stay inside a 30 second retry window.\n- Legacy clients must remain compatible with the existing token format.\n- Retry handling should not hide permanent validation failures."
     }
   ]
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import subprocess
 from pathlib import Path
 
 from teamctx.claude_benchmark import (
@@ -122,6 +123,63 @@ def test_prepare_agent_workspace_status_only_withholds_source_snapshots(tmp_path
     readme = (workspace / "README.md").read_text(encoding="utf-8")
     assert "compact source status" in readme
     assert (workspace / ".git").exists()
+
+
+def test_render_agent_prompt_status_open_advertises_open_source_without_snapshots() -> None:
+    fixture = load_fixture(primary_fixture_path("primary-02-changed-acceptance-criteria-v1"))
+
+    prompt = render_agent_prompt(fixture, "context", source_access="status_open")
+
+    assert "explicit source opening" in prompt
+    assert "python3 .teamctx/open_source.py '<Source>'" in prompt
+    assert "source-snapshots/" not in prompt
+    assert "The linked Jira issue changed after this branch started." in prompt
+    assert "Source: Jira API-482" in prompt
+
+
+def test_prepare_agent_workspace_status_open_writes_source_opener(tmp_path: Path) -> None:
+    fixture = load_fixture(primary_fixture_path("primary-02-changed-acceptance-criteria-v1"))
+    workspace = tmp_path / "workspace"
+
+    prepare_agent_workspace(fixture, workspace, source_access="status_open")
+
+    assert not (workspace / "source-snapshots").exists()
+    assert (workspace / ".teamctx/open_source.py").exists()
+    assert (workspace / ".teamctx/source-data.json").exists()
+    completed = subprocess.run(
+        ["python3", ".teamctx/open_source.py", "Jira API-482"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    assert "Open source" in completed.stdout
+    assert "Token rotation retries should stay inside a 30 second retry window." in completed.stdout
+    assert "Retry handling should not hide permanent validation failures." in completed.stdout
+
+
+def test_status_open_source_opener_denies_source_body_when_policy_disallows_it(
+    tmp_path: Path,
+) -> None:
+    fixture = load_fixture(primary_fixture_path("primary-03-stale-process-doc-v1"))
+    workspace = tmp_path / "workspace"
+
+    prepare_agent_workspace(fixture, workspace, source_access="status_open")
+    completed = subprocess.run(
+        ["python3", ".teamctx/open_source.py", "Confluence Release Checklist"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    assert "Freshness: stale" in completed.stdout
+    assert "Use as background only. Verify before relying." in completed.stdout
+    assert "Source body unavailable." in completed.stdout
+    assert "TeamCtx can show the status, but not the source body." in completed.stdout
 
 
 def test_sanitize_claude_stream_drops_system_environment_events() -> None:
@@ -258,6 +316,6 @@ def test_agent_variant_type_is_limited() -> None:
 
 
 def test_source_access_mode_type_is_limited() -> None:
-    mode: SourceAccessMode = "status_only"
+    mode: SourceAccessMode = "status_open"
 
-    assert mode == "status_only"
+    assert mode == "status_open"

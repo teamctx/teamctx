@@ -1,0 +1,6 @@
+metric,full_source,status_open,status_open_delta
+reported_cost,0.210772,0.175604,-0.035169
+turns,8,10,2
+tool_calls,7,9,2
+files_read,4,3,-1
+bash_commands,2,4,2

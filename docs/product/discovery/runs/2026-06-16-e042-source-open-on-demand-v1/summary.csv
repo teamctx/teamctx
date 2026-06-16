@@ -1,0 +1,3 @@
+fixture_id,model,variant,source_access,run_dir,exit_code,is_error,duration_ms,num_turns,total_cost_usd,input_tokens,cache_creation_input_tokens,cache_read_input_tokens,output_tokens,tool_calls,files_read,bash_commands,permission_denials,tool_names
+primary-02-changed-acceptance-criteria-v1,sonnet,context,full,primary-02-changed-acceptance-criteria-v1-sonnet-context,0,False,49203,8,0.21077249999999997,6,23594,79985,3013,7,4,2,0,"{""Bash"": 2, ""Edit"": 1, ""Read"": 4}"
+primary-02-changed-acceptance-criteria-v1,sonnet,context,status_open,primary-02-changed-acceptance-criteria-v1-sonnet-context-source-status_open,0,False,61344,10,0.17560350000000002,8,12410,138565,3970,9,3,4,0,"{""Bash"": 4, ""Edit"": 2, ""Read"": 3}"

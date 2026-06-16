@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-02-changed-acceptance-criteria-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "full",
+  "run_dir": "primary-02-changed-acceptance-criteria-v1-sonnet-context",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 49203,
+  "num_turns": 8,
+  "total_cost_usd": 0.21077249999999997,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 23594,
+  "cache_read_input_tokens": 79985,
+  "output_tokens": 3013,
+  "tool_calls": 7,
+  "tool_names": {
+    "Bash": 2,
+    "Edit": 1,
+    "Read": 4
+  },
+  "files_read": 4,
+  "bash_commands": 2,
+  "permission_denials": 0,
+  "result_preview": "The implementation is complete. Here's what changed and why each acceptance criterion is met:\n\n1. **30-second retry window** \u2014 `rotate_token` now loops until `time.monotonic() + 30` is exceeded, retrying only on retryable errors.\n2. **Legacy client compatibility** \u2014 the token format is untouched; we still call `client.rotate(token)` and return its result unchanged.\n3. **Permanent failures not hidden** \u2014 any exception where `should_retry_rotation` returns `False` (e.g. `ValueError`) is re-raised "
+}
