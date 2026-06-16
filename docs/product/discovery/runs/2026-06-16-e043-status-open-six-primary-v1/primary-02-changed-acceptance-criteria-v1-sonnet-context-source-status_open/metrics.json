@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-02-changed-acceptance-criteria-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-02-changed-acceptance-criteria-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 99764,
+  "num_turns": 11,
+  "total_cost_usd": 0.2127603,
+  "input_tokens": 10,
+  "cache_creation_input_tokens": 13334,
+  "cache_read_input_tokens": 183821,
+  "output_tokens": 5172,
+  "tool_calls": 10,
+  "tool_names": {
+    "Bash": 4,
+    "Edit": 3,
+    "Read": 3
+  },
+  "files_read": 3,
+  "bash_commands": 4,
+  "permission_denials": 0,
+  "result_preview": "All 4 tests pass. Here's what I did:\n\n**Risk noticed:** The Jira issue (API-482) changed after the branch started, meaning the original implementation was incomplete \u2014 it had no retry loop or time window.\n\n**Changes made:**\n\n- `src/auth/token.py`: Added `import time`, `RETRY_WINDOW_SECONDS = 30`, and `rotate_token_with_retry()` which retries within a 30-second deadline, lets non-retryable errors propagate immediately, and raises `TokenRotationError` when the window is exhausted. `rotate_token()`"
+}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -200,6 +201,7 @@ def prepare_agent_workspace(
     workspace: Path,
     *,
     source_access: SourceAccessMode = "full",
+    source_open_data_path: Path | None = None,
 ) -> None:
     if workspace.exists():
         shutil.rmtree(workspace)
@@ -213,7 +215,7 @@ def prepare_agent_workspace(
     if source_access == "status_open":
         source_note = (
             "Source snapshots are withheld; compact source status may be in the prompt, "
-            "and .teamctx/open_source.py can open one allowed source body."
+            "and .teamctx/open_source.py can request one allowed source body."
         )
 
     _write_text(
@@ -236,7 +238,9 @@ def prepare_agent_workspace(
     if source_access == "full":
         _write_source_snapshots(workspace)
     if source_access == "status_open":
-        _write_source_open_helper(workspace, fixture)
+        if source_open_data_path is None:
+            source_open_data_path = workspace.parent / f"{workspace.name}-source-data.json"
+        _write_source_open_helper(workspace, fixture, source_open_data_path)
     _init_git_repo(workspace)
 
 
@@ -265,8 +269,17 @@ def run_claude_agent(
 
     with tempfile.TemporaryDirectory(prefix=f"teamctx-{fixture.fixture_id}-") as tmp:
         workspace = Path(tmp) / "workspace"
-        prepare_agent_workspace(fixture, workspace, source_access=source_access)
+        source_open_data_path = Path(tmp) / "source-open-data.json"
+        prepare_agent_workspace(
+            fixture,
+            workspace,
+            source_access=source_access,
+            source_open_data_path=source_open_data_path,
+        )
         command = claude_command(model=model, max_budget_usd=max_budget_usd, prompt=prompt)
+        env = os.environ.copy()
+        if source_access == "status_open":
+            env["TEAMCTX_SOURCE_OPEN_DATA"] = str(source_open_data_path)
         completed = subprocess.run(
             command,
             cwd=workspace,
@@ -274,6 +287,7 @@ def run_claude_agent(
             text=True,
             timeout=timeout_seconds,
             check=False,
+            env=env,
         )
         stdout = completed.stdout
         stderr = completed.stderr
@@ -537,17 +551,14 @@ def _write_source_snapshots(workspace: Path) -> None:
     )
 
 
-def _write_source_open_helper(workspace: Path, fixture: Fixture) -> None:
+def _write_source_open_helper(workspace: Path, fixture: Fixture, data_path: Path) -> None:
     payload = {
         "source_signals": [signal.model_dump(mode="json") for signal in fixture.source_signals],
         "source_artifacts": [
             artifact.model_dump(mode="json") for artifact in fixture.source_artifacts
         ],
     }
-    _write_text(
-        workspace / ".teamctx/source-data.json",
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-    )
+    _write_text(data_path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     _write_text(workspace / ".teamctx/open_source.py", SOURCE_OPEN_HELPER)
 
 
@@ -555,6 +566,7 @@ SOURCE_OPEN_HELPER = r'''#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -565,7 +577,11 @@ def main() -> int:
         return 2
 
     ref = sys.argv[1]
-    data = json.loads(Path(__file__).with_name("source-data.json").read_text(encoding="utf-8"))
+    data_path = os.environ.get("TEAMCTX_SOURCE_OPEN_DATA")
+    if not data_path:
+        print("Source opening is not configured in this workspace.", file=sys.stderr)
+        return 2
+    data = json.loads(Path(data_path).read_text(encoding="utf-8"))
     signals = data.get("source_signals") or []
     artifacts = data.get("source_artifacts") or []
     signal = resolve_signal(signals, ref)

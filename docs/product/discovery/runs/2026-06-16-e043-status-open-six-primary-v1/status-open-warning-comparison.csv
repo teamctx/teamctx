@@ -1,0 +1,4 @@
+fixture_id,status_only_cost,status_open_cost,cost_delta,cost_delta_pct,status_only_turns,status_open_turns,status_only_tool_calls,status_open_tool_calls,status_only_files_read,status_open_files_read,quality
+primary-03-stale-process-doc-v1,0.106970,0.097685,-0.009286,-8.7%,7,6,6,5,4,1,pass 6/6
+primary-04-safety-blocked-source-change-v1,0.083336,0.098501,0.015164,18.2%,6,8,5,7,3,5,pass 6/6
+primary-05-inaccessible-linked-docs-v1,0.092515,0.112791,0.020276,21.9%,8,8,7,7,2,5,pass 6/6

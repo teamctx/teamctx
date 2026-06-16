@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-03-stale-process-doc-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-03-stale-process-doc-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 31915,
+  "num_turns": 6,
+  "total_cost_usd": 0.09768450000000001,
+  "input_tokens": 7,
+  "cache_creation_input_tokens": 7453,
+  "cache_read_input_tokens": 104185,
+  "output_tokens": 1446,
+  "tool_calls": 5,
+  "tool_names": {
+    "Bash": 3,
+    "Edit": 1,
+    "Read": 1
+  },
+  "files_read": 1,
+  "bash_commands": 3,
+  "permission_denials": 0,
+  "result_preview": "The checklist has been updated. Here's a summary of what was done and the key risk:\n\n**What changed in `docs/release-checklist.md`:**\n- Added today's release date (2026-06-16)\n- Added a staleness warning \u2014 the local copy is 4 days old and the Confluence source body could not be retrieved\n- Converted items to checkboxes\n- Added a verification section requiring someone to confirm Confluence hasn't drifted from this local copy\n\n**Risk to flag:** The Confluence Release Checklist is stale and its bod"
+}

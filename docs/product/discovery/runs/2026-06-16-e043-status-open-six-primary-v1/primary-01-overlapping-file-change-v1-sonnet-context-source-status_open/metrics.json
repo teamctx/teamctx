@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-01-overlapping-file-change-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-01-overlapping-file-change-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 24000,
+  "num_turns": 4,
+  "total_cost_usd": 0.0757596,
+  "input_tokens": 4,
+  "cache_creation_input_tokens": 7246,
+  "cache_read_input_tokens": 48372,
+  "output_tokens": 1184,
+  "tool_calls": 3,
+  "tool_names": {
+    "Bash": 1,
+    "Edit": 1,
+    "Read": 1
+  },
+  "files_read": 1,
+  "bash_commands": 1,
+  "permission_denials": 0,
+  "result_preview": "The change adds a retry loop to `rotate_token`:\n- `max_retries=3` by default, controllable by callers\n- Uses the existing `should_retry_rotation` to decide whether to retry on each exception\n- Raises `TokenRotationError` on non-retryable errors or after exhausting retries\n\n**Risk noted:** PR #482 modified `src/auth/token.py` 11 minutes ago. This edit may conflict with that PR's changes \u2014 a merge review is needed before merging.\n\n---\n\nAGENT_BENCHMARK_RESULT\nrisk_noticed: yes\nlookup_saved: yes\nfir"
+}

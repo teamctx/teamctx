@@ -118,6 +118,9 @@ knowledge system.
 - E-042 benchmarked that escape hatch: `status_open` opened only `Jira API-482`,
   preserved pass-level quality, added tests, and cost less than full source on
   the changed-acceptance-criteria scenario.
+- E-043 corrected the broader product read: `status_open` beats full source
+  snapshots in aggregate, but it is a capability layered on status-only routing,
+  not a universal instruction to open sources.
 
 ## Provisional Language Set
 
@@ -319,10 +322,34 @@ reported-cost delta on the one-scenario smoke. It used more turns and Bash
 commands because source opening is explicit, but it read fewer files, added tests,
 and preserved pass-level quality.
 
-This moves the default candidate from plain status-only to status-only plus
-open-on-demand. Compact context should tell the agent what changed confidence;
-open-on-demand should provide the one source body that matters when compact
-context is not enough.
+This moved `status_open` into the benchmark track, but E-043 narrowed the
+claim: open-on-demand is a capability, not the default action for every source
+warning.
+
+
+## Status Open Six-Scenario Benchmark
+
+E-043 reran `status_open` across all six primary Claude Code scenarios after
+hardening the benchmark helper so source payload data was not written into the
+workspace. The visible workspace exposed `.teamctx/open_source.py`, but not a
+browsable `source-data.json` file or temp source-data path.
+
+Against the E-035 context/full-source run, status open cost `$0.788972` versus
+`$0.911825`, a `-$0.122854` reported-cost delta (`-13.5%`). It also used fewer
+turns, fewer tool calls, and fewer file reads. Quality was `5 pass`, `1 review`,
+`0 fail`.
+
+The review matters. In the same-file collision scenario, the agent noticed the
+PR collision and opened the source, but still changed the existing `rotate_token`
+API. That means TeamCtx can surface risk without guaranteeing conservative patch
+quality. Collision guidance needs a stronger behavioral contract.
+
+The warning-scenario comparison was mixed. Against E-040 status-only, status
+open was cheaper on stale Confluence but more expensive on blocked Jira and
+inaccessible linked docs. That suggests the product should not make agents open
+sources just to discover body unavailability. Compact source status should stay
+default; open-on-demand should appear when a source body is available and likely
+to change the task.
 
 
 ## Open Product Questions
@@ -343,6 +370,10 @@ context is not enough.
   is not enough?
 - Should the user-facing label be `Open source`, `Open original`, or something
   more concrete like `Open PR` / `Open issue`?
+- How should context show source-body availability so agents do not waste tool
+  calls opening blocked, unavailable, or status-only sources?
+- What collision instruction makes agents preserve existing APIs when a same-file
+  source body is unavailable?
 
 ## Next Experiments
 
@@ -380,8 +411,10 @@ context is not enough.
   scenarios before the full benchmark.
 - Extend status-only source routing to the full six-scenario benchmark or one
   larger daily-driver task set.
-- Run `status_open` on a larger benchmark slice, starting with the full six
-  primary scenarios or a smaller set that includes both direct-signal and
-  source-health tasks.
+- Add source-openability language to the prompt/context so agents know whether a
+  source body is available before opening it.
+- Add a collision-specific scenario or scoring rule that rewards additive or
+  review-blocking behavior when an overlapping PR body is unavailable.
 - Decide whether source opening should be an agent command, an MCP read-only
-  tool, or both for the first real product surface.
+  tool, or both for the first real product surface. E-043 points toward MCP/tool
+  as the product boundary and CLI command as the human/debug surface.

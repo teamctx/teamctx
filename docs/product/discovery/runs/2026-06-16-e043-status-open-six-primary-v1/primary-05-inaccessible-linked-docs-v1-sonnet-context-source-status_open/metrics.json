@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-05-inaccessible-linked-docs-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-05-inaccessible-linked-docs-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 42575,
+  "num_turns": 8,
+  "total_cost_usd": 0.112791,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 10179,
+  "cache_read_input_tokens": 90930,
+  "output_tokens": 1628,
+  "tool_calls": 7,
+  "tool_names": {
+    "Bash": 2,
+    "Read": 5
+  },
+  "files_read": 5,
+  "bash_commands": 2,
+  "permission_denials": 0,
+  "result_preview": "The situation is now clear. The benchmark is named `inaccessible-linked-docs-v1` and the source status explicitly states the linked docs are unavailable. The task says to implement \"the release process update linked from the issue\" \u2014 but:\n\n- The only local issue-adjacent content is `docs/release-checklist.md` (a brief 3-item checklist exported 2026-06-12)\n- No issue file exists locally describing what the release process update should be\n- The \"docs source status\" source is marked **unavailable*"
+}

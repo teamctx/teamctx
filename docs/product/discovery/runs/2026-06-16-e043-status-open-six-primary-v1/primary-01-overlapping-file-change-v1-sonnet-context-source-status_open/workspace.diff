@@ -1,0 +1,40 @@
+diff --git a/src/auth/token.py b/src/auth/token.py
+index 49c8881..b573bda 100644
+--- a/src/auth/token.py
++++ b/src/auth/token.py
+@@ -3,6 +3,9 @@
+ from __future__ import annotations
+
+
++_DEFAULT_MAX_RETRIES = 3
++
++
+ class TokenRotationError(RuntimeError):
+     """Raised when token rotation cannot be completed."""
+
+@@ -13,11 +16,17 @@ def should_retry_rotation(error: Exception) -> bool:
+     return isinstance(error, TimeoutError)
+
+
+-def rotate_token(client: object, token: str) -> str:
+-    """Rotate an auth token using the configured client."""
+-
+-    try:
+-        rotate = getattr(client, "rotate")
+-        return rotate(token)
+-    except TimeoutError as exc:
+-        raise TokenRotationError("token rotation timed out") from exc
++def rotate_token(client: object, token: str, max_retries: int = _DEFAULT_MAX_RETRIES) -> str:
++    """Rotate an auth token using the configured client, retrying on transient errors."""
++
++    rotate = getattr(client, "rotate")
++    last_exc: Exception | None = None
++    for attempt in range(max_retries + 1):
++        try:
++            return rotate(token)
++        except Exception as exc:
++            if should_retry_rotation(exc) and attempt < max_retries:
++                last_exc = exc
++                continue
++            raise TokenRotationError("token rotation failed") from exc
++    raise TokenRotationError("token rotation failed after retries") from last_exc

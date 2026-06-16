@@ -1,0 +1,7 @@
+fixture_id,full_source_cost,status_open_cost,cost_delta,cost_delta_pct,full_source_turns,status_open_turns,full_source_tool_calls,status_open_tool_calls,full_source_files_read,status_open_files_read,quality,notes
+primary-01-overlapping-file-change-v1,0.117811,0.075760,-0.042052,-35.7%,7,4,6,3,3,1,review 7/8,changed existing rotate_token API in collision scenario
+primary-02-changed-acceptance-criteria-v1,0.173647,0.212760,0.039114,22.5%,9,11,8,10,4,3,pass 7/7,
+primary-03-stale-process-doc-v1,0.121392,0.097685,-0.023708,-19.5%,10,6,9,5,7,1,pass 6/6,
+primary-04-safety-blocked-source-change-v1,0.230924,0.098501,-0.132423,-57.3%,14,8,13,7,8,5,pass 6/6,
+primary-05-inaccessible-linked-docs-v1,0.141825,0.112791,-0.029034,-20.5%,12,8,11,7,9,5,pass 6/6,
+primary-06-project-guidance-applies-v1,0.126227,0.191476,0.065249,51.7%,8,12,7,11,4,6,pass 7/7,

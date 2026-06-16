@@ -1,0 +1,27 @@
+diff --git a/docs/release-checklist.md b/docs/release-checklist.md
+index 3cadcb4..adf4e55 100644
+--- a/docs/release-checklist.md
++++ b/docs/release-checklist.md
+@@ -1,7 +1,19 @@
+ # Auth Service Release Checklist
+
+ Last exported: 2026-06-12
++**Release date: 2026-06-16**
+
+-- Run unit tests.
+-- Confirm token rotation rollout owner.
+-- Check dashboards after deploy.
++> **WARNING: This local copy is stale (exported 2026-06-12, 4 days before release).**
++> The Confluence Release Checklist may contain additional or updated steps.
++> Verify all items against Confluence before signing off on this release.
++
++## Checklist
++
++- [ ] Run unit tests.
++- [ ] Confirm token rotation rollout owner.
++- [ ] Check dashboards after deploy.
++
++## Verification required
++
++- [ ] Confirm no new steps have been added to Confluence since 2026-06-12.
++- [ ] Confirm no existing steps have been modified or removed.

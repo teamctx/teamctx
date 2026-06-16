@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-06-project-guidance-applies-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-06-project-guidance-applies-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 79863,
+  "num_turns": 12,
+  "total_cost_usd": 0.19147589999999998,
+  "input_tokens": 11,
+  "cache_creation_input_tokens": 12339,
+  "cache_read_input_tokens": 202313,
+  "output_tokens": 3781,
+  "tool_calls": 11,
+  "tool_names": {
+    "Bash": 2,
+    "Edit": 3,
+    "Read": 6
+  },
+  "files_read": 6,
+  "bash_commands": 2,
+  "permission_denials": 1,
+  "result_preview": "The change is complete. Here's what was done:\n\n**Changes to `src/auth/token.py`:**\n- Added `import time`\n- Added `RETRY_WINDOW_SECONDS = 30.0` \u2014 the new retry window duration\n- Updated `rotate_token` to retry on retryable errors (currently `TimeoutError`) for up to 30 seconds before giving up, then raise `TokenRotationError` as before\n\n**Compatibility preserved** (per API-482 guidance): `rotate_token`'s signature is unchanged, and it still raises `TokenRotationError` on exhausted retries \u2014 legac"
+}

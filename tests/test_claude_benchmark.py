@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -145,13 +146,18 @@ def test_prepare_agent_workspace_status_open_writes_source_opener(tmp_path: Path
 
     assert not (workspace / "source-snapshots").exists()
     assert (workspace / ".teamctx/open_source.py").exists()
-    assert (workspace / ".teamctx/source-data.json").exists()
+    assert not (workspace / ".teamctx/source-data.json").exists()
+    assert (tmp_path / "workspace-source-data.json").exists()
     completed = subprocess.run(
         ["python3", ".teamctx/open_source.py", "Jira API-482"],
         cwd=workspace,
         capture_output=True,
         text=True,
         check=False,
+        env={
+            **os.environ,
+            "TEAMCTX_SOURCE_OPEN_DATA": str(tmp_path / "workspace-source-data.json"),
+        },
     )
 
     assert completed.returncode == 0
@@ -173,6 +179,10 @@ def test_status_open_source_opener_denies_source_body_when_policy_disallows_it(
         capture_output=True,
         text=True,
         check=False,
+        env={
+            **os.environ,
+            "TEAMCTX_SOURCE_OPEN_DATA": str(tmp_path / "workspace-source-data.json"),
+        },
     )
 
     assert completed.returncode == 0
