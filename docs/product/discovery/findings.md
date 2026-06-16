@@ -1,6 +1,6 @@
 # Discovery Findings
 
-Updated: 2026-06-15
+Updated: 2026-06-16
 
 ## Current Product Thesis
 
@@ -112,6 +112,9 @@ knowledge system.
 - E-040 status-only source routing is the best current default candidate:
   compact stale/unavailable/blocked source status reaches the agent, but source
   bodies are not exposed as a browsable workspace by default.
+- E-041 defines the source-body escape hatch: source bodies open only by explicit
+  action, one source at a time, after policy checks. Blocked and unavailable
+  sources do not render body text, even if fixture data contains it.
 
 ## Provisional Language Set
 
@@ -285,6 +288,22 @@ promise in plain terms: TeamCtx should save lookup work without letting missing
 or stale evidence masquerade as confidence.
 
 
+## Source Open On Demand Contract
+
+E-041 added the missing companion to status-only routing: an explicit source-open
+path. Fixtures can now carry optional source bodies, but those bodies are not
+part of default working context or agent prompts.
+
+The prototype command is `teamctx open-source <card-or-source-id>`. It resolves a
+single source, checks policy, shows stale caveats before body access, and refuses
+to render blocked or unavailable bodies. The safety test intentionally included a
+blocked source body in fixture data and verified that it did not print.
+
+This keeps the product shape honest: TeamCtx can save lookup work by opening the
+one source that matters, without returning to the expensive E-037 pattern where
+all source snapshots become a browsable workspace.
+
+
 ## Open Product Questions
 
 - Is `Working context` better than `Context for this task` as the container label?
@@ -301,6 +320,8 @@ or stale evidence masquerade as confidence.
   noise?
 - What is the lightest open-on-demand path for source bodies when compact status
   is not enough?
+- Should the user-facing label be `Open source`, `Open original`, or something
+  more concrete like `Open PR` / `Open issue`?
 
 ## Next Experiments
 
@@ -338,5 +359,5 @@ or stale evidence masquerade as confidence.
   scenarios before the full benchmark.
 - Extend status-only source routing to the full six-scenario benchmark or one
   larger daily-driver task set.
-- Design and test the source-body open-on-demand path without turning TeamCtx
-  into a source dump.
+- Add an E-042 benchmark scenario where one explicitly opened source body is
+  useful, then compare status-only plus open-on-demand against full source.

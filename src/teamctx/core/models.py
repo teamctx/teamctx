@@ -36,6 +36,13 @@ class SourceSignal(StrictModel):
     policy: SignalPolicy
 
 
+class SourceArtifact(StrictModel):
+    id: str
+    source_signal_id: str
+    title: str
+    body: str
+
+
 class GuidanceRecord(StrictModel):
     id: str
     status: str
@@ -64,6 +71,7 @@ class Fixture(StrictModel):
     task: str
     scope: dict[str, Any] = Field(default_factory=dict)
     source_signals: list[SourceSignal]
+    source_artifacts: list[SourceArtifact] = Field(default_factory=list)
     guidance_records: list[GuidanceRecord]
     expected_cards: list[ContextCard]
 

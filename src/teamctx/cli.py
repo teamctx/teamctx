@@ -17,6 +17,7 @@ from teamctx.core.fixtures import FixtureError, load_fixture
 from teamctx.core.models import Fixture
 from teamctx.render import render_baseline_prompt, render_benchmark_prompt, render_context_cards
 from teamctx.session import add_card_to_session, read_session
+from teamctx.source_open import SourceOpenError, render_open_source
 from teamctx.why import render_why
 
 
@@ -77,6 +78,25 @@ def why_command(card_id: str, fixture_path: Path) -> None:
         click.echo(render_why(fixture, card_id), nl=False)
     except KeyError as exc:
         raise click.ClickException(f"Unknown card id: {card_id}") from exc
+
+
+@main.command("open-source")
+@click.argument("ref_id")
+@click.option(
+    "--fixture",
+    "fixture_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Prototype fixture path.",
+)
+def open_source_command(ref_id: str, fixture_path: Path) -> None:
+    """Open a source body when policy allows it."""
+
+    fixture = _load_or_raise(fixture_path)
+    try:
+        click.echo(render_open_source(fixture, ref_id), nl=False)
+    except SourceOpenError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 @main.command("use")

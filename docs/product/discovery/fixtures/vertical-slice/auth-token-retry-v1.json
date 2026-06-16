@@ -59,7 +59,7 @@
       "policy": {
         "can_render_to_user": true,
         "can_render_to_agent": true,
-        "can_include_source_text": false,
+        "can_include_source_text": true,
         "requires_review_for_guidance": false
       }
     },
@@ -202,6 +202,14 @@
         "sig_auth_notes_match"
       ],
       "default_agent_visible": false
+    }
+  ],
+  "source_artifacts": [
+    {
+      "id": "artifact_pr_482",
+      "source_signal_id": "sig_pr_482_collision",
+      "title": "GitHub PR #482",
+      "body": "Summary: add retry handling for token rotation when the upstream client times out.\nFiles touched: src/auth/token.py.\nReview note: keep legacy client behavior unchanged."
     }
   ]
 }
