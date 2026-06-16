@@ -1,0 +1,295 @@
+{
+  "schema_version": "teamctx.core_contract_document.v0",
+  "request_context": {
+    "schema_version": "teamctx.request_context.v0",
+    "request_id": "req_auth_token_retry_001",
+    "repo": "auth-service",
+    "branch": "feature/token-retry",
+    "task": "Update src/auth/token.py to add token rotation retry handling for API-482.",
+    "paths": [
+      "src/auth/token.py"
+    ],
+    "linked_issues": [
+      "API-482"
+    ],
+    "requested_at": "2026-06-16T00:00:00Z",
+    "requesting_principal": null
+  },
+  "source_signals": [
+    {
+      "schema_version": "teamctx.source_signal.v0",
+      "id": "sig_pr_482_collision",
+      "signal_type": "collision",
+      "source_family": "git_hosting",
+      "scope": {
+        "repo": "auth-service",
+        "files": [
+          "src/auth/token.py"
+        ]
+      },
+      "evidence_summary": "Another open PR changed src/auth/token.py 11 minutes ago.",
+      "source_display": "GitHub PR #482",
+      "freshness": "fresh",
+      "confidence": "high",
+      "visibility": "visible",
+      "created_at": "2026-06-16T00:00:00Z",
+      "observed_at": "2026-06-16T00:11:00Z",
+      "expires_at": "2026-06-16T01:00:00Z",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": true,
+        "requires_review_for_guidance": false,
+        "decision_reason": "The source body is explicitly allowed for this task scope."
+      }
+    },
+    {
+      "schema_version": "teamctx.source_signal.v0",
+      "id": "sig_release_docs_stale",
+      "signal_type": "stale_source",
+      "source_family": "docs",
+      "scope": {
+        "service": "auth-service",
+        "release": "2026-06-15"
+      },
+      "evidence_summary": "The release checklist source is stale.",
+      "source_display": "Confluence Release Checklist",
+      "freshness": "stale",
+      "confidence": "high",
+      "visibility": "warning_only",
+      "created_at": "2026-06-16T00:00:00Z",
+      "observed_at": "2026-06-16T00:00:00Z",
+      "expires_at": "2026-06-16T02:00:00Z",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "Source health can be rendered without revealing source body text."
+      }
+    },
+    {
+      "schema_version": "teamctx.source_signal.v0",
+      "id": "sig_auth_notes_match",
+      "signal_type": "advisory_match",
+      "source_family": "local_notes",
+      "scope": {
+        "service": "auth-service"
+      },
+      "evidence_summary": "A selected Engineering/Auth folder note may be relevant.",
+      "source_display": "Obsidian folder Engineering/Auth",
+      "freshness": "fresh",
+      "confidence": "medium",
+      "visibility": "visible",
+      "created_at": "2026-06-16T00:00:00Z",
+      "observed_at": "2026-06-16T00:00:00Z",
+      "expires_at": "session_end",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": false,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": true,
+        "decision_reason": "Selected local notes may be shown to the user but not fed to the agent by default."
+      }
+    }
+  ],
+  "source_statuses": [
+    {
+      "schema_version": "teamctx.source_status.v0",
+      "source_id": "src_confluence_release_checklist",
+      "source_family": "docs",
+      "scope": {
+        "service": "auth-service",
+        "release": "2026-06-15"
+      },
+      "status": "stale",
+      "last_checked_at": "2026-06-12T00:00:00Z",
+      "safe_user_message": "The release checklist source is stale.",
+      "normal_context_visibility": "warning_when_relevant",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "Source health can be rendered without revealing source body text."
+      }
+    }
+  ],
+  "source_open_targets": [
+    {
+      "schema_version": "teamctx.source_open_target.v0",
+      "id": "open_pr_482",
+      "source_signal_id": "sig_pr_482_collision",
+      "source_family": "git_hosting",
+      "source_display": "GitHub PR #482",
+      "open_label": "Open PR",
+      "body_availability": "available",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": true,
+        "requires_review_for_guidance": false,
+        "decision_reason": "The source body is explicitly allowed for this task scope."
+      }
+    },
+    {
+      "schema_version": "teamctx.source_open_target.v0",
+      "id": "open_release_checklist_status",
+      "source_signal_id": "sig_release_docs_stale",
+      "source_family": "docs",
+      "source_display": "Confluence Release Checklist",
+      "open_label": "Open doc status",
+      "body_availability": "status_only",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "Source health can be rendered without revealing source body text."
+      }
+    }
+  ],
+  "guidance_records": [
+    {
+      "schema_version": "teamctx.guidance_record.v0",
+      "id": "guide_legacy_token_compat",
+      "status": "active",
+      "body": "Token rotation must preserve compatibility for legacy clients.",
+      "scope": {
+        "service": "auth-service",
+        "applies_to": [
+          "token rotation"
+        ]
+      },
+      "source_display": "approved project guidance, originally from Jira API-482",
+      "review": {
+        "schema_version": "teamctx.guidance_review.v0",
+        "reviewed_by": "platform-team",
+        "reviewed_at": "2026-06-15T00:00:00Z"
+      },
+      "freshness": "fresh",
+      "confidence": "high",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "Reviewed project guidance is active and scoped to token rotation."
+      }
+    }
+  ],
+  "session_context_uses": [
+    {
+      "schema_version": "teamctx.session_context_use.v0",
+      "id": "use_auth_notes_this_session",
+      "session_id": "sess_demo",
+      "card_ids": [
+        "card_auth_notes_advisory"
+      ],
+      "signal_ids": [
+        "sig_auth_notes_match"
+      ],
+      "guidance_ids": [],
+      "created_at": "2026-06-16T00:15:00Z",
+      "expires_at": "session_end",
+      "agent_visible": true
+    }
+  ],
+  "context_cards": [
+    {
+      "schema_version": "teamctx.context_card.v0",
+      "id": "card_pr_collision",
+      "section": "Needs attention",
+      "text": "Another open PR changed src/auth/token.py 11 minutes ago.",
+      "why_this_matters": "you are editing the same file.",
+      "source_display": "GitHub PR #482",
+      "refs": [
+        "sig_pr_482_collision"
+      ],
+      "reason": "same repository and file path as the current task",
+      "scope": {
+        "repo": "auth-service",
+        "files": [
+          "src/auth/token.py"
+        ]
+      },
+      "freshness": "fresh",
+      "confidence": "high",
+      "source_body": "openable",
+      "source_open_target_id": "open_pr_482",
+      "agent_instruction": "verify_before_relying"
+    },
+    {
+      "schema_version": "teamctx.context_card.v0",
+      "id": "card_project_guidance",
+      "section": "Project guidance",
+      "text": "Token rotation must preserve compatibility for legacy clients.",
+      "why_this_matters": "this applies to auth-service token changes.",
+      "source_display": "approved project guidance, originally from Jira API-482",
+      "refs": [
+        "guide_legacy_token_compat"
+      ],
+      "reason": "reviewed guidance scope matches the linked auth-service task",
+      "scope": {
+        "service": "auth-service",
+        "applies_to": [
+          "token rotation"
+        ]
+      },
+      "freshness": "fresh",
+      "confidence": "high",
+      "source_body": "status_only",
+      "source_open_target_id": null,
+      "agent_instruction": "apply_when_in_scope"
+    },
+    {
+      "schema_version": "teamctx.context_card.v0",
+      "id": "card_stale_docs",
+      "section": "Verify before relying",
+      "text": "The release checklist source is stale.",
+      "why_this_matters": "missing checklist updates should not be treated as no risk.",
+      "source_display": "Confluence Release Checklist",
+      "refs": [
+        "sig_release_docs_stale",
+        "src_confluence_release_checklist"
+      ],
+      "reason": "release-scoped source health changes confidence for this task",
+      "scope": {
+        "service": "auth-service",
+        "release": "2026-06-15"
+      },
+      "freshness": "stale",
+      "confidence": "high",
+      "source_body": "status_only",
+      "source_open_target_id": "open_release_checklist_status",
+      "agent_instruction": "verify_before_relying"
+    },
+    {
+      "schema_version": "teamctx.context_card.v0",
+      "id": "card_auth_notes_advisory",
+      "section": "Good to know",
+      "text": "A selected Engineering/Auth folder note may be relevant.",
+      "why_this_matters": "it may explain a local token rotation convention.",
+      "source_display": "Obsidian folder Engineering/Auth",
+      "refs": [
+        "sig_auth_notes_match"
+      ],
+      "reason": "explicitly selected local note folder matches the auth service scope",
+      "scope": {
+        "service": "auth-service"
+      },
+      "freshness": "fresh",
+      "confidence": "medium",
+      "source_body": "not_collected",
+      "source_open_target_id": null,
+      "agent_instruction": "evidence_only"
+    }
+  ]
+}

@@ -9,8 +9,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from teamctx.core.fixtures import load_fixture
 from teamctx.core.models import Fixture
+from teamctx.fixtures import load_fixture
 
 QualityLevel = Literal["pass", "review", "fail"]
 

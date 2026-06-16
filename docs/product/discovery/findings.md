@@ -133,6 +133,11 @@ knowledge system.
 - Current sprint decision: keep compact source status by default with
   policy-gated source opening on demand. Do not expose source bodies as a
   browsable workspace by default.
+- E-046 implemented Core Contract V0 as pure versioned models for policy
+  decisions, source signals, source status, source-open targets, reviewed
+  guidance, session use, request context, and context cards. The first live
+  Git-host probe should normalize into these objects instead of writing rendered
+  cards directly.
 
 ## Provisional Language Set
 

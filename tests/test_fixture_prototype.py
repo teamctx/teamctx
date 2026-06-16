@@ -6,7 +6,7 @@ from click.testing import CliRunner
 
 from teamctx.cli import main
 from teamctx.context import agent_prompt_cards, context_cards
-from teamctx.core.fixtures import load_fixture
+from teamctx.fixtures import load_fixture
 from teamctx.render import render_benchmark_prompt, render_context_cards
 from teamctx.session import add_card_to_session, read_session
 from teamctx.why import render_why

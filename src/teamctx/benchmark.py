@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from teamctx.context import agent_prompt_cards
-from teamctx.core.fixtures import load_fixture
+from teamctx.fixtures import load_fixture
 from teamctx.render import render_baseline_prompt, render_benchmark_prompt
 
 

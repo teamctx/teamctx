@@ -9,8 +9,8 @@ from click.testing import CliRunner
 from teamctx.benchmark import export_benchmark_pack
 from teamctx.cli import main
 from teamctx.context import agent_prompt_cards, context_cards
-from teamctx.core.fixtures import load_fixture
 from teamctx.core.models import Fixture
+from teamctx.fixtures import load_fixture
 from teamctx.render import render_baseline_prompt, render_benchmark_prompt
 
 ROOT = Path(__file__).resolve().parent.parent

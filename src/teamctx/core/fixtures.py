@@ -1,9 +1,8 @@
-"""Fixture loading and validation."""
+"""Pure fixture validation for the fixture-backed prototype."""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from pydantic import ValidationError
 
@@ -14,21 +13,19 @@ class FixtureError(ValueError):
     """Raised when a fixture cannot be loaded or does not satisfy the contract."""
 
 
-def load_fixture(path: Path) -> Fixture:
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise FixtureError(f"Could not read fixture: {path}") from exc
-
+def load_fixture_json(raw: str, *, source: str = "fixture") -> Fixture:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise FixtureError(f"Fixture is not valid JSON: {path}") from exc
+        raise FixtureError(f"Fixture is not valid JSON: {source}") from exc
+    return load_fixture_data(data, source=source)
 
+
+def load_fixture_data(data: object, *, source: str = "fixture") -> Fixture:
     try:
         fixture = Fixture.model_validate(data)
     except ValidationError as exc:
-        raise FixtureError(f"Fixture does not match the prototype contract: {path}") from exc
+        raise FixtureError(f"Fixture does not match the prototype contract: {source}") from exc
 
     _validate_refs(fixture)
     return fixture

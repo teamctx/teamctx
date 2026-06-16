@@ -18,7 +18,7 @@ from teamctx.claude_benchmark import (
     write_summary,
 )
 from teamctx.context import source_status_cards
-from teamctx.core.fixtures import load_fixture
+from teamctx.fixtures import load_fixture
 
 ROOT = Path(__file__).resolve().parent.parent
 BENCHMARK_FIXTURES = ROOT / "docs/product/discovery/fixtures/benchmark/primary"

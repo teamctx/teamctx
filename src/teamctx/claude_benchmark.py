@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 from teamctx.context import agent_prompt_cards, source_status_cards
-from teamctx.core.fixtures import load_fixture
 from teamctx.core.models import Fixture
+from teamctx.fixtures import load_fixture
 from teamctx.render import render_context_cards, render_source_status_cards
 from teamctx.source_open import find_source_artifact, source_body_unavailable_reason
 

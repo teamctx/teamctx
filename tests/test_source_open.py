@@ -5,8 +5,8 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from teamctx.cli import main
-from teamctx.core.fixtures import load_fixture
 from teamctx.core.models import Fixture
+from teamctx.fixtures import load_fixture
 from teamctx.source_open import SourceOpenError, render_open_source
 
 ROOT = Path(__file__).resolve().parent.parent

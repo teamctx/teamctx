@@ -13,8 +13,8 @@ from teamctx.claude_benchmark import AgentVariant, SourceAccessMode, run_claude_
 from teamctx.claude_quality import assess_claude_run_dir
 from teamctx.context import agent_prompt_cards, context_cards
 from teamctx.core.cards import find_card
-from teamctx.core.fixtures import FixtureError, load_fixture
 from teamctx.core.models import Fixture
+from teamctx.fixtures import FixtureError, load_fixture
 from teamctx.render import render_baseline_prompt, render_benchmark_prompt, render_context_cards
 from teamctx.session import add_card_to_session, read_session
 from teamctx.source_open import SourceOpenError, render_open_source

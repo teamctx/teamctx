@@ -12,7 +12,7 @@ from teamctx.claude_quality import (
     parse_agent_result_block,
     write_quality_summary,
 )
-from teamctx.core.fixtures import load_fixture
+from teamctx.fixtures import load_fixture
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURE_PATH = (
