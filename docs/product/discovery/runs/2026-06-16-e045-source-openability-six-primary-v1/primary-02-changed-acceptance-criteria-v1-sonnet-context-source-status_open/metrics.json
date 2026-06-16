@@ -1,0 +1,27 @@
+{
+  "fixture_id": "primary-02-changed-acceptance-criteria-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-02-changed-acceptance-criteria-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 58226,
+  "num_turns": 8,
+  "total_cost_usd": 0.15024389999999999,
+  "input_tokens": 8,
+  "cache_creation_input_tokens": 10380,
+  "cache_read_input_tokens": 130183,
+  "output_tokens": 3259,
+  "tool_calls": 7,
+  "tool_names": {
+    "Bash": 2,
+    "Edit": 2,
+    "Glob": 1,
+    "Read": 2
+  },
+  "files_read": 2,
+  "bash_commands": 2,
+  "permission_denials": 0,
+  "result_preview": "All 5 tests pass. Here's what was done:\n\n- **Opened Jira API-482 first** because the working context flagged that acceptance criteria changed after the branch started \u2014 the current criteria require a 30-second retry window and that permanent failures must not be hidden.\n- **Added `rotate_token_with_retry`** in `src/auth/token.py`: retries only when the error is a `TokenRotationError` caused by a `TimeoutError` (i.e., `should_retry_rotation` returns True), stops immediately on permanent failures "
+}

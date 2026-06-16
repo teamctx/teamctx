@@ -124,6 +124,15 @@ knowledge system.
 - E-044 smoke-tested source-openability language. It preserved the existing API
   in the collision scenario and kept the Jira body-available path working, but
   still needs a larger rerun.
+- E-045 reran `status_open` across all six primary scenarios with stricter
+  collision and validation scoring. It produced no failures: four pass, two
+  review. The collision scenario preserved the existing API and added retry
+  behavior, but lacked validation. The project-guidance scenario blocked on an
+  undefined retry window instead of guessing, which is promising behavior but
+  still needs a clearer scorer/product rule.
+- Current sprint decision: keep compact source status by default with
+  policy-gated source opening on demand. Do not expose source bodies as a
+  browsable workspace by default.
 
 ## Provisional Language Set
 

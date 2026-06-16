@@ -1,0 +1,85 @@
+diff --git a/src/auth/token.py b/src/auth/token.py
+index 49c8881..053fafa 100644
+--- a/src/auth/token.py
++++ b/src/auth/token.py
+@@ -2,6 +2,8 @@
+
+ from __future__ import annotations
+
++import time
++
+
+ class TokenRotationError(RuntimeError):
+     """Raised when token rotation cannot be completed."""
+@@ -21,3 +23,18 @@ def rotate_token(client: object, token: str) -> str:
+         return rotate(token)
+     except TimeoutError as exc:
+         raise TokenRotationError("token rotation timed out") from exc
++
++
++def rotate_token_with_retry(client: object, token: str, _deadline: float | None = None) -> str:
++    """Rotate an auth token, retrying transient failures within a 30-second window."""
++
++    deadline = _deadline if _deadline is not None else time.monotonic() + 30.0
++    while True:
++        try:
++            return rotate_token(client, token)
++        except TokenRotationError as exc:
++            # Permanent failures (not caused by a retryable error) propagate immediately.
++            if exc.__cause__ is None or not should_retry_rotation(exc.__cause__):
++                raise
++            if time.monotonic() >= deadline:
++                raise
+diff --git a/tests/test_token_rotation.py b/tests/test_token_rotation.py
+index 14ff4c3..c61adea 100644
+--- a/tests/test_token_rotation.py
++++ b/tests/test_token_rotation.py
+@@ -1,6 +1,9 @@
+ from __future__ import annotations
+
+-from auth.token import should_retry_rotation
++import time
++import pytest
++
++from auth.token import TokenRotationError, rotate_token_with_retry, should_retry_rotation
+
+
+ def test_timeout_errors_are_retryable() -> None:
+@@ -9,3 +12,37 @@ def test_timeout_errors_are_retryable() -> None:
+
+ def test_value_errors_are_not_retryable() -> None:
+     assert should_retry_rotation(ValueError("bad token")) is False
++
++
++def test_rotate_token_with_retry_succeeds_after_transient_timeout() -> None:
++    calls = {"count": 0}
++
++    class FlakyClient:
++        def rotate(self, token: str) -> str:
++            calls["count"] += 1
++            if calls["count"] < 3:
++                raise TimeoutError("upstream slow")
++            return "new-" + token
++
++    result = rotate_token_with_retry(FlakyClient(), "tok")
++    assert result == "new-tok"
++    assert calls["count"] == 3
++
++
++def test_rotate_token_with_retry_raises_on_permanent_failure() -> None:
++    class BadClient:
++        def rotate(self, token: str) -> str:
++            raise ValueError("invalid token format")
++
++    with pytest.raises(ValueError):
++        rotate_token_with_retry(BadClient(), "tok")
++
++
++def test_rotate_token_with_retry_stops_after_deadline() -> None:
++    class AlwaysTimesOut:
++        def rotate(self, token: str) -> str:
++            raise TimeoutError("always slow")
++
++    past_deadline = time.monotonic() - 1.0
++    with pytest.raises(TokenRotationError):
++        rotate_token_with_retry(AlwaysTimesOut(), "tok", _deadline=past_deadline)

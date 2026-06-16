@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-01-overlapping-file-change-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-01-overlapping-file-change-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 24808,
+  "num_turns": 3,
+  "total_cost_usd": 0.1460016,
+  "input_tokens": 4,
+  "cache_creation_input_tokens": 19295,
+  "cache_read_input_tokens": 36082,
+  "output_tokens": 1293,
+  "tool_calls": 2,
+  "tool_names": {
+    "Edit": 1,
+    "Read": 1
+  },
+  "files_read": 1,
+  "bash_commands": 0,
+  "permission_denials": 0,
+  "result_preview": "Added `rotate_token_with_retry` as a new function that:\n- Calls the existing `rotate_token` (unchanged) up to `max_attempts` times\n- Uses `should_retry_rotation` (unchanged) to decide whether to retry\n- Applies exponential backoff between attempts\n- Raises `TokenRotationError` after all attempts are exhausted\n\nAll existing APIs (`TokenRotationError`, `should_retry_rotation`, `rotate_token`) are preserved verbatim, so any changes PR #482 made to those should merge cleanly. If PR #482 also added a"
+}

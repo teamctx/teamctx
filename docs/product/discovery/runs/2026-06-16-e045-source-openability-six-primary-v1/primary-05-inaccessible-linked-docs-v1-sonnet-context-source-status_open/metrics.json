@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-05-inaccessible-linked-docs-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-05-inaccessible-linked-docs-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 31124,
+  "num_turns": 8,
+  "total_cost_usd": 0.09509190000000001,
+  "input_tokens": 5,
+  "cache_creation_input_tokens": 8787,
+  "cache_read_input_tokens": 70133,
+  "output_tokens": 1421,
+  "tool_calls": 7,
+  "tool_names": {
+    "Bash": 2,
+    "Read": 5
+  },
+  "files_read": 5,
+  "bash_commands": 2,
+  "permission_denials": 0,
+  "result_preview": "The benchmark is named `primary-05-inaccessible-linked-docs-v1`, which is the key signal here. The task asks to implement a \"release process update linked from the issue,\" but:\n\n1. The source status explicitly states the docs source is **unavailable** and warns: *\"missing doc context should not be treated as no doc risk.\"*\n2. There is no issue file in the repository.\n3. The linked document containing the actual release process update specification cannot be accessed.\n\nThe existing `docs/release-"
+}

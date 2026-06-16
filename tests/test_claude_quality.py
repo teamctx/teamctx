@@ -48,8 +48,27 @@ index 49c8881..4f55965 100644
 """
 
 
-def result_stream(result_text: str) -> str:
-    return json.dumps({"type": "result", "result": result_text}) + "\n"
+def result_stream(result_text: str, bash_commands: tuple[str, ...] = ()) -> str:
+    lines = []
+    for command in bash_commands:
+        lines.append(
+            json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "name": "Bash",
+                                "input": {"command": command},
+                            }
+                        ]
+                    },
+                }
+            )
+        )
+    lines.append(json.dumps({"type": "result", "result": result_text}))
+    return "\n".join(lines) + "\n"
 
 
 def write_run(
@@ -59,6 +78,7 @@ def write_run(
     result_text: str,
     variant: str,
     fixture_id: str = "primary-01-overlapping-file-change-v1",
+    bash_commands: tuple[str, ...] = (),
 ) -> None:
     run_dir.mkdir(parents=True)
     (run_dir / "metrics.json").write_text(
@@ -75,7 +95,9 @@ def write_run(
         encoding="utf-8",
     )
     (run_dir / "workspace.diff").write_text(diff_text, encoding="utf-8")
-    (run_dir / "stream.jsonl").write_text(result_stream(result_text), encoding="utf-8")
+    (run_dir / "stream.jsonl").write_text(
+        result_stream(result_text, bash_commands), encoding="utf-8"
+    )
 
 
 def benchmark_result(*, risk: str = "yes", lookup: str = "yes", blocked: str = "no") -> str:
@@ -138,11 +160,65 @@ def test_quality_scores_preserved_api_above_signature_change(tmp_path: Path) -> 
     context = assess_claude_run(fixture, context_dir)
 
     assert baseline.preserves_existing_api == "yes"
+    assert baseline.collision_behavior == "preserved_api"
     assert context.preserves_existing_api == "no"
+    assert context.collision_behavior == "changed_api"
     assert baseline.quality_score > context.quality_score
     assert baseline.quality_level == "review"
     assert context.quality_level == "review"
     assert "changed existing rotate_token API" in " | ".join(context.notes)
+
+
+def test_open_source_bash_command_does_not_count_as_validation(tmp_path: Path) -> None:
+    fixture = load_fixture(FIXTURE_PATH)
+    run_dir = tmp_path / "run"
+    write_run(
+        run_dir,
+        diff_text=BASELINE_DIFF,
+        result_text=benchmark_result(),
+        variant="context",
+        bash_commands=("python3 .teamctx/open_source.py 'GitHub PR #482'",),
+    )
+
+    assessment = assess_claude_run(fixture, run_dir)
+
+    assert assessment.validation_attempted is False
+    assert "no validation command or test change captured" in assessment.notes
+
+
+def test_pytest_bash_command_counts_as_validation(tmp_path: Path) -> None:
+    fixture = load_fixture(FIXTURE_PATH)
+    run_dir = tmp_path / "run"
+    write_run(
+        run_dir,
+        diff_text=BASELINE_DIFF,
+        result_text=benchmark_result(),
+        variant="context",
+        bash_commands=("python3 -m pytest tests/test_token_rotation.py",),
+    )
+
+    assessment = assess_claude_run(fixture, run_dir)
+
+    assert assessment.validation_attempted is True
+    assert "no validation command or test change captured" not in assessment.notes
+
+
+def test_collision_block_without_diff_is_review_not_failure(tmp_path: Path) -> None:
+    fixture = load_fixture(FIXTURE_PATH)
+    run_dir = tmp_path / "run"
+    write_run(
+        run_dir,
+        diff_text="",
+        result_text=benchmark_result(blocked="yes", lookup="unclear"),
+        variant="context",
+    )
+
+    assessment = assess_claude_run(fixture, run_dir)
+
+    assert assessment.quality_level == "review"
+    assert assessment.collision_behavior == "blocked"
+    assert "collision response did not preserve" not in " | ".join(assessment.notes)
+    assert "target file was not changed" in assessment.notes
 
 
 def test_quality_fails_when_source_snapshots_are_modified(tmp_path: Path) -> None:

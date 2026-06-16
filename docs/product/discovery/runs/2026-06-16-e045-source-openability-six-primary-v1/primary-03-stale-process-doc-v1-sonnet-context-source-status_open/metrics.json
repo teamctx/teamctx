@@ -1,0 +1,26 @@
+{
+  "fixture_id": "primary-03-stale-process-doc-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-03-stale-process-doc-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 39524,
+  "num_turns": 6,
+  "total_cost_usd": 0.1051698,
+  "input_tokens": 6,
+  "cache_creation_input_tokens": 9049,
+  "cache_read_input_tokens": 89726,
+  "output_tokens": 1596,
+  "tool_calls": 5,
+  "tool_names": {
+    "Bash": 1,
+    "Edit": 1,
+    "Read": 3
+  },
+  "files_read": 3,
+  "bash_commands": 1,
+  "permission_denials": 0,
+  "result_preview": "The checklist has been updated in `docs/release-checklist.md`. Key changes:\n\n- Date updated to today (2026-06-16)\n- **Prominent staleness warning** added \u2014 the Confluence source is flagged stale (last export 2026-06-12), body is unavailable, so the checklist cannot be confirmed as complete. Someone must check Confluence before signing off.\n- Items restructured into pre-deploy / deploy / post-deploy phases\n- Existing items preserved and expanded slightly based on what the code shows (`TokenRotati"
+}

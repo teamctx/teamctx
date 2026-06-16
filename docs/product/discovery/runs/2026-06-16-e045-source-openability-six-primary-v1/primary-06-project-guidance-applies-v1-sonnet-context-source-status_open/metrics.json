@@ -1,0 +1,25 @@
+{
+  "fixture_id": "primary-06-project-guidance-applies-v1",
+  "model": "sonnet",
+  "variant": "context",
+  "source_access": "status_open",
+  "run_dir": "primary-06-project-guidance-applies-v1-sonnet-context-source-status_open",
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 23506,
+  "num_turns": 6,
+  "total_cost_usd": 0.0808473,
+  "input_tokens": 5,
+  "cache_creation_input_tokens": 7294,
+  "cache_read_input_tokens": 67511,
+  "output_tokens": 1121,
+  "tool_calls": 5,
+  "tool_names": {
+    "Glob": 1,
+    "Read": 4
+  },
+  "files_read": 4,
+  "bash_commands": 0,
+  "permission_denials": 0,
+  "result_preview": "The repository has the auth-service token rotation code, but I cannot safely complete this task. The \"new retry window\" is not defined anywhere in the codebase, README, docs, or working context \u2014 and there are no source opening targets available that would provide that definition.\n\nThe project guidance (Jira API-482) explicitly requires that token rotation changes preserve compatibility for legacy clients, which means inventing a retry window value would carry real risk.\n\n**What's missing:** The"
+}

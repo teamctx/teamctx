@@ -38,13 +38,15 @@ class ClaudeQualityAssessment:
     validation_attempted: bool
     retry_behavior_added: bool
     preserves_existing_api: str
+    collision_behavior: str
     notes: list[str]
 
 
 def assess_claude_run(fixture: Fixture, run_dir: Path) -> ClaudeQualityAssessment:
     metrics = _read_json(run_dir / "metrics.json")
     diff_text = (run_dir / "workspace.diff").read_text(encoding="utf-8")
-    result_text = extract_final_result_text((run_dir / "stream.jsonl").read_text(encoding="utf-8"))
+    stream_text = (run_dir / "stream.jsonl").read_text(encoding="utf-8")
+    result_text = extract_final_result_text(stream_text)
     result_block = parse_agent_result_block(result_text)
 
     changed_files = changed_files_from_diff(diff_text)
@@ -56,11 +58,16 @@ def assess_claude_run(fixture: Fixture, run_dir: Path) -> ClaudeQualityAssessmen
     ]
     tests_touched = any(path.startswith("tests/") for path in changed_files)
     source_code_touched = any(path.startswith("src/") for path in changed_files)
-    tool_names = _dict_field(metrics.get("tool_names"))
     validation_required = source_code_touched
-    validation_attempted = tests_touched or int(tool_names.get("Bash", 0)) > 0
+    validation_attempted = validation_attempted_from_stream(stream_text, tests_touched)
     retry_behavior_added = diff_adds_retry_behavior(diff_text)
     preserves_existing_api = api_preservation_for_fixture(fixture, diff_text)
+    collision_behavior = collision_behavior_for_fixture(
+        fixture,
+        preserves_existing_api=preserves_existing_api,
+        retry_behavior_added=retry_behavior_added,
+        result_block=result_block,
+    )
 
     notes: list[str] = []
     score = 0
@@ -126,6 +133,13 @@ def assess_claude_run(fixture: Fixture, run_dir: Path) -> ClaudeQualityAssessmen
         else:
             notes.append("changed existing rotate_token API in collision scenario")
 
+    if collision_behavior != "n/a":
+        max_score += 1
+        if collision_behavior in {"preserved_api", "blocked"}:
+            score += 1
+        else:
+            notes.append("collision response did not preserve the existing API or block")
+
     critical_failure = (
         not run_completed
         or source_snapshots_touched
@@ -161,6 +175,7 @@ def assess_claude_run(fixture: Fixture, run_dir: Path) -> ClaudeQualityAssessmen
         validation_attempted=validation_attempted,
         retry_behavior_added=retry_behavior_added,
         preserves_existing_api=preserves_existing_api,
+        collision_behavior=collision_behavior,
         notes=notes,
     )
 
@@ -230,6 +245,41 @@ def diff_adds_retry_behavior(diff_text: str) -> bool:
     return "retry" in added and ("rotate_token" in added or "tokenrotationerror" in added)
 
 
+def validation_attempted_from_stream(stream_text: str, tests_touched: bool) -> bool:
+    if tests_touched:
+        return True
+
+    for line in stream_text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        message = event.get("message") or {}
+        for item in message.get("content") or []:
+            if item.get("type") != "tool_use" or item.get("name") != "Bash":
+                continue
+            command = str((item.get("input") or {}).get("command") or "").casefold()
+            if _command_is_validation(command):
+                return True
+    return False
+
+
+def _command_is_validation(command: str) -> bool:
+    validation_markers = (
+        "pytest",
+        "unittest",
+        "tox",
+        "nox",
+        "ruff",
+        "mypy",
+        "pyright",
+        "compileall",
+    )
+    return any(marker in command for marker in validation_markers)
+
+
 def api_preservation_for_fixture(fixture: Fixture, diff_text: str) -> str:
     if fixture.fixture_id != "primary-01-overlapping-file-change-v1":
         return "n/a"
@@ -238,12 +288,35 @@ def api_preservation_for_fixture(fixture: Fixture, diff_text: str) -> str:
     return "no" if removed_original or changed_signature else "yes"
 
 
+def collision_behavior_for_fixture(
+    fixture: Fixture,
+    *,
+    preserves_existing_api: str,
+    retry_behavior_added: bool,
+    result_block: dict[str, str],
+) -> str:
+    if fixture.fixture_id != "primary-01-overlapping-file-change-v1":
+        return "n/a"
+    if result_block.get("blocked") == "yes":
+        return "blocked"
+    if preserves_existing_api == "yes" and retry_behavior_added:
+        return "preserved_api"
+    if preserves_existing_api == "no":
+        return "changed_api"
+    return "unclear"
+
+
 def task_relevance_satisfied(
     fixture: Fixture,
     changed_files: list[str],
     retry_behavior_added: bool,
     result_block: dict[str, str],
 ) -> bool:
+    if (
+        fixture.fixture_id == "primary-01-overlapping-file-change-v1"
+        and result_block.get("blocked") == "yes"
+    ):
+        return True
     if fixture.fixture_id == "primary-03-stale-process-doc-v1":
         return "docs/release-checklist.md" in changed_files
     if fixture.fixture_id == "primary-05-inaccessible-linked-docs-v1":
@@ -296,6 +369,7 @@ def write_quality_summary(path: Path, assessments: list[ClaudeQualityAssessment]
                 "validation_attempted",
                 "retry_behavior_added",
                 "preserves_existing_api",
+                "collision_behavior",
                 "notes",
             ],
             lineterminator="\n",
@@ -333,15 +407,6 @@ def _read_json(path: Path) -> dict[str, Any]:
         raise ValueError(f"Expected JSON object in {path}")
     return data
 
-
-def _dict_field(value: object) -> dict[str, int]:
-    if not isinstance(value, dict):
-        return {}
-    result: dict[str, int] = {}
-    for key, item in value.items():
-        if isinstance(key, str) and isinstance(item, int):
-            result[key] = item
-    return result
 
 
 def _is_added_line(line: str) -> bool:
