@@ -1,0 +1,234 @@
+"""Forge-review metadata normalization.
+
+Connectors fetch provider payloads; this module turns allowed PR/MR metadata into
+Core Contract V0 objects. It does not fetch network data and does not render
+terminal cards directly.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Literal
+
+from teamctx.core.contracts import (
+    ContextCard,
+    CoreContractDocument,
+    PolicyDecision,
+    RequestContext,
+    Scope,
+    SourceOpenTarget,
+    SourceSignal,
+    SourceStatus,
+    SourceStatusValue,
+)
+
+ForgeProvider = Literal["github", "gitlab"]
+
+
+@dataclass(frozen=True)
+class ForgeReviewPullRequest:
+    provider: ForgeProvider
+    repo: str
+    number: int
+    state: str
+    url: str
+    title: str | None
+    changed_paths: tuple[str, ...]
+    created_at: str
+    updated_at: str
+    merged_at: str | None = None
+    labels: tuple[str, ...] = ()
+
+
+def normalize_forge_review_prs(
+    request_context: RequestContext,
+    pull_requests: Iterable[ForgeReviewPullRequest],
+    *,
+    observed_at: str,
+    expires_at: str = "next_refresh",
+    source_id: str = "github_pr_metadata",
+) -> CoreContractDocument:
+    source_signals: list[SourceSignal] = []
+    source_open_targets: list[SourceOpenTarget] = []
+    context_cards: list[ContextCard] = []
+    requested_paths = set(request_context.paths)
+
+    for pr in pull_requests:
+        overlap = sorted(requested_paths.intersection(pr.changed_paths))
+        if not overlap:
+            continue
+
+        signal_id = f"sig_{pr.provider}_pr_{pr.number}_collision"
+        open_target_id = f"open_{pr.provider}_pr_{pr.number}"
+        source_display = f"{provider_name(pr.provider)} PR #{pr.number}"
+        evidence_summary = collision_summary(pr.number, overlap)
+        scope: Scope = {
+            "repo": pr.repo,
+            "pr_number": pr.number,
+            "state": pr.state,
+            "url": pr.url,
+            "files": overlap,
+        }
+        if pr.title is not None:
+            scope["title"] = pr.title
+        if pr.labels:
+            scope["labels"] = list(pr.labels)
+
+        policy = policy_metadata_only(
+            "Forge-review metadata is allowed as evidence; source bodies are not included."
+        )
+        source_signals.append(
+            SourceSignal(
+                schema_version="teamctx.source_signal.v0",
+                id=signal_id,
+                signal_type="collision",
+                source_family="git_hosting",
+                scope=scope,
+                evidence_summary=evidence_summary,
+                source_display=source_display,
+                freshness="fresh",
+                confidence="high",
+                visibility="visible",
+                created_at=pr.created_at,
+                observed_at=observed_at,
+                expires_at=expires_at,
+                policy=policy,
+            )
+        )
+        source_open_targets.append(
+            SourceOpenTarget(
+                schema_version="teamctx.source_open_target.v0",
+                id=open_target_id,
+                source_signal_id=signal_id,
+                source_family="git_hosting",
+                source_display=source_display,
+                open_label="Open PR",
+                body_availability="status_only",
+                policy=policy,
+            )
+        )
+        context_cards.append(
+            ContextCard(
+                schema_version="teamctx.context_card.v0",
+                id=f"card_{pr.provider}_pr_{pr.number}_collision",
+                section="Needs attention",
+                text=evidence_summary,
+                why_this_matters=why_collision_matters(overlap),
+                source_display=source_display,
+                refs=[signal_id],
+                reason="same repository and file path as the current task",
+                scope={"repo": pr.repo, "files": overlap},
+                freshness="fresh",
+                confidence="high",
+                source_body="status_only",
+                source_open_target_id=open_target_id,
+                agent_instruction="verify_before_relying",
+            )
+        )
+
+    source_statuses = [
+        forge_review_source_status(
+            source_id=source_id,
+            provider="github",
+            repo=request_context.repo,
+            status="fresh",
+            observed_at=observed_at,
+            safe_user_message="Git-host PR metadata refreshed.",
+            visibility="silent",
+        )
+    ]
+    return CoreContractDocument(
+        schema_version="teamctx.core_contract_document.v0",
+        request_context=request_context,
+        source_signals=source_signals,
+        source_statuses=source_statuses,
+        source_open_targets=source_open_targets,
+        guidance_records=[],
+        session_context_uses=[],
+        context_cards=context_cards,
+    )
+
+
+def unavailable_forge_review_document(
+    request_context: RequestContext,
+    *,
+    provider: ForgeProvider,
+    repo: str,
+    observed_at: str,
+    source_id: str = "github_pr_metadata",
+    status: SourceStatusValue = "unavailable",
+    safe_user_message: str,
+) -> CoreContractDocument:
+    return CoreContractDocument(
+        schema_version="teamctx.core_contract_document.v0",
+        request_context=request_context,
+        source_signals=[],
+        source_statuses=[
+            forge_review_source_status(
+                source_id=source_id,
+                provider=provider,
+                repo=repo,
+                status=status,
+                observed_at=observed_at,
+                safe_user_message=safe_user_message,
+                visibility="warning_when_relevant",
+            )
+        ],
+        source_open_targets=[],
+        guidance_records=[],
+        session_context_uses=[],
+        context_cards=[],
+    )
+
+
+def forge_review_source_status(
+    *,
+    source_id: str,
+    provider: ForgeProvider,
+    repo: str,
+    status: SourceStatusValue,
+    observed_at: str,
+    safe_user_message: str,
+    visibility: Literal["silent", "warning_when_relevant", "always"],
+) -> SourceStatus:
+    return SourceStatus(
+        schema_version="teamctx.source_status.v0",
+        source_id=source_id,
+        source_family="git_hosting",
+        scope={"provider": provider, "repo": repo},
+        status=status,
+        last_checked_at=observed_at if status != "stale" else None,
+        safe_user_message=safe_user_message,
+        normal_context_visibility=visibility,
+        policy=policy_metadata_only("Source health can render without source body text."),
+    )
+
+
+def policy_metadata_only(reason: str) -> PolicyDecision:
+    return PolicyDecision(
+        schema_version="teamctx.policy_decision.v0",
+        can_render_to_user=True,
+        can_render_to_agent=True,
+        can_include_source_text=False,
+        requires_review_for_guidance=False,
+        decision_reason=reason,
+    )
+
+
+def collision_summary(pr_number: int, paths: list[str]) -> str:
+    if len(paths) == 1:
+        return f"Open PR #{pr_number} changed {paths[0]}."
+    return f"Open PR #{pr_number} changed {len(paths)} files in the current task."
+
+
+def why_collision_matters(paths: list[str]) -> str:
+    if len(paths) == 1:
+        return "you are editing the same file."
+    return "you are editing the same files."
+
+
+def provider_name(provider: ForgeProvider) -> str:
+    if provider == "github":
+        return "GitHub"
+    return "GitLab"

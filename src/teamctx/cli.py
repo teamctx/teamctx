@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -11,8 +14,10 @@ import click
 from teamctx.benchmark import export_benchmark_pack
 from teamctx.claude_benchmark import AgentVariant, SourceAccessMode, run_claude_agent_suite
 from teamctx.claude_quality import assess_claude_run_dir
+from teamctx.connectors.github import run_github_pr_probe
 from teamctx.context import agent_prompt_cards, context_cards
 from teamctx.core.cards import find_card
+from teamctx.core.contracts import RequestContext
 from teamctx.core.models import Fixture
 from teamctx.fixtures import FixtureError, load_fixture
 from teamctx.render import render_baseline_prompt, render_benchmark_prompt, render_context_cards
@@ -32,6 +37,50 @@ def status() -> None:
     """Show local teamctx status."""
 
     click.echo("teamctx is initialized. No sources are configured yet.")
+
+
+@main.command("github-pr-probe")
+@click.option("--repo", required=True, help="GitHub repository in owner/name form.")
+@click.option("--path", "paths", multiple=True, required=True, help="Current task file path.")
+@click.option("--branch", default=None, help="Current branch name.")
+@click.option("--task", default="Probe GitHub PR metadata.", show_default=True, help="Task text.")
+@click.option("--token-env", default="GITHUB_TOKEN", show_default=True, help="Token env var name.")
+@click.option(
+    "--include-title/--omit-title",
+    default=False,
+    show_default=True,
+    help="Whether PR titles are allowed in normalized metadata.",
+)
+def github_pr_probe_command(
+    repo: str,
+    paths: tuple[str, ...],
+    branch: str | None,
+    task: str,
+    token_env: str,
+    include_title: bool,
+) -> None:
+    """Emit Core Contract V0 context from GitHub PR metadata."""
+
+    observed_at = _utc_now_string()
+    request_context = RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id=f"github-pr-probe:{repo}:{observed_at}",
+        repo=repo,
+        branch=branch,
+        task=task,
+        paths=list(paths),
+        linked_issues=[],
+        requested_at=observed_at,
+        requesting_principal=None,
+    )
+    document = run_github_pr_probe(
+        repo=repo,
+        token=os.environ.get(token_env),
+        request_context=request_context,
+        observed_at=observed_at,
+        include_titles=include_title,
+    )
+    click.echo(json.dumps(document.model_dump(mode="json"), indent=2), nl=True)
 
 
 @main.command("context")
@@ -288,3 +337,7 @@ def _load_or_raise(path: Path) -> Fixture:
 
 if __name__ == "__main__":
     main()
+
+
+def _utc_now_string() -> str:
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")

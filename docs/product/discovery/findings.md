@@ -138,6 +138,10 @@ knowledge system.
   guidance, session use, request context, and context cards. The first live
   Git-host probe should normalize into these objects instead of writing rendered
   cards directly.
+- E-047 added the first Git-host probe slice: GitHub open PR metadata and
+  changed paths normalize into Core Contract V0. It excludes comments, patches,
+  commit bodies, author identity, and broad repo search. Missing credentials or
+  failed access produce source status instead of silent confidence.
 
 ## Provisional Language Set
 
