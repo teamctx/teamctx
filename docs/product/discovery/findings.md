@@ -159,6 +159,15 @@ knowledge system.
   metadata while source body remained status-only. Sprint 01 scope is now
   complete; next sprint should dogfood the same path on an owned repo with a
   seeded open PR.
+- E-052 added the first issue-tracker fixture path: changed acceptance criteria
+  from structured Jira-style metadata render through `context`, `why`, and
+  `open-source` while the issue body and arbitrary comments remain status-only
+  and out of scope. This is not a live Jira or Linear support claim.
+- E-053 decided the Sprint 02 source-opening command shape: keep the single
+  `teamctx open-source` command for MVP, but render each target's concrete
+  `open_label` such as `Open PR`, `Open doc status`, or `Open issue status`.
+  Source-specific command aliases are deferred until provider behavior proves
+  they are needed.
 - Sprint 02 should optimize dogfood reliability before source breadth: setup,
   local context defaults, owned-repo proof, and one issue-tracker fixture are
   higher leverage than adding more live connectors immediately.

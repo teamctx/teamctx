@@ -13,12 +13,20 @@ ROOT = Path(__file__).resolve().parent.parent
 CONTRACT_FIXTURE = (
     ROOT / "docs/product/discovery/fixtures/contracts/v0/core-contract-document.json"
 )
+ISSUE_CONTRACT_FIXTURE = (
+    ROOT
+    / "docs/product/discovery/fixtures/contracts/v0/issue-tracker-acceptance-criteria-document.json"
+)
 CORE_DIR = ROOT / "src/teamctx/core"
 JsonObject = dict[str, Any]
 
 
 def load_contract_fixture() -> JsonObject:
     return cast(JsonObject, json.loads(CONTRACT_FIXTURE.read_text(encoding="utf-8")))
+
+
+def load_issue_contract_fixture() -> JsonObject:
+    return cast(JsonObject, json.loads(ISSUE_CONTRACT_FIXTURE.read_text(encoding="utf-8")))
 
 
 def object_list(data: JsonObject, key: str) -> list[JsonObject]:
@@ -50,6 +58,25 @@ def test_context_cards_carry_explainability_fields() -> None:
             "unavailable",
             "not_collected",
         }
+
+
+def test_issue_tracker_contract_fixture_is_status_only_structured_metadata() -> None:
+    document = load_core_contract_document(load_issue_contract_fixture())
+
+    assert document.model_dump(mode="json") == load_issue_contract_fixture()
+    assert [signal.source_family for signal in document.source_signals] == ["issue_tracker"]
+    assert document.guidance_records == []
+
+    card = document.context_cards[0]
+    target = document.source_open_targets[0]
+
+    assert card.id == "card_issue_acceptance_changed"
+    assert card.freshness == "fresh"
+    assert card.confidence == "high"
+    assert card.source_body == "status_only"
+    assert target.body_availability == "status_only"
+    assert not target.policy.can_include_source_text
+    assert "comments" in target.policy.decision_reason
 
 
 def test_unknown_fields_cannot_bypass_policy() -> None:

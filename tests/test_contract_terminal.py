@@ -17,6 +17,10 @@ from teamctx.contract_render import (
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTRACT_FIXTURE = ROOT / "docs/product/discovery/fixtures/contracts/v0/core-contract-document.json"
+ISSUE_CONTRACT_FIXTURE = (
+    ROOT
+    / "docs/product/discovery/fixtures/contracts/v0/issue-tracker-acceptance-criteria-document.json"
+)
 
 
 def write_local_contract(path: Path) -> None:
@@ -72,10 +76,20 @@ def test_contract_open_source_keeps_status_only_body_closed() -> None:
 
     output = render_contract_open_source(document, "card_stale_docs")
 
-    assert output.startswith("Open source\n")
+    assert output.startswith("Open doc status\n")
     assert "Confluence Release Checklist" in output
     assert "Source body unavailable." in output
     assert "allowed metadata" in output
+
+
+def test_contract_open_source_uses_source_specific_target_label() -> None:
+    document = load_contract_document(CONTRACT_FIXTURE)
+
+    output = render_contract_open_source(document, "card_pr_collision")
+
+    assert output.startswith("Open PR\n")
+    assert "GitHub PR #482" in output
+    assert "Source body available by explicit provider action." in output
 
 
 def test_cli_open_source_accepts_contract_document() -> None:
@@ -87,6 +101,60 @@ def test_cli_open_source_accepts_contract_document() -> None:
 
     assert result.exit_code == 0
     assert "Source body unavailable." in result.output
+
+
+def test_cli_context_renders_issue_tracker_contract_document() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["context", "--contract", str(ISSUE_CONTRACT_FIXTURE)])
+
+    assert result.exit_code == 0
+    assert "Working context" in result.output
+    assert "Needs attention" in result.output
+    assert "API-482 acceptance criteria changed after this branch started." in result.output
+    assert "Jira API-482 structured fields" in result.output
+
+
+def test_cli_why_explains_issue_tracker_status_only_contract() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        main,
+        [
+            "why",
+            "card_issue_acceptance_changed",
+            "--contract",
+            str(ISSUE_CONTRACT_FIXTURE),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Show why" in result.output
+    assert "linked issue API-482" in result.output
+    assert "Source body: not shown; only status and allowed metadata are available" in result.output
+
+
+def test_cli_open_source_keeps_issue_tracker_body_closed() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        main,
+        [
+            "open-source",
+            "card_issue_acceptance_changed",
+            "--contract",
+            str(ISSUE_CONTRACT_FIXTURE),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Open issue status" in result.output
+    assert "Jira API-482 structured fields" in result.output
+    assert "Source body unavailable." in result.output
+    assert (
+        "TeamCtx has allowed metadata for this source, but not source body text."
+        in result.output
+    )
 
 
 def test_cli_context_defaults_to_local_contract(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:

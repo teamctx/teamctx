@@ -52,8 +52,12 @@ teamctx open-source <card-or-source-id>
 expectations and has a concrete effect: update the local context file from
 configured source metadata.
 
-## Open Product Question
+## Source-Opening Command Decision
 
-`open-source` may become source-family-specific later: `open-pr`, `open-issue`,
-or `open-doc`. For Sprint 01, keep one command because source bodies are still
-gated and mostly status-only.
+Keep `teamctx open-source <card-or-source-id>` as the single MVP command. Render
+the source-open target's concrete label in terminal output, such as `Open PR`,
+`Open issue status`, or `Open doc status`.
+
+Do not add `open-pr`, `open-issue`, or `open-doc` aliases yet. Split later only
+if a source family needs distinct arguments, provider behavior, or safety review
+copy that cannot stay clean behind one command.
