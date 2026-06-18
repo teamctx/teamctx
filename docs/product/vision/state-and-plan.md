@@ -107,6 +107,10 @@ All artifacts persisted under
 | 6 | SRE / operability persona | **DONE** — Nadia (operator-of-daemon): fail-safe read-only, bounded egress, back-off → honest-staleness, replay forensics; freshness-as-SLO the honest limit ([personas.md](personas.md) §7) |
 | 7 | Safe-experiment harness | **DONE** — spec written: Mode A golden tests (default) + Mode B sealed sandbox; fail-closed no-unsafe-experiment gate + pre-flight cage check ([safe-experiment-harness.md](../../research/safe-experiment-harness.md)) |
 | 8 | Vision artifacts vs. new model | **DONE** — day-in-the-life (authority card + disagreement-downgrade + Route/Stamp/human-plane grounding) and the Raj/Priya/Sol personas reconciled to the v0 model; all five + Wei/Nadia now consistent |
+| 9 | **Distribution / moment-of-invocation** | **open** (role-play panel 5/5) — elevate the human-plane IDE panel + default agent work-start invocation from side-note to first-class strategy; the vision is built for trust, under-built for distribution |
+| 10 | **Positioning: dual banner** | **open — decision for Edgar** (role-play panel 5/5) — trust/can't-track to the buyer gate; averted-rework to the adoption pull. Revisits the locked "lead with trust" call (validated for buyer, challenged for adoption) |
+| 11 | **Source-of-record quality (GIGO)** | **open** (3/5) — deterministic broker faithfully propagates stale/garbage SoR; sharpen fidelity≠truth into an adoption precondition; can non-LLM signals flag likely-stale SoR? |
+| 12 | **Signal-taxonomy ownership + defaults** | **open** (3/5) — a declared cross-team owner of "what counts as a card"; opinionated per-repo/monorepo default policies so v1 isn't noise on day one |
 
 ---
 
@@ -120,8 +124,12 @@ All artifacts persisted under
    ([safe-experiment-harness.md](../../research/safe-experiment-harness.md)): Mode A
    golden tests (default, no live model) + Mode B sealed sandbox; G1 pre-flight cage
    check, G3 fail-closed no-unsafe-experiment gate; build-order = corpus + Mode A first.
-3. Optionally complete the **full role-play panel** (CPO/CTO/eng/business) — partially
-   covered by the architecture/referee panels.
+3. ✅ **Role-play panel** (CPO/eng-adoption/exec-impact) — **DONE.** Authored panel +
+   4-model frontier panel, independent then converged
+   ([roleplay-panel-2026-06-18/convergence.md](../../research/reviews/roleplay-panel-2026-06-18/convergence.md)).
+   Surfaced open items #9–#12; net signal = the vision is **under-built on distribution**
+   (#9) and **under-decided on positioning** (#10), both downstream of "still pre-build."
+   Did not find a hole in the thesis.
 
 **When build starts (the first moves):**
 4. **Extract the `teamctx` broker** from the shared pure foundation (core + read
