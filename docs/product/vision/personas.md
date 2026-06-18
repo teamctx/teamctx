@@ -16,7 +16,7 @@
 
 **Honest limit.** The relevance ceiling — it won't catch tribal knowledge that isn't written down. And it won't *enforce*; if Raj wants a hard "block on unreviewed `auth/`," that's an explicit opt-in config whose availability-harm trade he owns.
 
-*Grounded in:* programmable relevance (§6), policy-as-code, replayable audit, no people-graph.
+*Grounded in:* programmable relevance → **Route tuning** (his noise floor *is* the Route gate — tune-the-gate-never-the-truth; previewed in a `.teamctx` Lab dry-run); policy-as-code; replayable audit; no people-graph.
 
 ---
 
@@ -34,7 +34,7 @@
 
 **Honest limit (and a healthy nudge).** teamctx only carries what she puts in **typed/linked artifacts.** A decision buried in a Slack DM won't propagate (no DM ingestion — a hard invariant). This *nudges* her to write decisions into the systems of record — a feature, but also a limit: it can't save a team that doesn't write things down. And **fidelity ≠ truth**: if her criteria are wrong, teamctx faithfully propagates wrong criteria. It distributes decisions; it doesn't grade them.
 
-*Grounded in:* tracker/docs connectors → `acceptance_criteria_changed` / `linked_doc_changed`; artifact-centric (can't-track); A1 (only typed/linked artifacts propagate).
+*Grounded in:* tracker/docs connectors → `acceptance_criteria_changed` / `linked_doc_changed`; **her decisions become a declared `resolved` authority for her product area (D6)**; artifact-centric (can't-track); A1 (only typed/linked artifacts propagate).
 
 ---
 
@@ -56,7 +56,7 @@
 
 **Honest limit.** He must trust connector **permission mirroring** (A5 ACL skew) and **unsigned metadata** where sources can't sign (A3); and end-to-end injection safety still needs the agent to cooperate (teamctx hardens its pipe, not the model).
 
-*Grounded in:* read-only; T2′ existence-privacy + δ dial; signed κ replay (audit); T3′ feature-mediated selection; A3/A5 residuals.
+*Grounded in:* read-only; T2′ existence-privacy + δ dial; signed κ replay (audit); T3′ feature-mediated selection; **the certified\|hint trust-firewall + the disagreement-downgrade (undeclared value-conflict stays a hint, precision 0.44 — the integrity thesis eating its own dogfood)**; A3/A5 residuals.
 
 ---
 

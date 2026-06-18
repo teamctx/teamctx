@@ -105,22 +105,21 @@ All artifacts persisted under
 | 4 | Protocol v0.5 formalization | **DONE** (round-2 closed) |
 | 5 | T3″ non-interference lemma + mechanized proofs | proof obligations, non-blocking |
 | 6 | SRE / operability persona | **DONE** — Nadia (operator-of-daemon): fail-safe read-only, bounded egress, back-off → honest-staleness, replay forensics; freshness-as-SLO the honest limit ([personas.md](personas.md) §7) |
-| 7 | Safe-experiment harness | **open** — sandbox + guardrails for poisoned-source tests (no unsafe experiments) |
-| 8 | Vision artifacts vs. new model | **partial** — Wei + Nadia personas written against the v0 model (authority/operability); day-in-the-life + the original Raj/Priya/Sol personas still predate Route/Stamp + the disagreement downgrade |
+| 7 | Safe-experiment harness | **DONE** — spec written: Mode A golden tests (default) + Mode B sealed sandbox; fail-closed no-unsafe-experiment gate + pre-flight cage check ([safe-experiment-harness.md](../../research/safe-experiment-harness.md)) |
+| 8 | Vision artifacts vs. new model | **DONE** — day-in-the-life (authority card + disagreement-downgrade + Route/Stamp/human-plane grounding) and the Raj/Priya/Sol personas reconciled to the v0 model; all five + Wei/Nadia now consistent |
 
 ---
 
 ## 5. Where we go next (prioritized)
 
 **Still in the vision phase (no code yet, per Edgar's framing):**
-1. **Reconcile the vision artifacts** (day-in-the-life, personas) with the v0 model —
-   authority cards, Route/Stamp, the human plane, disagreement-as-hint. ✅ **Staff/
-   Principal-Engineer (Wei)** and **SRE/operability (Nadia)** personas written
-   ([personas.md](personas.md) §6–§7, against the v0 model); the original Raj/Priya/Sol
-   personas + day-in-the-life still need the Route/Stamp + disagreement-downgrade pass.
-2. **Spec the safe-experiment harness** (#7) — sandbox + guardrails (verify real
-   tooling before any agent-under-attack test; untrusted payloads only ever touch the
-   deterministic broker in golden tests, or a sealed disposable sandbox).
+1. ✅ **Reconcile the vision artifacts** — **DONE.** Wei + Nadia personas written; the
+   day-in-the-life scenes and the original Raj/Priya/Sol personas reconciled to the v0
+   model (authority cards, Route/Stamp/Envelope, the human plane, disagreement-as-hint).
+2. ✅ **Safe-experiment harness spec** (#7) — **DONE**
+   ([safe-experiment-harness.md](../../research/safe-experiment-harness.md)): Mode A
+   golden tests (default, no live model) + Mode B sealed sandbox; G1 pre-flight cage
+   check, G3 fail-closed no-unsafe-experiment gate; build-order = corpus + Mode A first.
 3. Optionally complete the **full role-play panel** (CPO/CTO/eng/business) — partially
    covered by the architecture/referee panels.
 

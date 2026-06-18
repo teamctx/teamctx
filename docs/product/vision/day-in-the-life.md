@@ -1,6 +1,6 @@
 # teamctx — A Day in the Life
 
-*Vision artifact. Every card and certificate below maps to a proven mechanic in [the protocol paper](../../research/teamctx-protocol-v0.3.md) (+ [v0.4 addendum](../../research/teamctx-protocol-v0.4.md)). Wins are shown alongside the honest limits — this is a spec rendered as a story, not a mockup.*
+*Vision artifact. Every card and certificate below maps to a proven mechanic in [the consolidated protocol paper v1.0](../../research/teamctx-protocol-v1.0.md) and the [architecture decision record](architecture-decision.md) (Route/Stamp/Envelope, authority cards, the human plane, disagreement-as-hint). Wins are shown alongside the honest limits — this is a spec rendered as a story, not a mockup.*
 
 ---
 
@@ -51,9 +51,9 @@ teamctx · working context · JIRA-2231-ledger-rounding   (as: devi@)
 • PR !4471 (Marcus, payments-core) is rewriting the ledger/rounding.go interface
   you're about to call. Open, in review.
     why: same-symbol overlap (rounding.Apply)   source: github PR !4471 · 3m ago
-• Confluence "Money Rounding Policy" changed 2d ago, after your branch point:
-  rule is now banker's rounding (was round-half-up).
-    why: linked doc superseded since branch   source: confluence · 2d ago
+• Authority — "Money Rounding Policy" (Confluence, declared authoritative for ledger/):
+  rounding is now banker's rounding (was round-half-up), changed 2d ago after your branch.
+    why: resolved authority, superseded since branch   source: confluence · 2d ago
 ─ Verify before relying ───────────────────────
 • Touching ledger/ requires the "finance-reviewed" checklist (process doc updated last week).
     source: confluence · 6d ago
@@ -63,6 +63,8 @@ dangling: 1 MR on shared-proto unobserved (gitlab) — Unknown
 ```
 
 In 30 seconds, without a meeting or a *"hey is anyone touching ledger?"* Slack: a cross-team interface collision, a regulatory rounding bug, and a missed review gate — all averted. Stale GitLab + the unobserved `shared-proto` MR surface as **Unknown**, not hidden.
+
+**The authority moment.** The rounding rule surfaces as a **resolved authority card** — a principal engineer declared the Money Rounding Policy authoritative for `ledger/`, so teamctx asserts the value *with provenance* («per Money Rounding Policy»), not merely "a doc changed." Had no one declared it, teamctx would **refuse to pick**: it would surface only the structural fact — *"the policy doc and the code both changed; they may now disagree — check"* — never a certified claim that they contradict *on the value.* (Undeclared value-disagreement is, by our own measurement, only ~0.44-precise; it stays an Unknown/hint, never a certified card.) *(Authority resolved / missing-default; the disagreement-downgrade.)*
 
 **The permission moment.** There's also an open PR touching a shared lib in `treasury-secure`, a repo Devi can't access. teamctx does not surface it **and does not hint it exists.** *(Existence-privacy, δ=none.)*
 
@@ -91,6 +93,10 @@ In 30 seconds, without a meeting or a *"hey is anyone touching ledger?"* Slack: 
 | Invisible `treasury-secure` PR | T2′ existence-privacy (δ=none) |
 | Cross-agent swap | data-only output |
 | Defanged injection | T3′ feature-mediated selection |
+| The tiered blocks (`Needs attention` / `Verify before relying` / `Coverage`) | Route (loudness + tier; certified\|hint firewall) · Stamp (labels) · Envelope (coverage) |
+| The terminal rendering itself | human plane — certified cards rendered directly, never via the LLM; prints, never blocks |
+| Authority card (rounding policy) | D6 authority — `resolved` (declared) vs. `missing` (refuse-to-pick) |
+| "may disagree — check," not "they contradict" | disagreement-downgrade — undeclared value-conflict stays a hint (precision 0.44) |
 | Replayable audit | signed κ + snapshot digest |
 
 Both scenes share one engine; *solo* and *enterprise* differ only in deployment + a permission oracle that's a no-op for Maya. Configs, not editions — all the way down.
