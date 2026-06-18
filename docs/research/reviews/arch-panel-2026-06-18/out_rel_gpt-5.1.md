@@ -1,0 +1,23 @@
+1 | Target file has open PR touching same functions you’re about to edit | S | Explicit file/symbol overlap with open PRs is in the structural graph.  
+2 | Linked Jira ticket for this branch had its acceptance criteria updated yesterday | S | Ticket is explicitly linked and “changed since branch point” is observable.  
+3 | Downstream service B depends on this API and its contract test started failing on main | S | There is a dependency edge and check status is a first‑class structural signal.  
+4 | A new security advisory was filed and linked to the package you’re about to bump | S | Advisory is explicitly linked to the dependency and version is known.  
+5 | Design doc linked from this ticket was superseded by a newer version with breaking changes | S | “Superseded version” and explicit doc–ticket edges are within structural scope.  
+6 | Code owners file marks this directory as requiring review from the compliance team | D | This is a durable, human‑declared policy, not implied by structural code edges.  
+7 | Org policy: any change to authentication flows must pass an additional security review | D | Expressible only as a declared rule over paths/tags; not derivable from graph topology.  
+8 | Experimental feature flag in this module must not be removed before Q4 freeze date | D | Time‑bounded constraints are policy metadata, not structural code relationships.  
+9 | This module is under a change freeze due to an ongoing production incident | D | Incident‑driven freezes are operational declarations, not encoded in code/ticket edges.  
+10 | Past incidents show this “unrelated” config file must be updated whenever you add a new shard | L | “Files often changed together” is a learned co‑change pattern, not captured by static edges.  
+11 | A critical but unlinked RFC in another repo defines the canonical pattern for this kind of refactor | L | No explicit edge; discovering it requires semantic similarity between RFC content and task.  
+12 | A performance regression postmortem (never linked) explains why a naive optimization you’re considering is forbidden | L | Relationship is conceptual and incident‑driven; no structural link to current files or ticket.  
+13 | Team practice: any new CLI flag must also be wired into our internal orchestration tool, which lives in a different, unlinked repo | L | This is tribal/usage knowledge; there is no dependency or ticket/doc link to surface it structurally.  
+14 | The “obvious” library you plan to use is on an internal deprecation path, documented only in a general “tech direction” wiki page | L | Deprecation notice is generic and unlinked; relevance depends on semantic match between your change and the deprecation scope.  
+15 | Another team’s recent change in an upstream service introduced a subtle behavior change that affects your edge case, but tests still pass | L | Effect is behavioral and emergent; not modeled as a dependency break or linked incident yet.  
+16 | Legal requires special logging for any feature that touches user location data, documented in a policy mapped to data categories, not files | D | The mapping from “location data” concept to specific code paths is policy/annotation, not a raw structural edge unless explicitly declared.  
+17 | The monorepo build system treats your new package type specially; missing a hidden registration step will silently break downstream tooling | L | Knowledge lives in human heads and scattered docs; structural edges don’t encode “you must also touch this registry file over there” unless learned from usage.  
+18 | The branch you’re resuming is based on an old feature branch, not main, and that base branch has since been reverted for safety reasons | S | Branch ancestry and “superseded/reverted” status of the base are explicit structural facts.  
+19 | Required compliance checklist for “user data export” features (regardless of repo) must be completed before any coding starts | D | This is a workflow/policy constraint attached to a feature category, not derivable from code or ticket graph alone.  
+20 | A popular internal pattern shows that when you add an async background job, you should also add a tracing span with certain tags, but this is only captured in examples, not rules | L | Only a semantic/learned system noticing patterns across prior changes can infer this as relevant; no explicit edge or policy exists.
+
+FRACTION: S=35% L=45% D=20%  
+BIGGEST_MISS: Systematic, concept‑level guidance and pitfalls that live only in unlinked docs, postmortems, and tribal habits (i.e., “what usually goes wrong when changing code like this”).

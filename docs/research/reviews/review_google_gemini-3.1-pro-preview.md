@@ -1,0 +1,51 @@
+Here is a rigorous, adversarial referee report on the working paper "Certified Context for Autonomous Coding Agents."
+
+***
+
+### 1. SUMMARY OF CLAIMS
+The paper proposes `teamctx`, a deterministic mediation protocol that replaces probabilistic context retrieval (RAG) for autonomous coding agents with a verifiable, permission-filtered context generator. It claims to guarantee determinism, noninterference, injection resistance at the broker, and "no silent omission" by pairing source-backed context cards with a coverage certificate ($\kappa$) that explicitly bounds unobserved or unreachable state.
+
+### 2. SOUNDNESS
+The formal model and proof sketches suffer from a mix of trivialities, circular reasoning, and one fatal paradox regarding graph reachability. 
+
+*   **Theorem 1 (Determinism)**: The claim that $g(S, q, P)$ is invariant is trivially true by definition because the authors define $g$ as a "composition of pure functions." This is not a theorem; it is a tautology. The actual distributed systems challenge—how the event-sourced materialized view $S$ achieves a consistent total order across semi-trusted, asynchronous sources without relying on external clocks—is hand-waved away by making $S$ and $t$ "explicit parameters." If the broker relies on a client-provided $t$, a malicious client can manipulate time-travel semantics.
+*   **Theorem 2 (Permission noninterference)**: The proof sketch states: "$\pi_P$ is the first stage... downstream stages are pure functions of $\pi_P$’s output." This is standard early-filtering (Row-Level Security) and is sound for the *nodes* in $S$. However, the paper critically underspecifies the treatment of *edges* in the artifact graph $G=(V,E)$. If $v_{visible}$ has an edge to $v_{hidden}$, does $\pi_P$ drop the edge? If it drops the edge, $R_k(q)$ changes structurally, breaking Theorem 4 (Soundness of structural overlap). If it keeps the edge but masks the node, it leaks the existence of $v_{hidden}$, violating the corollary that "output reveals no information about artifacts $P$ cannot see."
+*   **Theorem 3 (Evidence/instruction separation)**: The lemma "payload is control-flow-irrelevant in $B$" is sound, but framing this as "injection-resistance" is a category error. The broker $B$ is essentially a JSON serializer; prompt injection targets the *execution engine* (the LLM agent $A$), not the database fetching the context. Proving that a reference monitor safely and deterministically delivers a malicious payload to a vulnerable downstream consumer is mathematically sound but practically meaningless for security.
+*   **Theorem 4 (Soundness / no fabrication)**: Sound, assuming the edge relations in $G$ are authenticated. However, if `Adv1` (malicious source author) can forge edges (e.g., creating a garbage PR that claims `pr —modifies→ path` for a critical path they don't own), the broker will faithfully surface this as a certified card. The theorem holds, but it highlights that "certified context" easily becomes "certified garbage."
+*   **Theorem 5 (No-Silent-Omission)**: **Critically flawed.** The proof sketch claims: "$Req(q)$ is computed from $R_k(q)$ independently of which sources happened to be reachable." This is a paradox. $R_k(q)$ is defined as bounded reachability over the graph $G$. If a source $\sigma$ is offline or unreachable, the broker *cannot know* what nodes and edges $\sigma$ contains. If the broker cannot traverse into $\sigma$'s subgraph, it cannot compute the true $R_k(q)$, and therefore cannot know that $\sigma$ belongs in $Req(q)$ unless the seed $q$ directly references it. The broker will silently omit offline sources that are $k=2$ steps away because it cannot see the $k=1$ edges pointing to them. The proof is false as stated.
+
+### 3. CENTRAL CONTRIBUTION
+The Coverage Certificate ($\kappa$) and the "No-Silent-Omission" property are conceptually interesting but fail to deliver on their central promise. The paper claims to "dissolve the absence-as-clearance fallacy." It does not dissolve it; it merely relocates it to a consumer that is structurally incapable of handling it.
+
+The semantics of the guarded claim $\llbracket \langle C, \kappa \rangle \rrbracket$ are well-defined in classical logic, but the consumer of this protocol is an LLM agent. LLMs are notoriously incapable of epistemic uncertainty or reasoning about negative space. When an LLM is told "Outside region($\kappa$): unknown," it routinely hallucinates the unknown state or assumes it is clear. By explicitly punting the enforcement of this boundary to the agent (§8.2), the paper provides a mathematically elegant certificate that will be entirely ignored by the system's actual decision-maker. 
+
+Furthermore, because of the paradox in Theorem 5, $\kappa$ only bounds the negative space of the *known* graph. If a vital piece of context is in an unreachable source that the broker didn't know it needed to traverse to, the omission remains completely silent. 
+
+### 4. NONINTERFERENCE (T2)
+The paper claims "noninterference privacy," citing Goguen & Meseguer and Sabelfeld & Myers. This is an overstatement of the contribution. True Information Flow Control (IFC) tracks the propagation of tainted data through computation. In `teamctx`, the computation is just a read-only graph query. This is not IFC; it is a Reference Monitor with early-filtering Access Control.
+
+The strongest side-channel objection lies in the blast-radius computation ($R_k$). Suppose a principal $P$ wants to know if a secret project (Project X) touches a specific shared component. $P$ issues a query $q$ seeded on the shared component. If Project X artifacts exist but $vis_P(X) = \bot$, the broker drops them. However, if the coverage certificate $\kappa$ is "permission-scoped" (as §8.6 suggests), the *absence* of Project X's source in $\kappa$, or a change in the cardinality of $cov(q)$, can leak that an invisible artifact is connected to the seed. To truly prevent this, $\kappa$ must be padded to a constant size and source list for all users, which destroys its utility as a precise coverage metric.
+
+### 5. SEPARATION (T3)
+The separation theorem is the weakest part of the paper's security posture. The authors claim "determinism + typed channels... jointly yield... injection-resistance." They then severely caveat this in §8.2: "Full end-to-end injection-resistance requires the consuming agent to honor evidence/instruction typing."
+
+This caveat guts the contribution. The paper treats source text as a "data language, never a command language" *inside the broker*. But the broker is not the LLM. Once `quote(payload)` is serialized into the prompt or API call for the agent $A$, the LLM processes it through a single attention mechanism where the data/command distinction mathematically does not exist. The broker has not achieved injection resistance; it has simply achieved safe transport of the injection payload. Citing Language-Theoretic Security (LangSec) here is inappropriate, as LangSec requires the *parser* (the LLM) to operate on a strictly less-powerful grammar, which is fundamentally incompatible with how transformer models process tokens.
+
+### 6. PRIOR ART
+The paper claims the synthesis of these properties is novel for agent context. However, the architecture is essentially a standard data-integration pipeline with Row-Level Security and a vector clock for freshness. 
+
+*   **Reference Monitors & Provenance**: The system is highly derivative of existing provenance-aware reference monitors. Systems like PASS (Muniswamy-Reddy et al., USENIX 2006) already track deterministic provenance and boundaries. W3C PROV standards handle exactly this type of graph-based artifact attribution.
+*   **Freshness & Consistency**: The staleness metric $\Delta$ is a restatement of Bounded Staleness from distributed databases (e.g., PBS by Bailis et al., which is cited, but the application here is trivial). 
+*   **Prompt Injection**: The paper completely ignores the actual state-of-the-art in LLM injection resistance, such as the Dual LLM pattern (privileged/unprivileged routing), which actually attempts to enforce the $E$ vs $I$ channel separation *at the agent level*. By stopping at the broker, `teamctx` solves a solved problem (database access control) and ignores the open problem (LLM instruction hierarchy).
+
+### 7. KILLER OBJECTION
+**The single strongest reason this gets rejected is the logical paradox in Theorem 5 regarding $Req(q)$.** 
+
+The paper claims that $\kappa$ bounds the protocol's ignorance by listing all required sources and their statuses. But $Req(q)$ is defined as the sources owning nodes in the blast radius $R_k(q)$. If a source $\sigma_{down}$ is offline, the broker's materialized view $S$ cannot contain the most recent edges pointing from $\sigma_{down}$ to the known graph, nor can it traverse edges from the known graph into $\sigma_{down}$ if those edges are stored in $\sigma_{down}$. Therefore, the broker will compute a truncated $R_k(q)$, fail to realize $\sigma_{down}$ is required, and omit it from $\kappa$. The omission is therefore *silent*, completely destroying the paper's central claim of "No-Silent-Omission."
+
+**The fix:** The authors must redefine $Req(q)$ based on *dangling references* within the reachable, permissioned subgraph $S|_P$. The protocol must mandate that all cross-source edges are stored as explicit foreign keys in the originating artifact. $\kappa$ can then only certify: "No conflict found in the reachable graph; however, $N$ dangling references point to offline sources $X, Y$." The claim must be downgraded from global structural soundness to local observable soundness.
+
+### 8. VERDICT
+**Verdict: Reject (Major Revision required for resubmission).**
+
+**Real Contribution:** The paper provides a well-engineered, deterministic reference monitor for bounding the context of autonomous agents, but its central theoretical claim—the "No-Silent-Omission" guarantee—is mathematically flawed due to a paradoxical definition of graph reachability over offline partitions.

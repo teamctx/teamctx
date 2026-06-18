@@ -1,0 +1,15 @@
+**PART 1 — Fix #1 (soundness rigor)**  
+The promotion of “conservative” to an explicit obligation O1 and a total `complete?` checker closes the previous concern cleanly. The soundness now rests on a named, connector‑scoped assumption: the deps_G rule over‑approximates the true dependency set. This is a standard trust edge in distributed systems; a connector that cannot model a reference class must declare the gap, else the broker flags `incomplete[unmodeled‑ref]`. The resulting Theorem 2 is conditionally sound under O1, and the consumer’s decision procedure `⟦·⟧⁻` faithfully mirrors the oracle’s three‑valued outcome whenever completeness is achieved. No hand‑wave remains—the rigour is explicit.  
+
+**PART 2 — Introduced bugs**  
+
+**(a)** The `incomplete[unbounded]` branch is decidable because it relies on connector‑declared annotations about unbounded reference scopes, not on an undecidable property of the graph. The checker is total; no circularity.  
+
+**(b)** **Critical privacy leak.** The revised κ now includes a per‑subject closure status, e.g. `incomplete[dangling]`. This flag reveals that an unobserved target exists, which may be an *invisible‑target dangling reference*—precisely the kind of information the δ‑dial and T5/T6 were designed to protect. The trace in Appendix A (δ=none) shows `incomplete[dangling]` for `gitlab` unreachable; if that source lies outside Δ_P, the closure status leaks its existence across a permission boundary. The broker **must** apply the δ‑dial to κ’s closure status, e.g. by redacting reasons that would expose invisible targets when the dial is not set. Without this, T5 is broken, and the revision inadvertently bypasses the declassification mechanism. This alone requires a major revision.  
+
+**(c)** The ρ1 trace is internally consistent with §5’s three‑valued rule. Because the consumer cannot conclude False without complete closure, a collision card for “a conflict exists” yields Unknown for “no conflicts”, with the note “no further conflicts = Unknown[unobserved]”. While practically surprising, it follows the semantics. No bug here, but the example could be clarified to avoid misinterpretation.  
+
+**(d)** **Obscured staleness reason.** § 8 lumps stale authority into `Unknown[unobserved]`. A stale high‑priority authority is not unobserved—it was observed but is now outdated. To surface its staleness correctly and allow the consumer to distinguish “no data” from “stale data,” a distinct tag such as `Unknown[stale‑authority]` is needed. The current tag is misleading and may cause incorrect downstream decisions.  
+
+**Verdict: major‑revision.**  
+Fix #1 is sound, but the introduced leakage in (b) is a serious regression that violates the privacy contract and undermines T5/T6. Additionally, (d) requires a minor but necessary refinement of authority states. I recommend the authors explicitly enforce the δ‑dial on closure status (e.g., by projecting it through Δ_P or suppressing dangling reasons when δ=none) and add a staleness tag. With these corrections the paper can return to an accept‑able state.
