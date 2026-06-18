@@ -104,9 +104,9 @@ All artifacts persisted under
 | 3 | Severity calibration | **deferred by nature** — needs deployment telemetry; defaults are sane starting guesses |
 | 4 | Protocol v0.5 formalization | **DONE** (round-2 closed) |
 | 5 | T3″ non-interference lemma + mechanized proofs | proof obligations, non-blocking |
-| 6 | SRE / operability persona | **open** — daemon ops story (metrics, back-off, failure isolation) not yet written |
+| 6 | SRE / operability persona | **DONE** — Nadia (operator-of-daemon): fail-safe read-only, bounded egress, back-off → honest-staleness, replay forensics; freshness-as-SLO the honest limit ([personas.md](personas.md) §7) |
 | 7 | Safe-experiment harness | **open** — sandbox + guardrails for poisoned-source tests (no unsafe experiments) |
-| 8 | Vision artifacts vs. new model | **open** — day-in-the-life + personas predate Route/Stamp + authority + the disagreement downgrade; need reconciliation |
+| 8 | Vision artifacts vs. new model | **partial** — Wei + Nadia personas written against the v0 model (authority/operability); day-in-the-life + the original Raj/Priya/Sol personas still predate Route/Stamp + the disagreement downgrade |
 
 ---
 
@@ -114,9 +114,10 @@ All artifacts persisted under
 
 **Still in the vision phase (no code yet, per Edgar's framing):**
 1. **Reconcile the vision artifacts** (day-in-the-life, personas) with the v0 model —
-   authority cards, Route/Stamp, the human plane, disagreement-as-hint. Add the
-   **Staff/Principal-Engineer** persona (now served by authority global-mandate
-   declarations) and the **SRE/operability** persona (#6).
+   authority cards, Route/Stamp, the human plane, disagreement-as-hint. ✅ **Staff/
+   Principal-Engineer (Wei)** and **SRE/operability (Nadia)** personas written
+   ([personas.md](personas.md) §6–§7, against the v0 model); the original Raj/Priya/Sol
+   personas + day-in-the-life still need the Route/Stamp + disagreement-downgrade pass.
 2. **Spec the safe-experiment harness** (#7) — sandbox + guardrails (verify real
    tooling before any agent-under-attack test; untrusted payloads only ever touch the
    deterministic broker in golden tests, or a sealed disposable sandbox).
