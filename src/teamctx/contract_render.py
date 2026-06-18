@@ -64,7 +64,7 @@ def render_contract_why(document: CoreContractDocument, card_id: str) -> str:
 
 def render_contract_open_source(document: CoreContractDocument, ref_id: str) -> str:
     target = find_contract_open_target(document, ref_id)
-    lines = ["Open source", "", target.source_display]
+    lines = [target.open_label, "", target.source_display]
     if target.body_availability == "available":
         lines.extend(
             [

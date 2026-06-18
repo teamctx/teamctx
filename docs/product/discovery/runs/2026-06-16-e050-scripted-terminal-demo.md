@@ -111,7 +111,7 @@ teamctx open-source card_stale_docs --contract docs/product/discovery/fixtures/c
 Expected shape:
 
 ```text
-Open source
+Open doc status
 
 Confluence Release Checklist
 

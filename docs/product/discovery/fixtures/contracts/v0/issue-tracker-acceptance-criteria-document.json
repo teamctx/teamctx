@@ -1,0 +1,117 @@
+{
+  "schema_version": "teamctx.core_contract_document.v0",
+  "request_context": {
+    "schema_version": "teamctx.request_context.v0",
+    "request_id": "req_auth_issue_api_482_001",
+    "repo": "auth-service",
+    "branch": "feature/token-retry",
+    "task": "Finish token rotation implementation for API-482.",
+    "paths": [
+      "src/auth/token.py"
+    ],
+    "linked_issues": [
+      "API-482"
+    ],
+    "requested_at": "2026-06-17T00:00:00Z",
+    "requesting_principal": null
+  },
+  "source_signals": [
+    {
+      "schema_version": "teamctx.source_signal.v0",
+      "id": "sig_issue_api_482_acceptance_changed",
+      "signal_type": "changed_since_start",
+      "source_family": "issue_tracker",
+      "scope": {
+        "service": "auth-service",
+        "issue": "API-482",
+        "field": "acceptance_criteria"
+      },
+      "evidence_summary": "API-482 acceptance criteria changed after this branch started.",
+      "source_display": "Jira API-482 structured fields",
+      "freshness": "fresh",
+      "confidence": "high",
+      "visibility": "visible",
+      "created_at": "2026-06-17T00:00:00Z",
+      "observed_at": "2026-06-17T00:15:00Z",
+      "expires_at": "2026-06-17T04:00:00Z",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "Structured issue metadata is allowed, but issue body text and comments are not included."
+      }
+    }
+  ],
+  "source_statuses": [
+    {
+      "schema_version": "teamctx.source_status.v0",
+      "source_id": "src_jira_api_482",
+      "source_family": "issue_tracker",
+      "scope": {
+        "provider": "jira",
+        "service": "auth-service",
+        "issue": "API-482"
+      },
+      "status": "fresh",
+      "last_checked_at": "2026-06-17T00:15:00Z",
+      "safe_user_message": "Jira API-482 structured fields were refreshed.",
+      "normal_context_visibility": "silent",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "Fresh source health is kept silent in normal context."
+      }
+    }
+  ],
+  "source_open_targets": [
+    {
+      "schema_version": "teamctx.source_open_target.v0",
+      "id": "open_issue_api_482_status",
+      "source_signal_id": "sig_issue_api_482_acceptance_changed",
+      "source_family": "issue_tracker",
+      "source_display": "Jira API-482 structured fields",
+      "open_label": "Open issue status",
+      "body_availability": "status_only",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "The fixture proves source status and structured metadata without exposing issue body text or comments."
+      }
+    }
+  ],
+  "guidance_records": [],
+  "session_context_uses": [],
+  "context_cards": [
+    {
+      "schema_version": "teamctx.context_card.v0",
+      "id": "card_issue_acceptance_changed",
+      "section": "Needs attention",
+      "text": "API-482 acceptance criteria changed after this branch started.",
+      "why_this_matters": "token rotation retry behavior may need to follow the updated structured criteria.",
+      "source_display": "Jira API-482 structured fields",
+      "refs": [
+        "sig_issue_api_482_acceptance_changed",
+        "src_jira_api_482"
+      ],
+      "reason": "linked issue API-482 has structured acceptance criteria updated after branch start",
+      "scope": {
+        "service": "auth-service",
+        "issue": "API-482",
+        "field": "acceptance_criteria"
+      },
+      "freshness": "fresh",
+      "confidence": "high",
+      "source_body": "status_only",
+      "source_open_target_id": "open_issue_api_482_status",
+      "agent_instruction": "verify_before_relying"
+    }
+  ]
+}
