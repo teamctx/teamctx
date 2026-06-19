@@ -31,7 +31,7 @@ from teamctx.core.cards import find_card
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.core.evaluate import evaluate
 from teamctx.core.models import Fixture
-from teamctx.core.select import no_conflict_query, select_context
+from teamctx.core.select import CARD_KINDS, select_context
 from teamctx.fixtures import FixtureError, load_fixture
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
@@ -182,12 +182,16 @@ def work_start_command(
     selection = select_context(
         document.request_context, document.source_signals, document.source_statuses
     )
-    verdict = evaluate(
-        no_conflict_query(document.request_context),
-        selection.claim_cards,
-        selection.closure,
+    verdicts = tuple(
+        (
+            kind.verdict_label,
+            evaluate(
+                kind.query(document.request_context), selection.claim_cards, selection.closure
+            ),
+        )
+        for kind in CARD_KINDS
     )
-    click.echo(render_selection(selection, verdict), nl=False)
+    click.echo(render_selection(selection, verdicts), nl=False)
 
 
 @main.command("refresh")

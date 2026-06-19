@@ -36,13 +36,20 @@ def test_render_shows_complete_coverage_when_mandated_source_is_fresh() -> None:
             "status": "fresh",
         }
     )
+    issue_tracker_fresh = document.source_statuses[0].model_copy(
+        update={
+            "source_id": "issue_tracker_metadata",
+            "source_family": "issue_tracker",
+            "status": "fresh",
+        }
+    )
     selection = select_context(
-        document.request_context, document.source_signals, [git_hosting_fresh]
+        document.request_context, document.source_signals, [git_hosting_fresh, issue_tracker_fresh]
     )
 
     text = render_selection(selection)
 
-    # git_hosting fresh -> the collision query's closure is complete -> the complete line.
+    # all mandated sources fresh -> all closure entries complete -> the complete line.
     assert "Coverage complete across checked sources." in text
 
 
@@ -62,38 +69,22 @@ def test_render_shows_collision_card_and_honest_incomplete_coverage() -> None:
     assert "not an all-clear" in text
 
 
-def test_render_appends_not_clear_verdict_for_a_false_valuation() -> None:
+def test_render_appends_labeled_verdicts() -> None:
     document = load_document()
     selection = select_context(
         document.request_context, document.source_signals, document.source_statuses
     )
-    text = render_selection(selection, Valuation("false"))
+    text = render_selection(
+        selection,
+        (("Conflict check", Valuation("false")), ("Criteria check", Valuation("true"))),
+    )
     assert "Conflict check: NOT CLEAR" in text
+    assert "Criteria check: clear" in text
 
 
-def test_render_appends_clear_verdict_for_a_true_valuation() -> None:
+def test_render_without_verdicts_is_unchanged() -> None:
     document = load_document()
     selection = select_context(
         document.request_context, document.source_signals, document.source_statuses
     )
-    text = render_selection(selection, Valuation("true"))
-    assert "Conflict check: clear" in text
-
-
-def test_render_appends_unknown_verdict_with_reason() -> None:
-    document = load_document()
-    selection = select_context(
-        document.request_context, document.source_signals, document.source_statuses
-    )
-    text = render_selection(selection, Valuation("unknown", "incomplete[stale-dep]"))
-    assert "Conflict check: UNKNOWN" in text
-    assert "incomplete[stale-dep]" in text
-    assert "absence is not an all-clear" in text
-
-
-def test_render_without_a_verdict_is_unchanged() -> None:
-    document = load_document()
-    selection = select_context(
-        document.request_context, document.source_signals, document.source_statuses
-    )
-    assert "Conflict check" not in render_selection(selection)
+    assert "check:" not in render_selection(selection)

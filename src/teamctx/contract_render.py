@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 from teamctx.core.contracts import (
     ContextCard,
@@ -50,7 +50,10 @@ def render_contract_context(document: CoreContractDocument) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_selection(selection: ContextSelection, verdict: Valuation | None = None) -> str:
+def render_selection(
+    selection: ContextSelection,
+    verdicts: Sequence[tuple[str, Valuation]] = (),
+) -> str:
     """Human-plane render of the broker's answer: derived cards + honest coverage."""
 
     grouped: OrderedDict[str, list[ContextCard]] = OrderedDict()
@@ -85,21 +88,21 @@ def render_selection(selection: ContextSelection, verdict: Valuation | None = No
             "treat unobserved or stale sources as Unknown."
         )
 
-    if verdict is not None:
-        lines.extend(["", _verdict_line(verdict)])
+    for label, verdict in verdicts:
+        lines.extend(["", _verdict_line(label, verdict)])
 
     return "\n".join(lines) + "\n"
 
 
-def _verdict_line(verdict: Valuation) -> str:
-    """One-line human verdict for the work-start conflict query."""
+def _verdict_line(label: str, verdict: Valuation) -> str:
+    """One labeled human verdict line."""
 
     if verdict.value == "false":
-        return "Conflict check: NOT CLEAR — an open PR conflicts with your changes (see above)."
+        return f"{label}: NOT CLEAR — a conflicting open item exists (see above)."
     if verdict.value == "true":
-        return "Conflict check: clear — no conflicting open PRs, coverage complete."
+        return f"{label}: clear — coverage complete, nothing conflicting."
     return (
-        f"Conflict check: UNKNOWN — coverage incomplete ({verdict.reason}); "
+        f"{label}: UNKNOWN — coverage incomplete ({verdict.reason}); "
         "absence is not an all-clear."
     )
 
