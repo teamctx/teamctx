@@ -25,6 +25,8 @@ SchemaVersion = Literal[
 SignalType = Literal[
     "collision",
     "criteria_changed",
+    "doc_superseded",
+    "missed_gate",
     "changed_since_start",
     "stale_source",
     "unavailable_source",

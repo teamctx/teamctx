@@ -64,6 +64,24 @@ def criteria_changed_query(request: RequestContext) -> Prop:
     )
 
 
+def no_superseded_docs_query(request: RequestContext) -> Prop:
+    """The universal a doc-superseded card refutes: 'no doc I rely on was superseded'."""
+
+    return Prop(
+        predicate="no_superseded_docs",
+        subject=SubjectRef(repo=request.repo, paths=tuple(request.paths)),
+    )
+
+
+def all_gates_pass_query(request: RequestContext) -> Prop:
+    """The universal a missed-gate card refutes: 'all required gates pass for my change'."""
+
+    return Prop(
+        predicate="all_gates_pass",
+        subject=SubjectRef(repo=request.repo, paths=tuple(request.paths)),
+    )
+
+
 def derive_claims(
     request: RequestContext, signals: Iterable[SourceSignal]
 ) -> list[ClaimCard]:
@@ -164,6 +182,88 @@ def render_criteria_changed_claim(claim_card: ClaimCard) -> ContextCard:
     )
 
 
+def _derive_doc_superseded_claim(
+    request: RequestContext, signal: SourceSignal
+) -> ClaimCard | None:
+    if signal.scope.get("repo") != request.repo:
+        return None
+    doc = signal.scope.get("doc")
+    if not isinstance(doc, str) or doc not in request.paths:
+        return None
+    claim = Prop(
+        predicate="doc_superseded",
+        subject=SubjectRef(repo=request.repo, paths=(doc,)),
+        args=(signal.id,),
+    )
+    return ClaimCard(claim=claim, signal=signal)
+
+
+def _derive_missed_gate_claim(
+    request: RequestContext, signal: SourceSignal
+) -> ClaimCard | None:
+    if signal.scope.get("repo") != request.repo:
+        return None
+    covered = signal.scope.get("files")
+    covered_list = covered if isinstance(covered, list) else []
+    shared = sorted(set(request.paths) & set(covered_list))
+    if not shared:
+        return None
+    claim = Prop(
+        predicate="gate_failed",
+        subject=SubjectRef(repo=request.repo, paths=tuple(shared)),
+        args=(signal.id,),
+    )
+    return ClaimCard(claim=claim, signal=signal)
+
+
+def render_doc_superseded_claim(claim_card: ClaimCard) -> ContextCard:
+    """Render a doc-superseded claim into a human-plane ``ContextCard``."""
+
+    claim = claim_card.claim
+    signal = claim_card.signal
+    doc = claim.subject.paths[0]
+    return ContextCard(
+        schema_version="teamctx.context_card.v0",
+        id=f"card_{signal.id}",
+        section="Verify before relying",
+        text=signal.evidence_summary,
+        why_this_matters=f"the doc {doc} was superseded; verify it is current before relying.",
+        source_display=signal.source_display,
+        refs=[signal.id],
+        reason=f"a doc you rely on ({doc}) was superseded",
+        scope=dict(signal.scope),
+        freshness=signal.freshness,
+        confidence=signal.confidence,
+        source_body="status_only",
+        source_open_target_id=None,
+        agent_instruction="verify_before_relying",
+    )
+
+
+def render_missed_gate_claim(claim_card: ClaimCard) -> ContextCard:
+    """Render a missed-gate claim into a human-plane ``ContextCard``."""
+
+    claim = claim_card.claim
+    signal = claim_card.signal
+    overlap = ", ".join(claim.subject.paths)
+    return ContextCard(
+        schema_version="teamctx.context_card.v0",
+        id=f"card_{signal.id}",
+        section="Needs attention",
+        text=signal.evidence_summary,
+        why_this_matters=f"a required gate failed on files you are changing: {overlap}.",
+        source_display=signal.source_display,
+        refs=[signal.id],
+        reason=f"a required gate failed on {overlap}",
+        scope=dict(signal.scope),
+        freshness=signal.freshness,
+        confidence=signal.confidence,
+        source_body="status_only",
+        source_open_target_id=None,
+        agent_instruction="verify_before_relying",
+    )
+
+
 @dataclass(frozen=True)
 class CardKind:
     """One registered card kind: how to derive it, what universal it refutes, how to render
@@ -193,6 +293,22 @@ CARD_KINDS: tuple[CardKind, ...] = (
         derive=_derive_criteria_changed_claim,
         query=criteria_changed_query,
         render=render_criteria_changed_claim,
+    ),
+    CardKind(
+        signal_type="doc_superseded",
+        card_predicate="doc_superseded",
+        verdict_label="Docs check",
+        derive=_derive_doc_superseded_claim,
+        query=no_superseded_docs_query,
+        render=render_doc_superseded_claim,
+    ),
+    CardKind(
+        signal_type="missed_gate",
+        card_predicate="gate_failed",
+        verdict_label="Gate check",
+        derive=_derive_missed_gate_claim,
+        query=all_gates_pass_query,
+        render=render_missed_gate_claim,
     ),
 )
 
@@ -261,6 +377,8 @@ Completeness = Literal[
 DEPS_REGISTRY: dict[str, frozenset[str]] = {
     "no_pr_conflicts_with_paths": frozenset({"git_hosting"}),
     "no_criteria_changed_for_issues": frozenset({"issue_tracker"}),
+    "no_superseded_docs": frozenset({"docs"}),
+    "all_gates_pass": frozenset({"ci_deploy"}),
 }
 
 

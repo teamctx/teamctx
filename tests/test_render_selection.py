@@ -29,22 +29,39 @@ def load_document() -> CoreContractDocument:
 
 def test_render_shows_complete_coverage_when_mandated_source_is_fresh() -> None:
     document = load_document()
-    git_hosting_fresh = document.source_statuses[0].model_copy(
+    base_status = document.source_statuses[0]
+    git_hosting_fresh = base_status.model_copy(
         update={
             "source_id": "github_pr_metadata",
             "source_family": "git_hosting",
             "status": "fresh",
         }
     )
-    issue_tracker_fresh = document.source_statuses[0].model_copy(
+    issue_tracker_fresh = base_status.model_copy(
         update={
             "source_id": "issue_tracker_metadata",
             "source_family": "issue_tracker",
             "status": "fresh",
         }
     )
+    docs_fresh = base_status.model_copy(
+        update={
+            "source_id": "docs_metadata",
+            "source_family": "docs",
+            "status": "fresh",
+        }
+    )
+    ci_deploy_fresh = base_status.model_copy(
+        update={
+            "source_id": "ci_deploy_metadata",
+            "source_family": "ci_deploy",
+            "status": "fresh",
+        }
+    )
     selection = select_context(
-        document.request_context, document.source_signals, [git_hosting_fresh, issue_tracker_fresh]
+        document.request_context,
+        document.source_signals,
+        [git_hosting_fresh, issue_tracker_fresh, docs_fresh, ci_deploy_fresh],
     )
 
     text = render_selection(selection)

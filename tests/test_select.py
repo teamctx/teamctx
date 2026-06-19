@@ -19,6 +19,7 @@ from teamctx.core.prop import Prop, SubjectRef, witnesses
 from teamctx.core.select import (
     CARD_KINDS,
     ClaimCard,
+    all_gates_pass_query,
     assess_completeness,
     build_coverage,
     criteria_changed_query,
@@ -26,6 +27,7 @@ from teamctx.core.select import (
     derive_cards,
     derive_claims,
     no_conflict_query,
+    no_superseded_docs_query,
     project_visible_signals,
     render_collision_claim,
     select_context,
@@ -357,10 +359,94 @@ def test_criteria_changed_ignores_an_unlinked_issue() -> None:
     assert derive_claims(request, [_criteria_signal("PROJ-123")]) == []
 
 
-def test_select_context_now_has_two_closure_entries() -> None:
+def test_select_context_closure_includes_collision_and_criteria_entries() -> None:
     document = load_document()
     selection = select_context(
         document.request_context, document.source_signals, document.source_statuses
     )
     props = {e.proposition for e in selection.closure}
-    assert props == {"no_pr_conflicts_with_paths", "no_criteria_changed_for_issues"}
+    assert "no_pr_conflicts_with_paths" in props
+    assert "no_criteria_changed_for_issues" in props
+
+
+def _typed_signal(signal_type: str, source_family: str, scope: dict, sid: str) -> SourceSignal:
+    return SourceSignal(
+        schema_version="teamctx.source_signal.v0",
+        id=sid,
+        signal_type=signal_type,
+        source_family=source_family,
+        scope=scope,
+        evidence_summary=f"{signal_type} on {sorted(scope.values(), key=str)}",
+        source_display=sid,
+        freshness="fresh",
+        confidence="high",
+        visibility="visible",
+        created_at="2026-01-01T00:00:00Z",
+        observed_at="2026-01-01T00:00:00Z",
+        expires_at="next_refresh",
+        policy=PolicyDecision(
+            schema_version="teamctx.policy_decision.v0",
+            can_render_to_user=True,
+            can_render_to_agent=True,
+            can_include_source_text=False,
+            requires_review_for_guidance=False,
+            decision_reason="metadata allowed as evidence",
+        ),
+    )
+
+
+def test_doc_superseded_derives_for_a_relied_on_doc() -> None:
+    document = load_document()
+    request = document.request_context  # repo auth-service, paths [src/auth/token.py]
+    signal = _typed_signal(
+        "doc_superseded", "docs", {"repo": "auth-service", "doc": "src/auth/token.py"}, "sig_doc_1"
+    )
+    claim_cards = derive_claims(request, [signal])
+    assert len(claim_cards) == 1
+    assert claim_cards[0].claim.predicate == "doc_superseded"
+    assert witnesses(claim_cards[0].claim, no_superseded_docs_query(request)) == "refutes"
+
+
+def test_doc_superseded_ignores_an_unrelated_doc() -> None:
+    document = load_document()
+    signal = _typed_signal(
+        "doc_superseded", "docs", {"repo": "auth-service", "doc": "src/other/x.py"}, "sig_doc_2"
+    )
+    assert derive_claims(document.request_context, [signal]) == []
+
+
+def test_missed_gate_derives_for_a_failing_gate_on_a_touched_file() -> None:
+    document = load_document()
+    request = document.request_context
+    signal = _typed_signal(
+        "missed_gate", "ci_deploy",
+        {"repo": "auth-service", "files": ["src/auth/token.py"]}, "sig_gate_1",
+    )
+    claim_cards = derive_claims(request, [signal])
+    assert len(claim_cards) == 1
+    assert claim_cards[0].claim.predicate == "gate_failed"
+    assert witnesses(claim_cards[0].claim, all_gates_pass_query(request)) == "refutes"
+
+
+def test_missed_gate_ignores_a_gate_on_other_files() -> None:
+    document = load_document()
+    signal = _typed_signal(
+        "missed_gate",
+        "ci_deploy",
+        {"repo": "auth-service", "files": ["src/other/x.py"]},
+        "sig_gate_2",
+    )
+    assert derive_claims(document.request_context, [signal]) == []
+
+
+def test_select_context_has_four_closure_entries() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    assert {e.proposition for e in selection.closure} == {
+        "no_pr_conflicts_with_paths",
+        "no_criteria_changed_for_issues",
+        "no_superseded_docs",
+        "all_gates_pass",
+    }

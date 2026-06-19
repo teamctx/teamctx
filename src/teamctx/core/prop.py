@@ -25,6 +25,10 @@ PREDICATE_REGISTRY: dict[str, PropShape] = {
     "no_pr_conflicts_with_paths": "universal",
     "issue_criteria_changed": "existential",
     "no_criteria_changed_for_issues": "universal",
+    "doc_superseded": "existential",
+    "no_superseded_docs": "universal",
+    "gate_failed": "existential",
+    "all_gates_pass": "universal",
 }
 
 
@@ -61,6 +65,8 @@ REFUTES_PAIRS: frozenset[tuple[str, str]] = frozenset(
     {
         ("pr_conflicts_with_path", "no_pr_conflicts_with_paths"),
         ("issue_criteria_changed", "no_criteria_changed_for_issues"),
+        ("doc_superseded", "no_superseded_docs"),
+        ("gate_failed", "all_gates_pass"),
     }
 )
 
