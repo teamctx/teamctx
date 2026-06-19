@@ -20,7 +20,7 @@ class ClaimCard:
     """A derived typed claim paired with the source signal it was derived from.
 
     ``claim`` is the proposition the card asserts (and witnesses); ``signal`` carries the
-    render inputs. The render card is a pure function of this pair (``render_claim``).
+    render inputs. The render card is a pure function of this pair (``render_collision_claim``).
     """
 
     claim: Prop
@@ -70,8 +70,8 @@ def _derive_collision_claim(
     return ClaimCard(claim=claim, signal=signal)
 
 
-def render_claim(claim_card: ClaimCard) -> ContextCard:
-    """Render a typed claim into a human-plane ``ContextCard``.
+def render_collision_claim(claim_card: ClaimCard) -> ContextCard:
+    """Render a collision claim into a human-plane ``ContextCard``.
 
     Pure: the render card is a function of the claim plus its signal. Output matches the
     pre-typed collision derivation byte for byte.
@@ -85,11 +85,11 @@ def render_claim(claim_card: ClaimCard) -> ContextCard:
         id=f"card_{signal.id}",
         section="Needs attention",
         text=signal.evidence_summary,
-        why_this_matters=f"you are editing {claim.subject.paths[0]}.",
+        why_this_matters=f"you are editing {claim.subject.paths[0]}.",  # most-salient path
         source_display=signal.source_display,
         refs=[signal.id],
         reason=f"same repository and file path as the current task: {overlap}",
-        scope=signal.scope,
+        scope=dict(signal.scope),
         freshness=signal.freshness,
         confidence=signal.confidence,
         source_body="status_only",
@@ -99,9 +99,11 @@ def render_claim(claim_card: ClaimCard) -> ContextCard:
 
 
 def derive_cards(request: RequestContext, signals: Iterable[SourceSignal]) -> list[ContextCard]:
-    """Derive context cards: typed claims (derive_claims) rendered to cards (render_claim)."""
+    """Derive context cards: typed claims (derive_claims) rendered to cards
+    (render_collision_claim).
+    """
 
-    return [render_claim(claim_card) for claim_card in derive_claims(request, signals)]
+    return [render_collision_claim(claim_card) for claim_card in derive_claims(request, signals)]
 
 
 def _is_surfaceable(signal: SourceSignal) -> bool:

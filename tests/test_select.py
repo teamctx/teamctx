@@ -19,7 +19,7 @@ from teamctx.core.select import (
     derive_cards,
     derive_claims,
     no_conflict_query,
-    render_claim,
+    render_collision_claim,
     select_context,
 )
 
@@ -162,11 +162,11 @@ def test_hidden_collision_signal_derives_no_claim() -> None:
     assert claim_cards == []
 
 
-def test_render_claim_reproduces_the_collision_context_card() -> None:
+def test_render_collision_claim_reproduces_the_context_card() -> None:
     document = load_document()
     claim_card = derive_claims(document.request_context, [collision_signal()])[0]
 
-    card = render_claim(claim_card)
+    card = render_collision_claim(claim_card)
 
     # byte-for-byte the same card the pre-typed derivation produced.
     assert card.section == "Needs attention"
