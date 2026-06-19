@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from teamctx.core.prop import Prop, SubjectRef, witnesses
+from teamctx.core.prop import REFUTES_PAIRS, Prop, SubjectRef, witnesses
 
 
 def test_prop_shape_comes_from_the_predicate_registry() -> None:
@@ -88,3 +88,17 @@ def test_claim_with_empty_paths_is_unrelated() -> None:
         subject=SubjectRef(repo="svc", paths=("a.py",)),
     )
     assert witnesses(claim, query) == "unrelated"
+
+
+def test_every_refutes_pair_is_registered_and_distinct() -> None:
+    from teamctx.core.prop import PREDICATE_REGISTRY
+
+    for card_pred, query_pred in REFUTES_PAIRS:
+        assert card_pred in PREDICATE_REGISTRY
+        assert query_pred in PREDICATE_REGISTRY
+        assert card_pred != query_pred
+
+
+def test_witnesses_is_total_and_never_double_witnesses() -> None:
+    for card_pred, query_pred in REFUTES_PAIRS:
+        assert (query_pred, card_pred) not in REFUTES_PAIRS

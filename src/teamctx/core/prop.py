@@ -52,20 +52,27 @@ class Prop:
 
 Witness = Literal["supports", "refutes", "unrelated"]
 
+# Each pair is (card_predicate, query_predicate): a card asserting card_predicate REFUTES
+# the universal query_predicate when they share a repo and at least one subject item. Card
+# kinds register their pair here as they are added.
+REFUTES_PAIRS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("pr_conflicts_with_path", "no_pr_conflicts_with_paths"),
+    }
+)
+
 
 def witnesses(claim: Prop, query: Prop) -> Witness:
     """Does a card's ``claim`` witness ``query`` (supports), its negation (refutes), or
-    neither (unrelated)?
+    neither (unrelated)? Deterministic over typed structure only.
 
-    Deterministic over typed structure only. For this build: an existential
-    ``pr_conflicts_with_path`` claim *refutes* the universal ``no_pr_conflicts_with_paths``
-    query whenever they share a repo and at least one path — a counterexample to "no
-    conflict". ``supports`` is reserved for kinds whose claim establishes a query directly.
+    A registered ``(claim.predicate, query.predicate)`` refutes-pair, with a shared repo and
+    overlapping subject items, refutes the (universal) query. ``supports`` is reserved for
+    kinds whose claim establishes a query directly.
     """
 
     if (
-        query.predicate == "no_pr_conflicts_with_paths"
-        and claim.predicate == "pr_conflicts_with_path"
+        (claim.predicate, query.predicate) in REFUTES_PAIRS
         and claim.subject.repo == query.subject.repo
         and set(claim.subject.paths) & set(query.subject.paths)
     ):
