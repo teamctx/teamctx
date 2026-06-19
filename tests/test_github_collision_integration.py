@@ -57,7 +57,7 @@ def test_open_pr_touching_requested_path_yields_a_derived_collision_card() -> No
     assert card.refs == ["sig_github_pr_7_collision"]
     assert card.source_display == "GitHub PR #7"
     assert "src/widgets/core.py" in card.reason
-    assert selection.coverage.complete is True
+    assert selection.closure[0].status == "complete"
 
 
 def test_open_pr_not_touching_requested_path_yields_no_card() -> None:

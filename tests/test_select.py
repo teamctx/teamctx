@@ -103,45 +103,6 @@ def test_only_collision_signals_derive_cards_in_this_vertical() -> None:
     assert [card.refs[0] for card in cards] == ["sig_pr_482_collision"]
 
 
-def test_a_stale_source_makes_coverage_incomplete_and_is_reported() -> None:
-    document = load_document()
-
-    coverage = build_coverage(document.source_statuses)
-
-    # absence is never clearance: a stale source means we cannot call coverage complete.
-    assert coverage.complete is False
-    assert any(entry.status == "stale" for entry in coverage.entries)
-
-
-def test_no_checked_sources_is_not_complete_coverage() -> None:
-    # Zero observation is the strongest "Unknown", not "all clear".
-    coverage = build_coverage([])
-
-    assert coverage.complete is False
-
-
-def test_all_fresh_sources_make_coverage_complete() -> None:
-    document = load_document()
-    fresh = document.source_statuses[0].model_copy(update={"status": "fresh"})
-
-    coverage = build_coverage([fresh])
-
-    assert coverage.complete is True
-    assert coverage.entries[0].status == "fresh"
-
-
-def test_select_context_returns_derived_cards_and_coverage_together() -> None:
-    document = load_document()
-
-    selection = select_context(
-        document.request_context, document.source_signals, document.source_statuses
-    )
-
-    # cards are DERIVED (not the authored fixture cards), and coverage is reported
-    assert [card.refs[0] for card in selection.cards] == ["sig_pr_482_collision"]
-    assert selection.coverage.complete is False  # the fixture carries a stale source
-
-
 def test_collision_derives_a_typed_claim_that_witnesses_the_negation() -> None:
     document = load_document()
     request = document.request_context
@@ -226,3 +187,31 @@ def test_closure_policy_gap_when_git_hosting_unobserved() -> None:
 
 def test_closure_policy_gap_when_no_sources_checked() -> None:
     assert assess_completeness(_collision_query(), build_coverage([])) == "incomplete[policy-gap]"
+
+
+def test_select_context_carries_the_collision_query_closure() -> None:
+    document = load_document()
+
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+
+    assert [card.refs[0] for card in selection.cards] == ["sig_pr_482_collision"]
+    assert len(selection.closure) == 1
+    entry = selection.closure[0]
+    assert entry.proposition == "no_pr_conflicts_with_paths"
+    # the fixture observes no git_hosting source -> the collision query is policy-gapped.
+    assert entry.status == "incomplete[policy-gap]"
+
+
+def test_coverage_reports_each_checked_source_status() -> None:
+    # per-source health is still surfaced (absence of cards is never clearance).
+    coverage = build_coverage(load_document().source_statuses)
+    assert any(entry.status == "stale" for entry in coverage.entries)
+
+
+def test_collision_closure_is_complete_only_when_git_hosting_is_fresh() -> None:
+    fresh = assess_completeness(_collision_query(), build_coverage([_git_hosting_status("fresh")]))
+    stale = assess_completeness(_collision_query(), build_coverage([_git_hosting_status("stale")]))
+    assert fresh == "complete"
+    assert stale == "incomplete[stale-dep]"

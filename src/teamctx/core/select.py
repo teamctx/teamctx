@@ -129,10 +129,6 @@ class Coverage:
 
     entries: tuple[CoverageEntry, ...]
 
-    @property
-    def complete(self) -> bool:
-        return bool(self.entries) and all(entry.status == "fresh" for entry in self.entries)
-
 
 Completeness = Literal[
     "complete",
@@ -187,6 +183,14 @@ def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
     return "complete"
 
 
+@dataclass(frozen=True)
+class ClosureEntry:
+    """A per-proposition completeness status for the coverage certificate (kappa.closure)."""
+
+    proposition: str
+    status: Completeness
+
+
 def build_coverage(statuses: Iterable[SourceStatus]) -> Coverage:
     """Summarize per-source coverage; any non-fresh source makes coverage incomplete."""
 
@@ -204,10 +208,12 @@ def build_coverage(statuses: Iterable[SourceStatus]) -> Coverage:
 
 @dataclass(frozen=True)
 class ContextSelection:
-    """The broker's answer at work-start: derived cards plus an honest coverage report."""
+    """The broker's answer at work-start: derived cards, honest coverage, and per-
+    proposition closure."""
 
     cards: tuple[ContextCard, ...]
     coverage: Coverage
+    closure: tuple[ClosureEntry, ...]
 
 
 def select_context(
@@ -215,9 +221,15 @@ def select_context(
     signals: Iterable[SourceSignal],
     statuses: Iterable[SourceStatus],
 ) -> ContextSelection:
-    """Broker entry point: derive cards from signals and report coverage from statuses."""
+    """Broker entry point: derive cards, report coverage, and assess per-proposition closure."""
 
+    coverage = build_coverage(statuses)
+    query = no_conflict_query(request)
+    closure = (
+        ClosureEntry(proposition=query.predicate, status=assess_completeness(query, coverage)),
+    )
     return ContextSelection(
         cards=tuple(derive_cards(request, signals)),
-        coverage=build_coverage(statuses),
+        coverage=coverage,
+        closure=closure,
     )

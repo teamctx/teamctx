@@ -73,7 +73,10 @@ def render_selection(selection: ContextSelection) -> str:
         lines.append("- no sources were checked")
     for entry in coverage.entries:
         lines.append(f"- {entry.source_family}: {entry.status}")
-    if coverage.complete:
+    complete = bool(selection.closure) and all(
+        entry.status == "complete" for entry in selection.closure
+    )
+    if complete:
         lines.append("Coverage complete across checked sources.")
     else:
         lines.append(
