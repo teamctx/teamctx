@@ -15,6 +15,7 @@ from typing import Literal
 from teamctx.core.authority import AuthorityDecl, AuthorityEntry, assess_authority
 from teamctx.core.contracts import ContextCard, RequestContext, SourceSignal, SourceStatus
 from teamctx.core.prop import Prop, SubjectRef
+from teamctx.core.snapshot import snapshot_digest as _snapshot_digest
 
 Delta = Literal["none", "count", "identity"]
 
@@ -447,8 +448,8 @@ def build_coverage(statuses: Iterable[SourceStatus], delta: Delta = "none") -> C
 @dataclass(frozen=True)
 class ContextSelection:
     """The broker's answer at work-start: rendered cards, the typed certified claims (C), the
-    untrusted hint layer (H), honest coverage, per-proposition closure, and per-subject
-    authority state."""
+    untrusted hint layer (H), honest coverage, per-proposition closure, per-subject authority
+    state, and a verifiable-replay digest binding the exact inputs."""
 
     cards: tuple[ContextCard, ...]
     claim_cards: tuple[ClaimCard, ...]
@@ -456,6 +457,7 @@ class ContextSelection:
     coverage: Coverage
     closure: tuple[ClosureEntry, ...]
     authority: tuple[AuthorityEntry, ...]
+    snapshot_digest: str
 
 
 def select_context(
@@ -464,12 +466,14 @@ def select_context(
     statuses: Iterable[SourceStatus],
     declarations: Iterable[AuthorityDecl] = (),
 ) -> ContextSelection:
-    """Broker entry point: derive typed claims, render cards, report coverage + closure, and
-    resolve per-subject authority (surfacing conflict, never adjudicating)."""
+    """Broker entry point: derive typed claims, render cards, report coverage + closure,
+    resolve authority, and bind the inputs with a verifiable-replay digest."""
 
+    signal_list = list(signals)
+    status_list = list(statuses)
     declaration_list = list(declarations)
-    coverage = build_coverage(statuses)
-    claim_cards = tuple(derive_claims(request, signals))
+    coverage = build_coverage(status_list)
+    claim_cards = tuple(derive_claims(request, signal_list))
     cards = tuple(render_claim(claim_card) for claim_card in claim_cards)
     closure = tuple(
         ClosureEntry(
@@ -480,6 +484,7 @@ def select_context(
     )
     subjects = sorted({decl.subject for decl in declaration_list})
     authority = tuple(assess_authority(subject, declaration_list) for subject in subjects)
+    digest = _snapshot_digest(request, signal_list, status_list, declaration_list)
     return ContextSelection(
         cards=cards,
         claim_cards=claim_cards,
@@ -487,4 +492,5 @@ def select_context(
         coverage=coverage,
         closure=closure,
         authority=authority,
+        snapshot_digest=digest,
     )

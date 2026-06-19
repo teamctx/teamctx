@@ -475,3 +475,17 @@ def test_select_context_with_no_declarations_has_empty_authority() -> None:
         document.request_context, document.source_signals, document.source_statuses
     )
     assert selection.authority == ()
+
+
+def test_select_context_is_replayable_with_a_stable_digest() -> None:
+    document = load_document()
+    a = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    b = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    # determinism: identical inputs -> identical answer, bound by an identical digest.
+    assert a == b
+    assert a.snapshot_digest == b.snapshot_digest
+    assert len(a.snapshot_digest) == 64
