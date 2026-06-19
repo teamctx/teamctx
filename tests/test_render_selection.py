@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from teamctx.contract_render import render_selection
+from teamctx.core.authority import AuthorityDecl
 from teamctx.core.contracts import CoreContractDocument
 from teamctx.core.evaluate import Valuation
 from teamctx.core.select import select_context
@@ -112,3 +113,29 @@ def test_render_without_verdicts_is_unchanged() -> None:
         document.request_context, document.source_signals, document.source_statuses
     )
     assert "check:" not in render_selection(selection)
+
+
+def test_render_shows_an_authority_section_with_conflict_surfaced() -> None:
+    document = load_document()
+    declarations = [
+        AuthorityDecl(subject="rounding-cap", source="ticket", priority=10, value="5", fresh=True),
+        AuthorityDecl(subject="rounding-cap", source="policy", priority=10, value="3", fresh=True),
+    ]
+    selection = select_context(
+        document.request_context,
+        document.source_signals,
+        document.source_statuses,
+        declarations,
+    )
+    text = render_selection(selection)
+    assert "Authority" in text
+    assert "rounding-cap" in text
+    assert "CONFLICTED" in text  # surfaced, not adjudicated
+
+
+def test_render_has_no_authority_section_without_declarations() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    assert "Authority" not in render_selection(selection)

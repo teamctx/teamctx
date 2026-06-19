@@ -14,6 +14,7 @@ import click
 from teamctx.benchmark import export_benchmark_pack
 from teamctx.claude_benchmark import AgentVariant, SourceAccessMode, run_claude_agent_suite
 from teamctx.claude_quality import assess_claude_run_dir
+from teamctx.connectors.declared_authority import load_declared_authority
 from teamctx.connectors.github import run_github_pr_probe
 from teamctx.context import agent_prompt_cards, context_cards
 from teamctx.contract_documents import (
@@ -179,8 +180,12 @@ def work_start_command(
         token_env=token_env,
         include_title=include_title,
     )
+    declarations = load_declared_authority(Path(".teamctx/authority.json"))
     selection = select_context(
-        document.request_context, document.source_signals, document.source_statuses
+        document.request_context,
+        document.source_signals,
+        document.source_statuses,
+        declarations,
     )
     verdicts = tuple(
         (

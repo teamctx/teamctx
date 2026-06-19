@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from collections.abc import Iterable, Sequence
 
+from teamctx.core.authority import AuthorityEntry
 from teamctx.core.contracts import (
     ContextCard,
     CoreContractDocument,
@@ -50,6 +51,16 @@ def render_contract_context(document: CoreContractDocument) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _authority_line(entry: AuthorityEntry) -> str:
+    if entry.state == "resolved":
+        return f"- {entry.subject}: resolved (value {entry.value})"
+    if entry.state == "conflicted":
+        return f"- {entry.subject}: CONFLICTED — declared sources disagree; not adjudicated"
+    if entry.state == "unknown[stale-authority]":
+        return f"- {entry.subject}: unknown — declared authority is stale; refresh it"
+    return f"- {entry.subject}: no authority declared"
+
+
 def render_selection(
     selection: ContextSelection,
     verdicts: Sequence[tuple[str, Valuation]] = (),
@@ -87,6 +98,10 @@ def render_selection(
             "Absence of a card is not an all-clear; "
             "treat unobserved or stale sources as Unknown."
         )
+
+    if selection.authority:
+        lines.extend(["", "Authority"])
+        lines.extend(_authority_line(entry) for entry in selection.authority)
 
     for label, verdict in verdicts:
         lines.extend(["", _verdict_line(label, verdict)])
