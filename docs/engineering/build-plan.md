@@ -23,23 +23,18 @@ Important exclusions are still intact: no comments, no review bodies, no raw
 patches, no commit bodies, no author identity, no broad repo search, no LLM in
 the broker, and no source body browsing by default.
 
-## Current Sprint
+## Current Milestone
 
-Current operating plan:
-[Sprint 02: Dogfood The Terminal Loop](../product/sprints/2026-06-16-sprint-02.md).
+Phase 1's first vertical shipped (Sprint 03 — `work-start` derives source-backed
+collision cards + honest coverage; merged to `main`). The active forward plan is now the
+**[Thesis-Complete Engine milestone](../product/sprints/2026-06-19-milestone-thesis-complete-engine.md)**:
+migrate the core from the fixture-lineage model to the v1.0-paper model (in-place
+strangler), complete the structural card-kind family, add thin authority behavior, and
+land replay/explainability — so the credibility engine is real in code, dogfooded early
+and often. No pip/README/launch in this milestone.
 
-Goal: make TeamCtx usable as a real local terminal tool in an owned repository.
-
-Sprint 02 priorities:
-
-1. Add `teamctx init` and safe project config writing.
-2. Make `context`, `why`, and `open-source` default to the local context document.
-3. Dogfood the GitHub PR metadata path against an owned repo with a seeded open
-   PR.
-4. Update the scripted terminal demo and README to the current command shape.
-5. Add one issue-tracker fixture path without claiming live Jira or Linear
-   support.
-6. Decide whether `open-source` should split into source-specific commands.
+Immediate next slice: typed `claim` + witness polarity (the foundation for the consumer
+`evaluate` SDK and observable soundness in code).
 
 ## MVP Track
 
