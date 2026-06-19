@@ -64,3 +64,11 @@ def test_universal_is_unknown_when_closure_incomplete_and_no_counterexample() ->
 def test_universal_is_unknown_when_no_closure_entry_for_the_query() -> None:
     query = no_conflict_query(_request(("a.py",)))
     assert evaluate(query, (), ()) == Valuation("unknown", "incomplete[policy-gap]")
+
+
+def test_universal_is_false_by_counterexample_even_under_complete_closure() -> None:
+    query = no_conflict_query(_request(("a.py",)))
+    claim_cards = (_collision_claim_card("a.py"),)
+    # a counterexample falsifies the universal even when coverage is complete:
+    # `refutes` must take priority over `complete`.
+    assert evaluate(query, claim_cards, _closure("complete")) == Valuation("false")
