@@ -12,6 +12,62 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from teamctx.core.contracts import ContextCard, RequestContext, SourceSignal, SourceStatus
+from teamctx.core.prop import Prop, SubjectRef
+
+
+@dataclass(frozen=True)
+class ClaimCard:
+    """A derived typed claim paired with the source signal it was derived from.
+
+    ``claim`` is the proposition the card asserts (and witnesses); ``signal`` carries the
+    render inputs. The render card is a pure function of this pair (``render_claim``).
+    """
+
+    claim: Prop
+    signal: SourceSignal
+
+
+def no_conflict_query(request: RequestContext) -> Prop:
+    """The universal a collision card refutes: 'no open PR conflicts with my paths'."""
+
+    return Prop(
+        predicate="no_pr_conflicts_with_paths",
+        subject=SubjectRef(repo=request.repo, paths=tuple(request.paths)),
+    )
+
+
+def derive_claims(
+    request: RequestContext, signals: Iterable[SourceSignal]
+) -> list[ClaimCard]:
+    """Derive typed claims from signals by computing structural relevance to the request."""
+
+    claims: list[ClaimCard] = []
+    for signal in signals:
+        if not _is_surfaceable(signal):
+            continue
+        if signal.signal_type == "collision":
+            claim_card = _derive_collision_claim(request, signal)
+            if claim_card is not None:
+                claims.append(claim_card)
+    return claims
+
+
+def _derive_collision_claim(
+    request: RequestContext, signal: SourceSignal
+) -> ClaimCard | None:
+    if signal.scope.get("repo") != request.repo:
+        return None
+    candidate_files = signal.scope.get("files")
+    candidate = candidate_files if isinstance(candidate_files, list) else []
+    shared = sorted(set(request.paths) & set(candidate))
+    if not shared:
+        return None
+    claim = Prop(
+        predicate="pr_conflicts_with_path",
+        subject=SubjectRef(repo=request.repo, paths=tuple(shared)),
+        args=(signal.id,),
+    )
+    return ClaimCard(claim=claim, signal=signal)
 
 
 def derive_cards(request: RequestContext, signals: Iterable[SourceSignal]) -> list[ContextCard]:

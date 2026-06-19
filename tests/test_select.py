@@ -12,7 +12,15 @@ from pathlib import Path
 from typing import Any, cast
 
 from teamctx.core.contracts import CoreContractDocument, SourceSignal
-from teamctx.core.select import build_coverage, derive_cards, select_context
+from teamctx.core.prop import witnesses
+from teamctx.core.select import (
+    ClaimCard,
+    build_coverage,
+    derive_cards,
+    derive_claims,
+    no_conflict_query,
+    select_context,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTRACT_FIXTURE = (
@@ -127,3 +135,27 @@ def test_select_context_returns_derived_cards_and_coverage_together() -> None:
     # cards are DERIVED (not the authored fixture cards), and coverage is reported
     assert [card.refs[0] for card in selection.cards] == ["sig_pr_482_collision"]
     assert selection.coverage.complete is False  # the fixture carries a stale source
+
+
+def test_collision_derives_a_typed_claim_that_witnesses_the_negation() -> None:
+    document = load_document()
+    request = document.request_context
+
+    claim_cards = derive_claims(request, [collision_signal()])
+
+    assert len(claim_cards) == 1
+    claim_card = claim_cards[0]
+    assert isinstance(claim_card, ClaimCard)
+    assert claim_card.claim.predicate == "pr_conflicts_with_path"
+    assert claim_card.claim.shape == "existential"
+    assert claim_card.claim.args == ("sig_pr_482_collision",)
+    # the card witnesses NOT "no conflict": a counterexample to the universal query.
+    assert witnesses(claim_card.claim, no_conflict_query(request)) == "refutes"
+
+
+def test_hidden_collision_signal_derives_no_claim() -> None:
+    document = load_document()
+
+    claim_cards = derive_claims(document.request_context, [hidden(collision_signal())])
+
+    assert claim_cards == []
