@@ -76,10 +76,17 @@ def test_render_appends_labeled_verdicts() -> None:
     )
     text = render_selection(
         selection,
-        (("Conflict check", Valuation("false")), ("Criteria check", Valuation("true"))),
+        (
+            ("Conflict check", Valuation("false")),
+            ("Criteria check", Valuation("true")),
+            ("Dep check", Valuation("unknown", "incomplete[stale-dep]")),
+        ),
     )
     assert "Conflict check: NOT CLEAR" in text
     assert "Criteria check: clear" in text
+    assert "Dep check: UNKNOWN" in text
+    assert "incomplete[stale-dep]" in text
+    assert "absence is not an all-clear" in text
 
 
 def test_render_without_verdicts_is_unchanged() -> None:
