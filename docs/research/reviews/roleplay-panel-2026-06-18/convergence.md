@@ -33,13 +33,18 @@ work-start.
   plane / invocation story from a side-note to a first-class distribution strategy.**
 - **Disposition:** new open item **#9**. The most important thing this panel surfaced.
 
-### A2. Cut the durable collective-memory layer from v1 — `CONFIRMS` ★
-Unanimous "kill it / cut it / defer it." Matches my ROLE-1 and — importantly — **the
-locked plan already does this**: the two-package architecture makes the durable layer
-*optional*, and the build order (§5.4) extracts the stateless broker first. The panel
-independently re-derived the sequencing decision and the "don't dilute *can't-track by
-construction* with a *but-the-durable-half-can-track-by-consent* asterisk" reason.
-- **Disposition:** confirmation, not a change. Strengthens conviction in the v1 = broker-only cut.
+### A2. Build the broker first; durable layer optional — `CONFIRMS` (with a correction) ★
+The panel said "kill / cut / defer" the durable layer (5/5). **Correction (2026-06-19):**
+the genuinely-shared decision is *build the broker first / durable optional* — the
+**engineering** sequence in D1 + §5.4 (the provable stateless half; SBOM-auditable
+capability-absence). The panel's stronger *"cut from v1"* is a **positioning** claim and
+was **not** separately decided by Edgar; this doc originally conflated the two. Per the
+positioning dialogue, the durable layer is **"context, not memory"** (the data already
+lives in the sources; teamctx transforms *delivery*, not content) and is **not** to be
+exiled as a liability — only the retention/consent **seam** stays load-bearing (broker
+can't-track *by non-retention*; durable can-track *by consent*).
+- **Disposition:** broker-first stands (engineering); "cut durable" downgraded to "defer by
+  sequence." See [positioning.md](../../../product/vision/positioning.md).
 
 ### A3. The trust-killer is a certified-but-wrong / stale-shown-as-fresh card — `REFINES` ★
 Unanimous, with concrete scenarios: *"no open PR touches this file"* served from a 20–45s

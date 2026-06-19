@@ -20,31 +20,33 @@ touches this symbol", "the linked acceptance criteria changed after your branch
 point", "this doc was superseded") plus a **coverage certificate** that honestly
 reports what was observed, what is stale, and what is unknown.
 
-One design decision — **no LLM in the core** — yields the whole value, and the order
-below is the *positioning* order, ranked by the severity of the fear each neutralizes
-(a layer that reads all of a team's PRs/tickets/docs is **disqualified at the door** if
-it smells like surveillance, and **evaluated hard** by security because it touches
-everything):
+One design decision — **no LLM in the *content path*** — yields the whole value.
+**Positioning is specified in [positioning.md](positioning.md)** (resolves open-item #10,
+2026-06-19, and supersedes the earlier "lead with can't-track" order that sat here). Short
+form: the **marquee** is the *category* — **timely, ambient team context** (humans and
+their agents on the same live picture of the work and its standards) — and the properties
+below are its **credibility engine**: the *because* that makes the category claim
+trustworthy and differentiated. They moved from *banner* to *proof*; they are exactly as
+load-bearing as before.
 
-- **Can't track — by construction, not policy** *(the marquee; neutralizes the
-  reflexive surveillance-block).* Structural non-retention, no people-graph, no read
-  receipts (D1, §6). Claimable flat — it amplifies *artifacts*, never *behavior*.
-- **Can't be hijacked** *(co-lead; the catastrophe a hard security review will probe).*
-  Source text is untrusted evidence, never instruction; selection is feature-mediated
-  (§7). Stated with precision: it hardens its *selection pipe* — end-to-end safety needs
-  a cooperating agent (§8); we do not claim "incapable of harm."
-- **Honest coverage + preserved velocity** *(the payoff — why you keep it).* Absence ≠
-  all-clear; it tells you what it didn't check instead of guessing (§5). Fewer silent
-  misses ⇒ the agentic velocity that coordination overhead otherwise eats. This is also
-  the *proof the safety is structural*: the same no-LLM/read-only/retains-nothing
-  decision makes it can't-track, can't-fabricate, **and** honest.
+- **Can't track — by construction, not policy.** Structural non-retention, no people-graph,
+  no read receipts (D1, §6). Amplifies *artifacts*, never *behavior*.
+- **Can't be hijacked.** Source text is untrusted evidence, never instruction; selection is
+  feature-mediated (§7). Hardens its *selection pipe* — end-to-end safety needs a
+  cooperating agent (§8); we do not claim "incapable of harm."
+- **Honest coverage + preserved velocity.** Absence ≠ all-clear; it reports what it didn't
+  check instead of guessing (§5). The same no-LLM/read-only/retains-nothing decision makes
+  it can't-track, can't-fabricate, **and** honest — the proof the safety is structural.
+- **The reference, not the rival.** Because facts arrive **verbatim and source-backed**,
+  teamctx is the deterministic ground an agent stands on and checks itself against —
+  **complementary** to the LLM (the product exists *because* of agents), scoped to *what is
+  currently true in the record* (not judgment; not "is the record correct").
 - **Cross-agent portability** — context is data, so the consumer is swappable.
 
-**Token/latency is an objection-handler, not a promise.** To *"won't a layer talking to
-my agents every turn burn tokens and slow everything down?"* — no: net-cheaper than the
-status quo it replaces (agents re-deriving team state by crawling everything; humans
-stopping to ask colleagues), at ~8ms p95 (warm-daemon, §9), with **measured, bounded**
-receipts — never a total-cost meter.
+**Safety-of-teamctx is table stakes; token/latency is an objection-handler** — neither is
+the promise. To *"won't a layer talking to my agents every turn burn tokens and slow
+everything down?"* — no: net-cheaper than the status quo it replaces, at ~8ms p95
+(warm-daemon, §9), with **measured, bounded** receipts — never a total-cost meter.
 
 ---
 
