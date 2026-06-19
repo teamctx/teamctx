@@ -11,11 +11,15 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from teamctx.core.contracts import CoreContractDocument, SourceSignal
-from teamctx.core.prop import witnesses
+import pytest
+
+from teamctx.core.contracts import CoreContractDocument, SourceSignal, SourceStatus
+from teamctx.core.prop import Prop, SubjectRef, witnesses
 from teamctx.core.select import (
     ClaimCard,
+    assess_completeness,
     build_coverage,
+    deps_for,
     derive_cards,
     derive_claims,
     no_conflict_query,
@@ -178,3 +182,47 @@ def test_render_collision_claim_reproduces_the_context_card() -> None:
     assert card.agent_instruction == "verify_before_relying"
     assert card.source_body == "status_only"
     assert "src/auth/token.py" in card.reason
+
+
+def _git_hosting_status(status: str) -> SourceStatus:
+    """A git_hosting SourceStatus for closure tests (derived from the fixture's status)."""
+    base = load_document().source_statuses[0]
+    return base.model_copy(
+        update={"source_id": "github_pr_metadata", "source_family": "git_hosting", "status": status}
+    )
+
+
+def _collision_query() -> Prop:
+    return Prop(
+        predicate="no_pr_conflicts_with_paths",
+        subject=SubjectRef(repo="auth-service", paths=("src/auth/token.py",)),
+    )
+
+
+def test_deps_for_collision_query_is_git_hosting() -> None:
+    assert deps_for(_collision_query()) == frozenset({"git_hosting"})
+
+
+def test_deps_for_unregistered_predicate_raises() -> None:
+    with pytest.raises(ValueError, match="no dependency closure registered"):
+        deps_for(Prop(predicate="some_unmodeled_predicate", subject=SubjectRef(repo="r")))
+
+
+def test_closure_complete_when_git_hosting_fresh() -> None:
+    coverage = build_coverage([_git_hosting_status("fresh")])
+    assert assess_completeness(_collision_query(), coverage) == "complete"
+
+
+def test_closure_stale_dep_when_git_hosting_not_fresh() -> None:
+    coverage = build_coverage([_git_hosting_status("stale")])
+    assert assess_completeness(_collision_query(), coverage) == "incomplete[stale-dep]"
+
+
+def test_closure_policy_gap_when_git_hosting_unobserved() -> None:
+    # the fixture has only a docs source — the mandated git_hosting source is absent.
+    coverage = build_coverage(load_document().source_statuses)
+    assert assess_completeness(_collision_query(), coverage) == "incomplete[policy-gap]"
+
+
+def test_closure_policy_gap_when_no_sources_checked() -> None:
+    assert assess_completeness(_collision_query(), build_coverage([])) == "incomplete[policy-gap]"

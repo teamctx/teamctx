@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Literal
 
 from teamctx.core.contracts import ContextCard, RequestContext, SourceSignal, SourceStatus
 from teamctx.core.prop import Prop, SubjectRef
@@ -131,6 +132,59 @@ class Coverage:
     @property
     def complete(self) -> bool:
         return bool(self.entries) and all(entry.status == "fresh" for entry in self.entries)
+
+
+Completeness = Literal[
+    "complete",
+    "incomplete[dangling]",
+    "incomplete[stale-dep]",
+    "incomplete[policy-gap]",
+    "incomplete[unbounded]",
+    "incomplete[unmodeled-ref]",
+]
+
+# deps_G: the trusted, mandated source families a proposition's truth depends on. A
+# predicate is registered here as its card kind is added. An unregistered predicate fails
+# loud — we never silently certify a query whose dependencies we have not modeled.
+DEPS_REGISTRY: dict[str, frozenset[str]] = {
+    "no_pr_conflicts_with_paths": frozenset({"git_hosting"}),
+}
+
+
+def deps_for(prop: Prop) -> frozenset[str]:
+    """The mandated source families whose state can affect ``prop`` (deps_G)."""
+
+    try:
+        return DEPS_REGISTRY[prop.predicate]
+    except KeyError as exc:
+        raise ValueError(
+            f"no dependency closure registered for predicate {prop.predicate!r}"
+        ) from exc
+
+
+def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
+    """The paper's ``complete?``: is every mandated dependency of ``prop`` observed fresh?
+
+    Returns ``incomplete[policy-gap]`` if a mandated source family is absent from coverage,
+    ``incomplete[stale-dep]`` if present but not fresh, else ``complete``. The reasons
+    ``dangling``/``unbounded``/``unmodeled-ref`` are defined but not yet emitted (they need
+    reference-target / connector-schema structure introduced in later slices).
+    """
+
+    entries_by_family: dict[str, list[CoverageEntry]] = {}
+    for entry in coverage.entries:
+        entries_by_family.setdefault(entry.source_family, []).append(entry)
+
+    stale_seen = False
+    for family in sorted(deps_for(prop)):
+        family_entries = entries_by_family.get(family, [])
+        if not family_entries:
+            return "incomplete[policy-gap]"
+        if any(entry.status != "fresh" for entry in family_entries):
+            stale_seen = True
+    if stale_seen:
+        return "incomplete[stale-dep]"
+    return "complete"
 
 
 def build_coverage(statuses: Iterable[SourceStatus]) -> Coverage:
