@@ -13,7 +13,7 @@ from typing import Any, cast
 
 import pytest
 
-from teamctx.core.contracts import CoreContractDocument, SourceSignal, SourceStatus
+from teamctx.core.contracts import CoreContractDocument, PolicyDecision, SourceSignal, SourceStatus
 from teamctx.core.evaluate import Valuation, evaluate
 from teamctx.core.prop import Prop, SubjectRef, witnesses
 from teamctx.core.select import (
@@ -21,6 +21,7 @@ from teamctx.core.select import (
     ClaimCard,
     assess_completeness,
     build_coverage,
+    criteria_changed_query,
     deps_for,
     derive_cards,
     derive_claims,
@@ -200,8 +201,11 @@ def test_select_context_carries_the_collision_query_closure() -> None:
     )
 
     assert [card.refs[0] for card in selection.cards] == ["sig_pr_482_collision"]
-    assert len(selection.closure) == 1
-    entry = selection.closure[0]
+    collision_entries = [
+        e for e in selection.closure if e.proposition == "no_pr_conflicts_with_paths"
+    ]
+    assert len(collision_entries) == 1
+    entry = collision_entries[0]
     assert entry.proposition == "no_pr_conflicts_with_paths"
     # the fixture observes no git_hosting source -> the collision query is policy-gapped.
     assert entry.status == "incomplete[policy-gap]"
@@ -305,4 +309,58 @@ def test_select_context_still_derives_only_collision_in_this_registry() -> None:
         document.request_context, document.source_signals, document.source_statuses
     )
     assert [c.refs[0] for c in selection.cards] == ["sig_pr_482_collision"]
-    assert [e.proposition for e in selection.closure] == ["no_pr_conflicts_with_paths"]
+    props = {e.proposition for e in selection.closure}
+    assert "no_pr_conflicts_with_paths" in props
+
+
+def _criteria_signal(issue: str, repo: str = "auth-service") -> SourceSignal:
+    return SourceSignal(
+        schema_version="teamctx.source_signal.v0",
+        id=f"sig_criteria_{issue}",
+        signal_type="criteria_changed",
+        source_family="issue_tracker",
+        scope={"repo": repo, "issue": issue},
+        evidence_summary=f"Acceptance criteria for {issue} changed.",
+        source_display=f"Issue {issue}",
+        freshness="fresh",
+        confidence="high",
+        visibility="visible",
+        created_at="2026-01-01T00:00:00Z",
+        observed_at="2026-01-01T00:00:00Z",
+        expires_at="next_refresh",
+        policy=PolicyDecision(
+            schema_version="teamctx.policy_decision.v0",
+            can_render_to_user=True,
+            can_render_to_agent=True,
+            can_include_source_text=False,
+            requires_review_for_guidance=False,
+            decision_reason="issue metadata is allowed as evidence",
+        ),
+    )
+
+
+def test_criteria_changed_derives_a_claim_for_a_linked_issue() -> None:
+    document = load_document()
+    request = document.request_context.model_copy(update={"linked_issues": ["PROJ-123"]})
+
+    claim_cards = derive_claims(request, [_criteria_signal("PROJ-123")])
+
+    assert len(claim_cards) == 1
+    assert claim_cards[0].claim.predicate == "issue_criteria_changed"
+    assert witnesses(claim_cards[0].claim, criteria_changed_query(request)) == "refutes"
+
+
+def test_criteria_changed_ignores_an_unlinked_issue() -> None:
+    document = load_document()
+    request = document.request_context.model_copy(update={"linked_issues": ["PROJ-999"]})
+
+    assert derive_claims(request, [_criteria_signal("PROJ-123")]) == []
+
+
+def test_select_context_now_has_two_closure_entries() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    props = {e.proposition for e in selection.closure}
+    assert props == {"no_pr_conflicts_with_paths", "no_criteria_changed_for_issues"}

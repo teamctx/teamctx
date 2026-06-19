@@ -23,6 +23,8 @@ PropShape = Literal["universal", "existential"]
 PREDICATE_REGISTRY: dict[str, PropShape] = {
     "pr_conflicts_with_path": "existential",
     "no_pr_conflicts_with_paths": "universal",
+    "issue_criteria_changed": "existential",
+    "no_criteria_changed_for_issues": "universal",
 }
 
 
@@ -58,6 +60,7 @@ Witness = Literal["supports", "refutes", "unrelated"]
 REFUTES_PAIRS: frozenset[tuple[str, str]] = frozenset(
     {
         ("pr_conflicts_with_path", "no_pr_conflicts_with_paths"),
+        ("issue_criteria_changed", "no_criteria_changed_for_issues"),
     }
 )
 

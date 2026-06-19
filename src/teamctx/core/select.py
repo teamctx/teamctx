@@ -54,6 +54,16 @@ def no_conflict_query(request: RequestContext) -> Prop:
     )
 
 
+def criteria_changed_query(request: RequestContext) -> Prop:
+    """The universal a criteria-changed card refutes: 'no acceptance criteria changed for
+    my linked issues'."""
+
+    return Prop(
+        predicate="no_criteria_changed_for_issues",
+        subject=SubjectRef(repo=request.repo, paths=tuple(request.linked_issues)),
+    )
+
+
 def derive_claims(
     request: RequestContext, signals: Iterable[SourceSignal]
 ) -> list[ClaimCard]:
@@ -116,6 +126,44 @@ def render_collision_claim(claim_card: ClaimCard) -> ContextCard:
     )
 
 
+def _derive_criteria_changed_claim(
+    request: RequestContext, signal: SourceSignal
+) -> ClaimCard | None:
+    issue = signal.scope.get("issue")
+    if not isinstance(issue, str) or issue not in request.linked_issues:
+        return None
+    claim = Prop(
+        predicate="issue_criteria_changed",
+        subject=SubjectRef(repo=request.repo, paths=(issue,)),
+        args=(signal.id,),
+    )
+    return ClaimCard(claim=claim, signal=signal)
+
+
+def render_criteria_changed_claim(claim_card: ClaimCard) -> ContextCard:
+    """Render a criteria-changed claim into a human-plane ``ContextCard``."""
+
+    claim = claim_card.claim
+    signal = claim_card.signal
+    issue = claim.subject.paths[0]
+    return ContextCard(
+        schema_version="teamctx.context_card.v0",
+        id=f"card_{signal.id}",
+        section="Verify before relying",
+        text=signal.evidence_summary,
+        why_this_matters=f"acceptance criteria for {issue} changed; re-check before relying.",
+        source_display=signal.source_display,
+        refs=[signal.id],
+        reason=f"linked issue {issue} had its acceptance criteria changed",
+        scope=dict(signal.scope),
+        freshness=signal.freshness,
+        confidence=signal.confidence,
+        source_body="status_only",
+        source_open_target_id=None,
+        agent_instruction="verify_before_relying",
+    )
+
+
 @dataclass(frozen=True)
 class CardKind:
     """One registered card kind: how to derive it, what universal it refutes, how to render
@@ -123,6 +171,7 @@ class CardKind:
 
     signal_type: str
     card_predicate: str
+    verdict_label: str
     derive: Callable[[RequestContext, SourceSignal], ClaimCard | None]
     query: Callable[[RequestContext], Prop]
     render: Callable[[ClaimCard], ContextCard]
@@ -132,9 +181,18 @@ CARD_KINDS: tuple[CardKind, ...] = (
     CardKind(
         signal_type="collision",
         card_predicate="pr_conflicts_with_path",
+        verdict_label="Conflict check",
         derive=_derive_collision_claim,
         query=no_conflict_query,
         render=render_collision_claim,
+    ),
+    CardKind(
+        signal_type="criteria_changed",
+        card_predicate="issue_criteria_changed",
+        verdict_label="Criteria check",
+        derive=_derive_criteria_changed_claim,
+        query=criteria_changed_query,
+        render=render_criteria_changed_claim,
     ),
 )
 
@@ -202,6 +260,7 @@ Completeness = Literal[
 # loud — we never silently certify a query whose dependencies we have not modeled.
 DEPS_REGISTRY: dict[str, frozenset[str]] = {
     "no_pr_conflicts_with_paths": frozenset({"git_hosting"}),
+    "no_criteria_changed_for_issues": frozenset({"issue_tracker"}),
 }
 
 
