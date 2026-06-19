@@ -48,3 +48,26 @@ class Prop:
             return PREDICATE_REGISTRY[self.predicate]
         except KeyError as exc:
             raise ValueError(f"unregistered predicate: {self.predicate!r}") from exc
+
+
+Witness = Literal["supports", "refutes", "unrelated"]
+
+
+def witnesses(claim: Prop, query: Prop) -> Witness:
+    """Does a card's ``claim`` witness ``query`` (supports), its negation (refutes), or
+    neither (unrelated)?
+
+    Deterministic over typed structure only. For this build: an existential
+    ``pr_conflicts_with_path`` claim *refutes* the universal ``no_pr_conflicts_with_paths``
+    query whenever they share a repo and at least one path — a counterexample to "no
+    conflict". ``supports`` is reserved for kinds whose claim establishes a query directly.
+    """
+
+    if (
+        query.predicate == "no_pr_conflicts_with_paths"
+        and claim.predicate == "pr_conflicts_with_path"
+        and claim.subject.repo == query.subject.repo
+        and bool(set(claim.subject.paths) & set(query.subject.paths))
+    ):
+        return "refutes"
+    return "unrelated"
