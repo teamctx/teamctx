@@ -15,6 +15,7 @@ from typing import Literal
 from teamctx.core.authority import AuthorityDecl, AuthorityEntry, assess_authority
 from teamctx.core.contracts import ContextCard, RequestContext, SourceSignal, SourceStatus
 from teamctx.core.prop import Prop, SubjectRef
+from teamctx.core.severity import compute_severity
 from teamctx.core.snapshot import snapshot_digest as _snapshot_digest
 
 Delta = Literal["none", "count", "identity"]
@@ -143,6 +144,8 @@ def render_collision_claim(claim_card: ClaimCard) -> ContextCard:
         source_body="status_only",
         source_open_target_id=None,
         agent_instruction="verify_before_relying",
+        reason_code="collision.same_path",
+        severity=compute_severity(claim.predicate, claim),
     )
 
 
@@ -181,6 +184,8 @@ def render_criteria_changed_claim(claim_card: ClaimCard) -> ContextCard:
         source_body="status_only",
         source_open_target_id=None,
         agent_instruction="verify_before_relying",
+        reason_code="criteria.changed",
+        severity=compute_severity(claim.predicate, claim),
     )
 
 
@@ -239,6 +244,8 @@ def render_doc_superseded_claim(claim_card: ClaimCard) -> ContextCard:
         source_body="status_only",
         source_open_target_id=None,
         agent_instruction="verify_before_relying",
+        reason_code="doc.superseded",
+        severity=compute_severity(claim.predicate, claim),
     )
 
 
@@ -263,6 +270,8 @@ def render_missed_gate_claim(claim_card: ClaimCard) -> ContextCard:
         source_body="status_only",
         source_open_target_id=None,
         agent_instruction="verify_before_relying",
+        reason_code="gate.failed",
+        severity=compute_severity(claim.predicate, claim),
     )
 
 

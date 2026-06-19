@@ -494,3 +494,14 @@ def test_select_context_is_replayable_with_a_stable_digest() -> None:
     assert a == b
     assert a.snapshot_digest == b.snapshot_digest
     assert len(a.snapshot_digest) == 64
+
+
+def test_collision_card_has_reason_code_and_severity() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    card = selection.cards[0]
+    assert card.reason_code == "collision.same_path"
+    assert card.severity is not None
+    assert card.severity.kind_base == 0.8
