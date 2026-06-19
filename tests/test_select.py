@@ -287,6 +287,11 @@ def test_adding_an_invisible_signal_does_not_change_the_observable() -> None:
     assert base.cards == perturbed.cards
     assert base.claim_cards == perturbed.claim_cards
     assert base.closure == perturbed.closure
+    # The replay digest is part of the observable too: hashing the raw signals would let a
+    # consumer detect that an invisible input exists. It must be over the P-visible set.
+    assert base.snapshot_digest == perturbed.snapshot_digest
+    # The whole answer is invariant, not just the parts we spot-check above.
+    assert base == perturbed
 
 
 def test_selection_has_a_separate_empty_hint_layer() -> None:

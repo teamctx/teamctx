@@ -484,7 +484,12 @@ def select_context(
     )
     subjects = sorted({decl.subject for decl in declaration_list})
     authority = tuple(assess_authority(subject, declaration_list) for subject in subjects)
-    digest = _snapshot_digest(request, signal_list, status_list, declaration_list)
+    # Bind only the P-visible projection of signals: the digest is part of the observable
+    # ⟨C, κ⟩, so it must be invariant under P-invisible changes (Theorem 5). Hashing raw
+    # signals would let a consumer detect that invisible inputs exist (an existence leak).
+    digest = _snapshot_digest(
+        request, project_visible_signals(signal_list), status_list, declaration_list
+    )
     return ContextSelection(
         cards=cards,
         claim_cards=claim_cards,
