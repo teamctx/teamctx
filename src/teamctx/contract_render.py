@@ -12,6 +12,7 @@ from teamctx.core.contracts import (
     SourceOpenTarget,
     SourceStatus,
 )
+from teamctx.core.select import ContextSelection
 
 SECTION_ORDER = (
     "Needs attention",
@@ -44,6 +45,41 @@ def render_contract_context(document: CoreContractDocument) -> str:
         for status in visible_statuses:
             lines.append(f"- {status.safe_user_message}")
             lines.append(f"  Source: {source_status_label(status)}")
+
+    return "\n".join(lines) + "\n"
+
+
+def render_selection(selection: ContextSelection) -> str:
+    """Human-plane render of the broker's answer: derived cards + honest coverage."""
+
+    grouped: OrderedDict[str, list[ContextCard]] = OrderedDict()
+    for card in sort_contract_cards(selection.cards):
+        grouped.setdefault(card.section, []).append(card)
+
+    lines = ["Working context"]
+    if not grouped:
+        lines.extend(["", "No working context for this task."])
+    else:
+        for section, section_cards in grouped.items():
+            lines.extend(["", section])
+            for card in section_cards:
+                lines.append(f"- {card.text}")
+                lines.append(f"  Why this matters: {card.why_this_matters}")
+                lines.append(f"  Source: {card.source_display}")
+
+    lines.extend(["", "Coverage"])
+    coverage = selection.coverage
+    if not coverage.entries:
+        lines.append("- no sources were checked")
+    for entry in coverage.entries:
+        lines.append(f"- {entry.source_family}: {entry.status}")
+    if coverage.complete:
+        lines.append("Coverage complete across checked sources.")
+    else:
+        lines.append(
+            "Absence of a card is not an all-clear; "
+            "treat unobserved or stale sources as Unknown."
+        )
 
     return "\n".join(lines) + "\n"
 
