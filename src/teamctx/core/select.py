@@ -8,7 +8,7 @@ so every derived card is replayable and its reason names the overlap it came fro
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Literal
 
@@ -57,14 +57,16 @@ def no_conflict_query(request: RequestContext) -> Prop:
 def derive_claims(
     request: RequestContext, signals: Iterable[SourceSignal]
 ) -> list[ClaimCard]:
-    """Derive typed claims from the P-visible signals by structural relevance to the request."""
+    """Derive typed claims from the P-visible signals, dispatching by registered card kind."""
 
     claims: list[ClaimCard] = []
     for signal in project_visible_signals(signals):
-        if signal.signal_type == "collision":
-            claim_card = _derive_collision_claim(request, signal)
-            if claim_card is not None:
-                claims.append(claim_card)
+        kind = _KIND_BY_SIGNAL_TYPE.get(signal.signal_type)
+        if kind is None:
+            continue
+        claim_card = kind.derive(request, signal)
+        if claim_card is not None:
+            claims.append(claim_card)
     return claims
 
 
@@ -114,12 +116,44 @@ def render_collision_claim(claim_card: ClaimCard) -> ContextCard:
     )
 
 
-def derive_cards(request: RequestContext, signals: Iterable[SourceSignal]) -> list[ContextCard]:
-    """Derive context cards: typed claims (derive_claims) rendered to cards
-    (render_collision_claim).
-    """
+@dataclass(frozen=True)
+class CardKind:
+    """One registered card kind: how to derive it, what universal it refutes, how to render
+    it. New kinds are added by appending an entry — the engine's control flow is unchanged."""
 
-    return [render_collision_claim(claim_card) for claim_card in derive_claims(request, signals)]
+    signal_type: str
+    card_predicate: str
+    derive: Callable[[RequestContext, SourceSignal], ClaimCard | None]
+    query: Callable[[RequestContext], Prop]
+    render: Callable[[ClaimCard], ContextCard]
+
+
+CARD_KINDS: tuple[CardKind, ...] = (
+    CardKind(
+        signal_type="collision",
+        card_predicate="pr_conflicts_with_path",
+        derive=_derive_collision_claim,
+        query=no_conflict_query,
+        render=render_collision_claim,
+    ),
+)
+
+_KIND_BY_SIGNAL_TYPE: dict[str, CardKind] = {kind.signal_type: kind for kind in CARD_KINDS}
+_RENDER_BY_PREDICATE: dict[str, Callable[[ClaimCard], ContextCard]] = {
+    kind.card_predicate: kind.render for kind in CARD_KINDS
+}
+
+
+def render_claim(claim_card: ClaimCard) -> ContextCard:
+    """Render a claim card via its kind's renderer (dispatch on the card predicate)."""
+
+    return _RENDER_BY_PREDICATE[claim_card.claim.predicate](claim_card)
+
+
+def derive_cards(request: RequestContext, signals: Iterable[SourceSignal]) -> list[ContextCard]:
+    """Derive context cards: typed claims rendered via their kind's renderer."""
+
+    return [render_claim(claim_card) for claim_card in derive_claims(request, signals)]
 
 
 def _is_surfaceable(signal: SourceSignal) -> bool:
@@ -249,14 +283,17 @@ def select_context(
     signals: Iterable[SourceSignal],
     statuses: Iterable[SourceStatus],
 ) -> ContextSelection:
-    """Broker entry point: derive typed claims, render cards, report coverage + closure."""
+    """Broker entry point: derive typed claims, render cards, report coverage + per-kind closure."""
 
     coverage = build_coverage(statuses)
     claim_cards = tuple(derive_claims(request, signals))
-    cards = tuple(render_collision_claim(claim_card) for claim_card in claim_cards)
-    query = no_conflict_query(request)
-    closure = (
-        ClosureEntry(proposition=query.predicate, status=assess_completeness(query, coverage)),
+    cards = tuple(render_claim(claim_card) for claim_card in claim_cards)
+    closure = tuple(
+        ClosureEntry(
+            proposition=kind.query(request).predicate,
+            status=assess_completeness(kind.query(request), coverage),
+        )
+        for kind in CARD_KINDS
     )
     return ContextSelection(
         cards=cards,

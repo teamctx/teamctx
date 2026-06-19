@@ -17,6 +17,7 @@ from teamctx.core.contracts import CoreContractDocument, SourceSignal, SourceSta
 from teamctx.core.evaluate import Valuation, evaluate
 from teamctx.core.prop import Prop, SubjectRef, witnesses
 from teamctx.core.select import (
+    CARD_KINDS,
     ClaimCard,
     assess_completeness,
     build_coverage,
@@ -291,3 +292,17 @@ def test_selection_has_a_separate_empty_hint_layer() -> None:
 
 def test_coverage_carries_a_delta_dial_defaulting_to_none() -> None:
     assert build_coverage([]).delta == "none"
+
+
+def test_card_kinds_registry_has_collision() -> None:
+    signal_types = {kind.signal_type for kind in CARD_KINDS}
+    assert "collision" in signal_types
+
+
+def test_select_context_still_derives_only_collision_in_this_registry() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    assert [c.refs[0] for c in selection.cards] == ["sig_pr_482_collision"]
+    assert [e.proposition for e in selection.closure] == ["no_pr_conflicts_with_paths"]
