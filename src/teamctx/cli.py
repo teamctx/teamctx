@@ -25,10 +25,12 @@ from teamctx.contract_render import (
     render_contract_context,
     render_contract_open_source,
     render_contract_why,
+    render_selection,
 )
 from teamctx.core.cards import find_card
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.core.models import Fixture
+from teamctx.core.select import select_context
 from teamctx.fixtures import FixtureError, load_fixture
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
@@ -140,6 +142,46 @@ def github_pr_probe_command(
         include_title=include_title,
     )
     click.echo(json.dumps(document.model_dump(mode="json"), indent=2), nl=True)
+
+
+@main.command("work-start")
+@click.option("--github-repo", "repo", required=True, help="GitHub repository in owner/name form.")
+@click.option(
+    "--path", "paths", multiple=True, required=True, help="A path the work is about to touch."
+)
+@click.option("--branch", default=None, help="Current branch name.")
+@click.option("--task", default="Start work.", show_default=True, help="Task text.")
+@click.option(
+    "--token-env",
+    default="GITHUB_TOKEN",
+    show_default=True,
+    help="Name of the env var holding the GitHub token.",
+)
+@click.option(
+    "--include-title/--omit-title", default=False, help="Allow PR titles in normalized metadata."
+)
+def work_start_command(
+    repo: str,
+    paths: tuple[str, ...],
+    branch: str | None,
+    task: str,
+    token_env: str,
+    include_title: bool,
+) -> None:
+    """Derive work-start context (collision cards + honest coverage) from GitHub PR metadata."""
+
+    document = _github_contract_document(
+        repo=repo,
+        paths=paths,
+        branch=branch,
+        task=task,
+        token_env=token_env,
+        include_title=include_title,
+    )
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    click.echo(render_selection(selection), nl=False)
 
 
 @main.command("refresh")
