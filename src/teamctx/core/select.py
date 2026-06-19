@@ -9,8 +9,9 @@ so every derived card is replayable and its reason names the overlap it came fro
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 
-from teamctx.core.contracts import ContextCard, RequestContext, SourceSignal
+from teamctx.core.contracts import ContextCard, RequestContext, SourceSignal, SourceStatus
 
 
 def derive_cards(request: RequestContext, signals: Iterable[SourceSignal]) -> list[ContextCard]:
@@ -60,3 +61,37 @@ def _derive_collision_card(request: RequestContext, signal: SourceSignal) -> Con
         source_open_target_id=None,
         agent_instruction="verify_before_relying",
     )
+
+
+@dataclass(frozen=True)
+class CoverageEntry:
+    source_id: str
+    source_family: str
+    status: str
+    last_checked_at: str | None
+
+
+@dataclass(frozen=True)
+class Coverage:
+    """Honest report of what was checked. Absence of cards is never clearance."""
+
+    entries: tuple[CoverageEntry, ...]
+
+    @property
+    def complete(self) -> bool:
+        return bool(self.entries) and all(entry.status == "fresh" for entry in self.entries)
+
+
+def build_coverage(statuses: Iterable[SourceStatus]) -> Coverage:
+    """Summarize per-source coverage; any non-fresh source makes coverage incomplete."""
+
+    entries = tuple(
+        CoverageEntry(
+            source_id=status.source_id,
+            source_family=status.source_family,
+            status=status.status,
+            last_checked_at=status.last_checked_at,
+        )
+        for status in statuses
+    )
+    return Coverage(entries=entries)

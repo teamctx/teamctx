@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from teamctx.core.contracts import CoreContractDocument, SourceSignal
-from teamctx.core.select import derive_cards
+from teamctx.core.select import build_coverage, derive_cards
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTRACT_FIXTURE = (
@@ -88,3 +88,30 @@ def test_only_collision_signals_derive_cards_in_this_vertical() -> None:
     cards = derive_cards(document.request_context, document.source_signals)
 
     assert [card.refs[0] for card in cards] == ["sig_pr_482_collision"]
+
+
+def test_a_stale_source_makes_coverage_incomplete_and_is_reported() -> None:
+    document = load_document()
+
+    coverage = build_coverage(document.source_statuses)
+
+    # absence is never clearance: a stale source means we cannot call coverage complete.
+    assert coverage.complete is False
+    assert any(entry.status == "stale" for entry in coverage.entries)
+
+
+def test_no_checked_sources_is_not_complete_coverage() -> None:
+    # Zero observation is the strongest "Unknown", not "all clear".
+    coverage = build_coverage([])
+
+    assert coverage.complete is False
+
+
+def test_all_fresh_sources_make_coverage_complete() -> None:
+    document = load_document()
+    fresh = document.source_statuses[0].model_copy(update={"status": "fresh"})
+
+    coverage = build_coverage([fresh])
+
+    assert coverage.complete is True
+    assert coverage.entries[0].status == "fresh"
