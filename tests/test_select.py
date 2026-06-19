@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from teamctx.core.contracts import CoreContractDocument, SourceSignal
-from teamctx.core.select import build_coverage, derive_cards
+from teamctx.core.select import build_coverage, derive_cards, select_context
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTRACT_FIXTURE = (
@@ -115,3 +115,15 @@ def test_all_fresh_sources_make_coverage_complete() -> None:
 
     assert coverage.complete is True
     assert coverage.entries[0].status == "fresh"
+
+
+def test_select_context_returns_derived_cards_and_coverage_together() -> None:
+    document = load_document()
+
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+
+    # cards are DERIVED (not the authored fixture cards), and coverage is reported
+    assert [card.refs[0] for card in selection.cards] == ["sig_pr_482_collision"]
+    assert selection.coverage.complete is False  # the fixture carries a stale source

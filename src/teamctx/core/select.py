@@ -95,3 +95,24 @@ def build_coverage(statuses: Iterable[SourceStatus]) -> Coverage:
         for status in statuses
     )
     return Coverage(entries=entries)
+
+
+@dataclass(frozen=True)
+class ContextSelection:
+    """The broker's answer at work-start: derived cards plus an honest coverage report."""
+
+    cards: tuple[ContextCard, ...]
+    coverage: Coverage
+
+
+def select_context(
+    request: RequestContext,
+    signals: Iterable[SourceSignal],
+    statuses: Iterable[SourceStatus],
+) -> ContextSelection:
+    """Broker entry point: derive cards from signals and report coverage from statuses."""
+
+    return ContextSelection(
+        cards=tuple(derive_cards(request, signals)),
+        coverage=build_coverage(statuses),
+    )
