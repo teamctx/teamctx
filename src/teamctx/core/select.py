@@ -12,6 +12,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Literal
 
+from teamctx.core.authority import AuthorityDecl, AuthorityEntry, assess_authority
 from teamctx.core.contracts import ContextCard, RequestContext, SourceSignal, SourceStatus
 from teamctx.core.prop import Prop, SubjectRef
 
@@ -446,22 +447,27 @@ def build_coverage(statuses: Iterable[SourceStatus], delta: Delta = "none") -> C
 @dataclass(frozen=True)
 class ContextSelection:
     """The broker's answer at work-start: rendered cards, the typed certified claims (C), the
-    untrusted hint layer (H), honest coverage, and per-proposition closure."""
+    untrusted hint layer (H), honest coverage, per-proposition closure, and per-subject
+    authority state."""
 
     cards: tuple[ContextCard, ...]
     claim_cards: tuple[ClaimCard, ...]
     hints: tuple[Hint, ...]
     coverage: Coverage
     closure: tuple[ClosureEntry, ...]
+    authority: tuple[AuthorityEntry, ...]
 
 
 def select_context(
     request: RequestContext,
     signals: Iterable[SourceSignal],
     statuses: Iterable[SourceStatus],
+    declarations: Iterable[AuthorityDecl] = (),
 ) -> ContextSelection:
-    """Broker entry point: derive typed claims, render cards, report coverage + per-kind closure."""
+    """Broker entry point: derive typed claims, render cards, report coverage + closure, and
+    resolve per-subject authority (surfacing conflict, never adjudicating)."""
 
+    declaration_list = list(declarations)
     coverage = build_coverage(statuses)
     claim_cards = tuple(derive_claims(request, signals))
     cards = tuple(render_claim(claim_card) for claim_card in claim_cards)
@@ -472,10 +478,13 @@ def select_context(
         )
         for kind in CARD_KINDS
     )
+    subjects = sorted({decl.subject for decl in declaration_list})
+    authority = tuple(assess_authority(subject, declaration_list) for subject in subjects)
     return ContextSelection(
         cards=cards,
         claim_cards=claim_cards,
         hints=(),
         coverage=coverage,
         closure=closure,
+        authority=authority,
     )

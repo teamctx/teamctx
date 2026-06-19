@@ -13,6 +13,7 @@ from typing import Any, cast
 
 import pytest
 
+from teamctx.core.authority import AuthorityDecl
 from teamctx.core.contracts import CoreContractDocument, PolicyDecision, SourceSignal, SourceStatus
 from teamctx.core.evaluate import Valuation, evaluate
 from teamctx.core.prop import Prop, SubjectRef, witnesses
@@ -450,3 +451,27 @@ def test_select_context_has_four_closure_entries() -> None:
         "no_superseded_docs",
         "all_gates_pass",
     }
+
+
+def test_select_context_carries_authority_for_declared_subjects() -> None:
+    document = load_document()
+    declarations = [
+        AuthorityDecl(subject="rounding-cap", source="policy", priority=10, value="3", fresh=True),
+    ]
+    selection = select_context(
+        document.request_context,
+        document.source_signals,
+        document.source_statuses,
+        declarations,
+    )
+    assert len(selection.authority) == 1
+    assert selection.authority[0].subject == "rounding-cap"
+    assert selection.authority[0].state == "resolved"
+
+
+def test_select_context_with_no_declarations_has_empty_authority() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    assert selection.authority == ()
