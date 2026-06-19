@@ -192,7 +192,8 @@ class ClosureEntry:
 
 
 def build_coverage(statuses: Iterable[SourceStatus]) -> Coverage:
-    """Summarize per-source coverage; any non-fresh source makes coverage incomplete."""
+    """Record each observed source's status verbatim. Completeness is per-proposition
+    (see ``assess_completeness``); this is just the per-source health record."""
 
     entries = tuple(
         CoverageEntry(
@@ -208,8 +209,8 @@ def build_coverage(statuses: Iterable[SourceStatus]) -> Coverage:
 
 @dataclass(frozen=True)
 class ContextSelection:
-    """The broker's answer at work-start: derived cards, honest coverage, and per-
-    proposition closure."""
+    """The broker's answer at work-start: derived cards, honest coverage, and a
+    per-proposition closure."""
 
     cards: tuple[ContextCard, ...]
     coverage: Coverage

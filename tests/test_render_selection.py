@@ -26,6 +26,25 @@ def load_document() -> CoreContractDocument:
     return CoreContractDocument.model_validate(data)
 
 
+def test_render_shows_complete_coverage_when_mandated_source_is_fresh() -> None:
+    document = load_document()
+    git_hosting_fresh = document.source_statuses[0].model_copy(
+        update={
+            "source_id": "github_pr_metadata",
+            "source_family": "git_hosting",
+            "status": "fresh",
+        }
+    )
+    selection = select_context(
+        document.request_context, document.source_signals, [git_hosting_fresh]
+    )
+
+    text = render_selection(selection)
+
+    # git_hosting fresh -> the collision query's closure is complete -> the complete line.
+    assert "Coverage complete across checked sources." in text
+
+
 def test_render_shows_collision_card_and_honest_incomplete_coverage() -> None:
     document = load_document()
     selection = select_context(
