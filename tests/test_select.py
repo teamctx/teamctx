@@ -18,12 +18,14 @@ from teamctx.core.evaluate import Valuation, evaluate
 from teamctx.core.prop import Prop, SubjectRef, witnesses
 from teamctx.core.select import (
     ClaimCard,
+    Hint,
     assess_completeness,
     build_coverage,
     deps_for,
     derive_cards,
     derive_claims,
     no_conflict_query,
+    project_visible_signals,
     render_collision_claim,
     select_context,
 )
@@ -255,3 +257,40 @@ def test_evaluate_against_a_real_selection_is_true_when_clear_and_coverage_compl
     selection = select_context(request, document.source_signals, [_git_hosting_status("fresh")])
     verdict = evaluate(no_conflict_query(request), selection.claim_cards, selection.closure)
     assert verdict == Valuation("true")
+
+
+def test_project_visible_signals_drops_invisible_signals() -> None:
+    visible = collision_signal()
+    invisible = hidden(collision_signal())
+    assert project_visible_signals([visible]) == [visible]
+    assert project_visible_signals([invisible]) == []
+
+
+def test_adding_an_invisible_signal_does_not_change_the_observable() -> None:
+    # Theorem 5: the observable is invariant under a P-invisible signal.
+    document = load_document()
+    request = document.request_context
+    statuses = document.source_statuses
+    visible = collision_signal()
+    invisible = hidden(collision_signal())
+
+    base = select_context(request, [visible], statuses)
+    perturbed = select_context(request, [visible, invisible], statuses)
+
+    assert base.cards == perturbed.cards
+    assert base.claim_cards == perturbed.claim_cards
+    assert base.closure == perturbed.closure
+
+
+def test_selection_has_a_separate_empty_hint_layer() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    assert selection.hints == ()
+    # Hint is the H-layer type; confirm it is structurally distinct from ClaimCard.
+    assert Hint.__dataclass_fields__.keys() == {"subject", "summary", "source"}
+
+
+def test_coverage_carries_a_delta_dial_defaulting_to_none() -> None:
+    assert build_coverage([]).delta == "none"

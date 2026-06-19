@@ -15,6 +15,23 @@ from typing import Literal
 from teamctx.core.contracts import ContextCard, RequestContext, SourceSignal, SourceStatus
 from teamctx.core.prop import Prop, SubjectRef
 
+Delta = Literal["none", "count", "identity"]
+
+
+@dataclass(frozen=True)
+class Hint:
+    """An untrusted, uncertified best-effort guess (the H layer).
+
+    H is **outside the privacy contract**: a hint must be projected to the consumer-visible
+    set before it is ever surfaced to a human, and it carries NO certificate weight — it
+    never enters the certified card set C. No hint producers exist yet; the layer is kept
+    structurally separate so certified and uncertified context never share a channel.
+    """
+
+    subject: str
+    summary: str
+    source: str
+
 
 @dataclass(frozen=True)
 class ClaimCard:
@@ -40,12 +57,10 @@ def no_conflict_query(request: RequestContext) -> Prop:
 def derive_claims(
     request: RequestContext, signals: Iterable[SourceSignal]
 ) -> list[ClaimCard]:
-    """Derive typed claims from signals by computing structural relevance to the request."""
+    """Derive typed claims from the P-visible signals by structural relevance to the request."""
 
     claims: list[ClaimCard] = []
-    for signal in signals:
-        if not _is_surfaceable(signal):
-            continue
+    for signal in project_visible_signals(signals):
         if signal.signal_type == "collision":
             claim_card = _derive_collision_claim(request, signal)
             if claim_card is not None:
@@ -115,6 +130,14 @@ def _is_surfaceable(signal: SourceSignal) -> bool:
     return signal.policy.can_render_to_user
 
 
+def project_visible_signals(signals: Iterable[SourceSignal]) -> list[SourceSignal]:
+    """Project signals to the consumer-visible set (Delta_P): drop any the requester may not
+    see at all. Selection runs over this projection only, so a P-invisible signal cannot
+    affect the observable (Theorem 5: existence-privacy)."""
+
+    return [signal for signal in signals if _is_surfaceable(signal)]
+
+
 @dataclass(frozen=True)
 class CoverageEntry:
     source_id: str
@@ -128,6 +151,7 @@ class Coverage:
     """Honest report of what was checked. Absence of cards is never clearance."""
 
     entries: tuple[CoverageEntry, ...]
+    delta: Delta = "none"
 
 
 Completeness = Literal[
@@ -191,9 +215,10 @@ class ClosureEntry:
     status: Completeness
 
 
-def build_coverage(statuses: Iterable[SourceStatus]) -> Coverage:
-    """Record each observed source's status verbatim. Completeness is per-proposition
-    (see ``assess_completeness``); this is just the per-source health record."""
+def build_coverage(statuses: Iterable[SourceStatus], delta: Delta = "none") -> Coverage:
+    """Record each observed source's status verbatim, with the declassification dial. The
+    dial defaults to ``none``; ``count``/``identity`` declassification of invisible-target
+    dangling references is deferred until reference-target tracking exists."""
 
     entries = tuple(
         CoverageEntry(
@@ -204,16 +229,17 @@ def build_coverage(statuses: Iterable[SourceStatus]) -> Coverage:
         )
         for status in statuses
     )
-    return Coverage(entries=entries)
+    return Coverage(entries=entries, delta=delta)
 
 
 @dataclass(frozen=True)
 class ContextSelection:
-    """The broker's answer at work-start: rendered cards, the typed certified claims (C),
-    honest coverage, and per-proposition closure."""
+    """The broker's answer at work-start: rendered cards, the typed certified claims (C), the
+    untrusted hint layer (H), honest coverage, and per-proposition closure."""
 
     cards: tuple[ContextCard, ...]
     claim_cards: tuple[ClaimCard, ...]
+    hints: tuple[Hint, ...]
     coverage: Coverage
     closure: tuple[ClosureEntry, ...]
 
@@ -235,6 +261,7 @@ def select_context(
     return ContextSelection(
         cards=cards,
         claim_cards=claim_cards,
+        hints=(),
         coverage=coverage,
         closure=closure,
     )
