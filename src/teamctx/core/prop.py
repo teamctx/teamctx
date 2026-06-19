@@ -40,7 +40,7 @@ class Prop:
 
     predicate: str
     subject: SubjectRef
-    args: tuple[str, ...] = ()
+    args: tuple[str, ...] = ()  # opaque claim metadata (e.g. PR sig); not used in polarity
 
     @property
     def shape(self) -> PropShape:
@@ -67,7 +67,7 @@ def witnesses(claim: Prop, query: Prop) -> Witness:
         query.predicate == "no_pr_conflicts_with_paths"
         and claim.predicate == "pr_conflicts_with_path"
         and claim.subject.repo == query.subject.repo
-        and bool(set(claim.subject.paths) & set(query.subject.paths))
+        and set(claim.subject.paths) & set(query.subject.paths)
     ):
         return "refutes"
     return "unrelated"

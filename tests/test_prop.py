@@ -63,3 +63,28 @@ def test_claim_in_a_different_repo_is_not_a_witness() -> None:
         subject=SubjectRef(repo="svc-b", paths=("src/auth/token.py",)),
     )
     assert witnesses(claim, query) == "unrelated"
+
+
+def test_witnesses_is_not_symmetric() -> None:
+    claim = Prop(
+        predicate="pr_conflicts_with_path",
+        subject=SubjectRef(repo="svc", paths=("a.py",)),
+    )
+    query = Prop(
+        predicate="no_pr_conflicts_with_paths",
+        subject=SubjectRef(repo="svc", paths=("a.py",)),
+    )
+    assert witnesses(claim, query) == "refutes"
+    assert witnesses(query, claim) == "unrelated"  # argument order matters
+
+
+def test_claim_with_empty_paths_is_unrelated() -> None:
+    claim = Prop(
+        predicate="pr_conflicts_with_path",
+        subject=SubjectRef(repo="svc", paths=()),
+    )
+    query = Prop(
+        predicate="no_pr_conflicts_with_paths",
+        subject=SubjectRef(repo="svc", paths=("a.py",)),
+    )
+    assert witnesses(claim, query) == "unrelated"
