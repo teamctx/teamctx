@@ -29,8 +29,9 @@ from teamctx.contract_render import (
 )
 from teamctx.core.cards import find_card
 from teamctx.core.contracts import CoreContractDocument, RequestContext
+from teamctx.core.evaluate import evaluate
 from teamctx.core.models import Fixture
-from teamctx.core.select import select_context
+from teamctx.core.select import no_conflict_query, select_context
 from teamctx.fixtures import FixtureError, load_fixture
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
@@ -181,7 +182,12 @@ def work_start_command(
     selection = select_context(
         document.request_context, document.source_signals, document.source_statuses
     )
-    click.echo(render_selection(selection), nl=False)
+    verdict = evaluate(
+        no_conflict_query(document.request_context),
+        selection.claim_cards,
+        selection.closure,
+    )
+    click.echo(render_selection(selection, verdict), nl=False)
 
 
 @main.command("refresh")

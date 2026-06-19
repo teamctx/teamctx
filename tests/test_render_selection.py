@@ -13,6 +13,7 @@ from typing import Any, cast
 
 from teamctx.contract_render import render_selection
 from teamctx.core.contracts import CoreContractDocument
+from teamctx.core.evaluate import Valuation
 from teamctx.core.select import select_context
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -59,3 +60,40 @@ def test_render_shows_collision_card_and_honest_incomplete_coverage() -> None:
     assert "Coverage" in text
     # absence is not clearance: incomplete coverage must say so in plain words.
     assert "not an all-clear" in text
+
+
+def test_render_appends_not_clear_verdict_for_a_false_valuation() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    text = render_selection(selection, Valuation("false"))
+    assert "Conflict check: NOT CLEAR" in text
+
+
+def test_render_appends_clear_verdict_for_a_true_valuation() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    text = render_selection(selection, Valuation("true"))
+    assert "Conflict check: clear" in text
+
+
+def test_render_appends_unknown_verdict_with_reason() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    text = render_selection(selection, Valuation("unknown", "incomplete[stale-dep]"))
+    assert "Conflict check: UNKNOWN" in text
+    assert "incomplete[stale-dep]" in text
+    assert "absence is not an all-clear" in text
+
+
+def test_render_without_a_verdict_is_unchanged() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    assert "Conflict check" not in render_selection(selection)

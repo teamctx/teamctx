@@ -33,3 +33,5 @@ def test_work_start_with_no_token_degrades_honestly() -> None:
     assert "Coverage" in result.output
     # no token => source unavailable => coverage incomplete => honest warning
     assert "not an all-clear" in result.output
+    # the engine's verdict is surfaced: no token => unknown, never a false "clear".
+    assert "Conflict check: UNKNOWN" in result.output

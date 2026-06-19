@@ -12,6 +12,7 @@ from teamctx.core.contracts import (
     SourceOpenTarget,
     SourceStatus,
 )
+from teamctx.core.evaluate import Valuation
 from teamctx.core.select import ContextSelection
 
 SECTION_ORDER = (
@@ -49,7 +50,7 @@ def render_contract_context(document: CoreContractDocument) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_selection(selection: ContextSelection) -> str:
+def render_selection(selection: ContextSelection, verdict: Valuation | None = None) -> str:
     """Human-plane render of the broker's answer: derived cards + honest coverage."""
 
     grouped: OrderedDict[str, list[ContextCard]] = OrderedDict()
@@ -84,7 +85,23 @@ def render_selection(selection: ContextSelection) -> str:
             "treat unobserved or stale sources as Unknown."
         )
 
+    if verdict is not None:
+        lines.extend(["", _verdict_line(verdict)])
+
     return "\n".join(lines) + "\n"
+
+
+def _verdict_line(verdict: Valuation) -> str:
+    """One-line human verdict for the work-start conflict query."""
+
+    if verdict.value == "false":
+        return "Conflict check: NOT CLEAR — an open PR conflicts with your changes (see above)."
+    if verdict.value == "true":
+        return "Conflict check: clear — no conflicting open PRs, coverage complete."
+    return (
+        f"Conflict check: UNKNOWN — coverage incomplete ({verdict.reason}); "
+        "absence is not an all-clear."
+    )
 
 
 def render_contract_why(document: CoreContractDocument, card_id: str) -> str:
