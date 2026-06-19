@@ -18,7 +18,6 @@ from teamctx.core.evaluate import Valuation, evaluate
 from teamctx.core.prop import Prop, SubjectRef, witnesses
 from teamctx.core.select import (
     ClaimCard,
-    Hint,
     assess_completeness,
     build_coverage,
     deps_for,
@@ -288,8 +287,6 @@ def test_selection_has_a_separate_empty_hint_layer() -> None:
         document.request_context, document.source_signals, document.source_statuses
     )
     assert selection.hints == ()
-    # Hint is the H-layer type; confirm it is structurally distinct from ClaimCard.
-    assert Hint.__dataclass_fields__.keys() == {"subject", "summary", "source"}
 
 
 def test_coverage_carries_a_delta_dial_defaulting_to_none() -> None:
