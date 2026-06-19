@@ -14,6 +14,7 @@ from typing import Any, cast
 import pytest
 
 from teamctx.core.contracts import CoreContractDocument, SourceSignal, SourceStatus
+from teamctx.core.evaluate import Valuation, evaluate
 from teamctx.core.prop import Prop, SubjectRef, witnesses
 from teamctx.core.select import (
     ClaimCard,
@@ -215,3 +216,42 @@ def test_collision_closure_is_complete_only_when_git_hosting_is_fresh() -> None:
     stale = assess_completeness(_collision_query(), build_coverage([_git_hosting_status("stale")]))
     assert fresh == "complete"
     assert stale == "incomplete[stale-dep]"
+
+
+def test_select_context_exposes_typed_claim_cards() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    assert len(selection.claim_cards) == 1
+    assert selection.claim_cards[0].claim.predicate == "pr_conflicts_with_path"
+
+
+def test_evaluate_against_a_real_selection_is_false_when_a_collision_is_present() -> None:
+    document = load_document()
+    selection = select_context(
+        document.request_context, document.source_signals, document.source_statuses
+    )
+    verdict = evaluate(
+        no_conflict_query(document.request_context),
+        selection.claim_cards,
+        selection.closure,
+    )
+    assert verdict == Valuation("false")
+
+
+def test_evaluate_against_a_real_selection_is_unknown_when_clear_but_coverage_gapped() -> None:
+    document = load_document()
+    request = document.request_context.model_copy(update={"paths": ["src/nothing/here.py"]})
+    selection = select_context(request, document.source_signals, document.source_statuses)
+    verdict = evaluate(no_conflict_query(request), selection.claim_cards, selection.closure)
+    assert selection.claim_cards == ()
+    assert verdict == Valuation("unknown", "incomplete[policy-gap]")
+
+
+def test_evaluate_against_a_real_selection_is_true_when_clear_and_coverage_complete() -> None:
+    document = load_document()
+    request = document.request_context.model_copy(update={"paths": ["src/nothing/here.py"]})
+    selection = select_context(request, document.source_signals, [_git_hosting_status("fresh")])
+    verdict = evaluate(no_conflict_query(request), selection.claim_cards, selection.closure)
+    assert verdict == Valuation("true")

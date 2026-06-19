@@ -209,10 +209,11 @@ def build_coverage(statuses: Iterable[SourceStatus]) -> Coverage:
 
 @dataclass(frozen=True)
 class ContextSelection:
-    """The broker's answer at work-start: derived cards, honest coverage, and a
-    per-proposition closure."""
+    """The broker's answer at work-start: rendered cards, the typed certified claims (C),
+    honest coverage, and per-proposition closure."""
 
     cards: tuple[ContextCard, ...]
+    claim_cards: tuple[ClaimCard, ...]
     coverage: Coverage
     closure: tuple[ClosureEntry, ...]
 
@@ -222,15 +223,18 @@ def select_context(
     signals: Iterable[SourceSignal],
     statuses: Iterable[SourceStatus],
 ) -> ContextSelection:
-    """Broker entry point: derive cards, report coverage, and assess per-proposition closure."""
+    """Broker entry point: derive typed claims, render cards, report coverage + closure."""
 
     coverage = build_coverage(statuses)
+    claim_cards = tuple(derive_claims(request, signals))
+    cards = tuple(render_collision_claim(claim_card) for claim_card in claim_cards)
     query = no_conflict_query(request)
     closure = (
         ClosureEntry(proposition=query.predicate, status=assess_completeness(query, coverage)),
     )
     return ContextSelection(
-        cards=tuple(derive_cards(request, signals)),
+        cards=cards,
+        claim_cards=claim_cards,
         coverage=coverage,
         closure=closure,
     )
