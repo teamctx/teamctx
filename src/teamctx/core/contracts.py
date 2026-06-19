@@ -70,6 +70,16 @@ class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class Severity(ContractModel):
+    """Severity decomposition (kept for audit; the value is clamp01(kind_base ×
+    (1 + alpha·magnitude_norm) × scope_mult)). Calibration of the constants is deferred."""
+
+    value: float
+    kind_base: float
+    magnitude_norm: float
+    scope_mult: float
+
+
 class PolicyDecision(ContractModel):
     schema_version: Literal["teamctx.policy_decision.v0"]
     can_render_to_user: bool
@@ -223,6 +233,8 @@ class ContextCard(ContractModel):
     source_body: SourceBodyState
     source_open_target_id: str | None = None
     agent_instruction: AgentInstruction
+    reason_code: str = ""
+    severity: Severity | None = None
 
     @model_validator(mode="after")
     def _openable_cards_have_target(self) -> Self:

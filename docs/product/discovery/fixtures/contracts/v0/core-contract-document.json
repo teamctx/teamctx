@@ -224,7 +224,9 @@
       "confidence": "high",
       "source_body": "openable",
       "source_open_target_id": "open_pr_482",
-      "agent_instruction": "verify_before_relying"
+      "agent_instruction": "verify_before_relying",
+      "reason_code": "",
+      "severity": null
     },
     {
       "schema_version": "teamctx.context_card.v0",
@@ -247,7 +249,9 @@
       "confidence": "high",
       "source_body": "status_only",
       "source_open_target_id": null,
-      "agent_instruction": "apply_when_in_scope"
+      "agent_instruction": "apply_when_in_scope",
+      "reason_code": "",
+      "severity": null
     },
     {
       "schema_version": "teamctx.context_card.v0",
@@ -269,7 +273,9 @@
       "confidence": "high",
       "source_body": "status_only",
       "source_open_target_id": "open_release_checklist_status",
-      "agent_instruction": "verify_before_relying"
+      "agent_instruction": "verify_before_relying",
+      "reason_code": "",
+      "severity": null
     },
     {
       "schema_version": "teamctx.context_card.v0",
@@ -289,7 +295,9 @@
       "confidence": "medium",
       "source_body": "not_collected",
       "source_open_target_id": null,
-      "agent_instruction": "evidence_only"
+      "agent_instruction": "evidence_only",
+      "reason_code": "",
+      "severity": null
     }
   ]
 }

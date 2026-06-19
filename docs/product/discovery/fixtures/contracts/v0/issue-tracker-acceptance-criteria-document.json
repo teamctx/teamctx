@@ -111,7 +111,9 @@
       "confidence": "high",
       "source_body": "status_only",
       "source_open_target_id": "open_issue_api_482_status",
-      "agent_instruction": "verify_before_relying"
+      "agent_instruction": "verify_before_relying",
+      "reason_code": "",
+      "severity": null
     }
   ]
 }
