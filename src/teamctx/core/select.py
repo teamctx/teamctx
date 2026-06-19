@@ -70,43 +70,22 @@ def _derive_collision_claim(
     return ClaimCard(claim=claim, signal=signal)
 
 
-def derive_cards(request: RequestContext, signals: Iterable[SourceSignal]) -> list[ContextCard]:
-    """Derive context cards from signals by computing structural relevance to the request."""
+def render_claim(claim_card: ClaimCard) -> ContextCard:
+    """Render a typed claim into a human-plane ``ContextCard``.
 
-    cards: list[ContextCard] = []
-    for signal in signals:
-        if not _is_surfaceable(signal):
-            continue
-        if signal.signal_type == "collision":
-            card = _derive_collision_card(request, signal)
-            if card is not None:
-                cards.append(card)
-    return cards
+    Pure: the render card is a function of the claim plus its signal. Output matches the
+    pre-typed collision derivation byte for byte.
+    """
 
-
-def _is_surfaceable(signal: SourceSignal) -> bool:
-    """Fail-closed: never surface a signal the requester is not permitted to see at all."""
-
-    if signal.visibility in {"hidden", "never"}:
-        return False
-    return signal.policy.can_render_to_user
-
-
-def _derive_collision_card(request: RequestContext, signal: SourceSignal) -> ContextCard | None:
-    if signal.scope.get("repo") != request.repo:
-        return None
-    candidate_files = signal.scope.get("files")
-    candidate = candidate_files if isinstance(candidate_files, list) else []
-    shared = sorted(set(request.paths) & set(candidate))
-    if not shared:
-        return None
-    overlap = ", ".join(shared)
+    claim = claim_card.claim
+    signal = claim_card.signal
+    overlap = ", ".join(claim.subject.paths)
     return ContextCard(
         schema_version="teamctx.context_card.v0",
         id=f"card_{signal.id}",
         section="Needs attention",
         text=signal.evidence_summary,
-        why_this_matters=f"you are editing {shared[0]}.",
+        why_this_matters=f"you are editing {claim.subject.paths[0]}.",
         source_display=signal.source_display,
         refs=[signal.id],
         reason=f"same repository and file path as the current task: {overlap}",
@@ -117,6 +96,20 @@ def _derive_collision_card(request: RequestContext, signal: SourceSignal) -> Con
         source_open_target_id=None,
         agent_instruction="verify_before_relying",
     )
+
+
+def derive_cards(request: RequestContext, signals: Iterable[SourceSignal]) -> list[ContextCard]:
+    """Derive context cards: typed claims (derive_claims) rendered to cards (render_claim)."""
+
+    return [render_claim(claim_card) for claim_card in derive_claims(request, signals)]
+
+
+def _is_surfaceable(signal: SourceSignal) -> bool:
+    """Fail-closed: never surface a signal the requester is not permitted to see at all."""
+
+    if signal.visibility in {"hidden", "never"}:
+        return False
+    return signal.policy.can_render_to_user
 
 
 @dataclass(frozen=True)

@@ -19,6 +19,7 @@ from teamctx.core.select import (
     derive_cards,
     derive_claims,
     no_conflict_query,
+    render_claim,
     select_context,
 )
 
@@ -159,3 +160,21 @@ def test_hidden_collision_signal_derives_no_claim() -> None:
     claim_cards = derive_claims(document.request_context, [hidden(collision_signal())])
 
     assert claim_cards == []
+
+
+def test_render_claim_reproduces_the_collision_context_card() -> None:
+    document = load_document()
+    claim_card = derive_claims(document.request_context, [collision_signal()])[0]
+
+    card = render_claim(claim_card)
+
+    # byte-for-byte the same card the pre-typed derivation produced.
+    assert card.section == "Needs attention"
+    assert card.refs == ["sig_pr_482_collision"]
+    assert card.text == "Another open PR changed src/auth/token.py 11 minutes ago."
+    assert card.source_display == "GitHub PR #482"
+    assert card.freshness == "fresh"
+    assert card.confidence == "high"
+    assert card.agent_instruction == "verify_before_relying"
+    assert card.source_body == "status_only"
+    assert "src/auth/token.py" in card.reason
