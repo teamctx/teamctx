@@ -8,6 +8,28 @@ to the [protocol paper v1.0](../../research/teamctx-protocol-v1.0.md) and the
 
 ---
 
+## STATUS: COMPLETE (2026-06-20)
+
+All slices shipped to `origin/main` (`f517147`); 172 tests, ruff + mypy --strict green. The
+engine embodies the theorems in code: **T2** (sound `evaluate`), **T5** (projection +
+privacy-safe replay digest), **T1** (verifiable-replay snapshot). Registry-driven multi-kind
+broker with four structural kinds (collision, criteria-changed, doc-superseded, missed-gate)
++ labeled verdicts; honest per-proposition coverage/closure; C/H split + δ field; thin
+authority (S2: refuse-to-pick / surface-conflict + `.teamctx` loader); structured
+`reason_code` + severity decomposition + conformance golden. All four build-once seams locked.
+
+Built slice-by-slice via subagent TDD (impl → spec review → quality review → ff-merge → push);
+plans in [`docs/superpowers/plans/`](../../superpowers/plans/). One Critical T5 leak (replay
+digest over raw vs. P-visible inputs) was caught in review and fixed.
+
+**Out of this milestone (open fronts):** real-world dogfood (the only proof of *usefulness* —
+the 2-agent test was staged, structural ~38% slice, only collision is live); live connectors
+for criteria/doc/gate; durable layer (Ambara); distribution (MCP/IDE/pip/launch); full
+authority; protocol v1.1 (Nemotron tightenings, reviewed but not written to the paper);
+severity *calibration* (needs telemetry).
+
+---
+
 ## 1. The milestone
 
 **Finish line:** the credibility engine is real in code, not prose —
