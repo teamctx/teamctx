@@ -224,20 +224,31 @@ def _derive_missed_gate_claim(
 
 
 def render_doc_superseded_claim(claim_card: ClaimCard) -> ContextCard:
-    """Render a doc-superseded claim into a human-plane ``ContextCard``."""
+    """Render a doc-superseded claim into a human-plane ``ContextCard``.
+
+    Names the superseding doc when the signal carries ``scope["superseded_by"]`` (so the card
+    says WHAT to open, not only THAT the doc is stale); falls back byte-for-byte otherwise."""
 
     claim = claim_card.claim
     signal = claim_card.signal
     doc = claim.subject.paths[0]
+    superseded_by = signal.scope.get("superseded_by")
+    current = superseded_by if isinstance(superseded_by, str) and superseded_by else None
+    if current is not None:
+        why = f"{doc} was superseded; rely on {current} instead, not {doc}."
+        reason = f"the doc {doc} was superseded by {current}"
+    else:
+        why = f"the doc {doc} was superseded; verify it is current before relying."
+        reason = f"a doc you rely on ({doc}) was superseded"
     return ContextCard(
         schema_version="teamctx.context_card.v0",
         id=f"card_{signal.id}",
         section="Verify before relying",
         text=signal.evidence_summary,
-        why_this_matters=f"the doc {doc} was superseded; verify it is current before relying.",
+        why_this_matters=why,
         source_display=signal.source_display,
         refs=[signal.id],
-        reason=f"a doc you rely on ({doc}) was superseded",
+        reason=reason,
         scope=dict(signal.scope),
         freshness=signal.freshness,
         confidence=signal.confidence,

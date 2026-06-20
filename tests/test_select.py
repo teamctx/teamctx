@@ -20,6 +20,7 @@ from teamctx.core.prop import Prop, SubjectRef, witnesses
 from teamctx.core.select import (
     CARD_KINDS,
     ClaimCard,
+    _derive_doc_superseded_claim,
     all_gates_pass_query,
     assess_completeness,
     build_coverage,
@@ -31,6 +32,7 @@ from teamctx.core.select import (
     no_superseded_docs_query,
     project_visible_signals,
     render_collision_claim,
+    render_doc_superseded_claim,
     select_context,
 )
 
@@ -505,3 +507,38 @@ def test_collision_card_has_reason_code_and_severity() -> None:
     assert card.reason_code == "collision.same_path"
     assert card.severity is not None
     assert card.severity.kind_base == 0.8
+
+
+def _request_context(repo: str, paths: list[str]) -> "RequestContext":
+    from teamctx.core.contracts import RequestContext
+
+    return RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id="req_test",
+        repo=repo,
+        task="test task",
+        paths=paths,
+        requested_at="2026-01-01T00:00:00Z",
+    )
+
+
+def test_doc_superseded_card_names_the_superseding_doc() -> None:
+    request = _request_context("r", ["docs/old.md"])
+    signal = _typed_signal(
+        "doc_superseded",
+        "docs",
+        {"repo": "r", "doc": "docs/old.md", "superseded_by": "docs/new.md"},
+        "sig_doc_x",
+    )
+    claim_card = _derive_doc_superseded_claim(request, signal)
+    assert claim_card is not None
+    card = render_doc_superseded_claim(claim_card)
+    assert "docs/new.md" in card.why_this_matters
+    assert "docs/new.md" in card.reason
+
+
+def test_doc_superseded_card_falls_back_without_superseding_doc() -> None:
+    request = _request_context("r", ["docs/old.md"])
+    signal = _typed_signal("doc_superseded", "docs", {"repo": "r", "doc": "docs/old.md"}, "sig_doc_y")
+    card = render_doc_superseded_claim(_derive_doc_superseded_claim(request, signal))  # type: ignore[arg-type]
+    assert card.why_this_matters == "the doc docs/old.md was superseded; verify it is current before relying."
