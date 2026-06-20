@@ -28,6 +28,16 @@ for criteria/doc/gate; durable layer (Ambara); distribution (MCP/IDE/pip/launch)
 authority; protocol v1.1 (Nemotron tightenings, reviewed but not written to the paper);
 severity *calibration* (needs telemetry).
 
+**Distribution candidate (2026-06-20, not yet sequenced):** once teamctx is self-evidently
+useful, land a teamctx⇄Kagenti/Rosso integration PR (Kagenti = the Kubernetes agent platform
+mid-rebrand to Rosso; uses MCP/A2A) as a *distribution seed* — it puts teamctx in front of an
+audience already gathered around agent infra, riding on their identity layer rather than
+joining the project. **Strict dependency:** this depends on the dogfood proving real catches
+first — an integration PR exposes the tool to an infra-skeptical audience, and you get one
+first impression. It is a downstream tactic that earns its leverage from upstream proof, not a
+substitute for it. Sequence: dogfood proof → one killer legible demo → integration PR → as one
+seed among several distribution moves.
+
 ---
 
 ## 1. The milestone
