@@ -15,6 +15,7 @@ from teamctx.benchmark import export_benchmark_pack
 from teamctx.claude_benchmark import AgentVariant, SourceAccessMode, run_claude_agent_suite
 from teamctx.claude_quality import assess_claude_run_dir
 from teamctx.connectors.declared_authority import load_declared_authority
+from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.github import run_github_pr_probe
 from teamctx.context import agent_prompt_cards, context_cards
 from teamctx.contract_documents import (
@@ -180,23 +181,40 @@ def work_start_command(
         token_env=token_env,
         include_title=include_title,
     )
-    declarations = load_declared_authority(Path(".teamctx/authority.json"))
-    selection = select_context(
-        document.request_context,
-        document.source_signals,
-        document.source_statuses,
-        declarations,
+    click.echo(_work_start_view(document), nl=False)
+
+
+@main.command("docs-probe")
+@click.option("--repo", required=True, help="Repository in owner/name form (scope only; no fetch).")
+@click.option("--root", required=True, help="Docs root to scan for supersession frontmatter.")
+@click.option("--path", "paths", multiple=True, required=True, help="A doc the work relies on.")
+@click.option("--branch", default=None, help="Current branch name.")
+@click.option("--task", default="Start work.", show_default=True, help="Task text.")
+def docs_probe_command(
+    repo: str,
+    root: str,
+    paths: tuple[str, ...],
+    branch: str | None,
+    task: str,
+) -> None:
+    """Derive doc-superseded context (declared-frontmatter) for the relied-on docs."""
+
+    observed_at = _utc_now_string()
+    request_context = RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id=f"docs-supersession-probe:{repo}:{observed_at}",
+        repo=repo,
+        branch=branch,
+        task=task,
+        paths=list(paths),
+        linked_issues=[],
+        requested_at=observed_at,
+        requesting_principal=None,
     )
-    verdicts = tuple(
-        (
-            kind.verdict_label,
-            evaluate(
-                kind.query(document.request_context), selection.claim_cards, selection.closure
-            ),
-        )
-        for kind in CARD_KINDS
+    document = run_docs_supersession_probe(
+        repo=repo, root=root, request_context=request_context, observed_at=observed_at
     )
-    click.echo(render_selection(selection, verdicts), nl=False)
+    click.echo(_work_start_view(document), nl=False)
 
 
 @main.command("refresh")
@@ -691,6 +709,26 @@ def _github_contract_document(
         observed_at=observed_at,
         include_titles=include_title,
     )
+
+
+def _work_start_view(document: CoreContractDocument) -> str:
+    declarations = load_declared_authority(Path(".teamctx/authority.json"))
+    selection = select_context(
+        document.request_context,
+        document.source_signals,
+        document.source_statuses,
+        declarations,
+    )
+    verdicts = tuple(
+        (
+            kind.verdict_label,
+            evaluate(
+                kind.query(document.request_context), selection.claim_cards, selection.closure
+            ),
+        )
+        for kind in CARD_KINDS
+    )
+    return render_selection(selection, verdicts)
 
 
 def _load_contract_or_raise(path: Path) -> CoreContractDocument:
