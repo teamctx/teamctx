@@ -19,32 +19,34 @@ links (progressive disclosure), never inline.
 
 ## Where we are (NOW — 2026-06-21)
 Engine complete (4 card kinds; T1/T2/T5/S2 in code). **2 connectors live:** collision (GitHub
-PRs), doc-superseded (frontmatter, merged 2026-06-20). **CP0 dogfood: demo ran on model-citizens
+PRs), doc-superseded (frontmatter, merged 2026-06-20). **CURPLAN0 dogfood: demo ran on model-citizens
 (comedy-engine spec → generation-bottleneck note) — card renders, names the current doc, verdict
 fires; real-session verdict + permanent install pending Edgar's confirm of the target.**
-Positioning reframed to the ambient-team-context marquee.
+Positioning reframed to the ambient-team-context marquee. **CURPLAN1 Slices A & B are built**
+(CI workflow + missed-gate connector + `gate-probe` CLI; reviewed, 190 tests green) on
+`build/cp1-missed-gate` — **blocked on push** (gh token lacks `workflow` scope); Slice C dogfood pending.
 
-## NOW → product-complete (rolling-wave: CP1 detailed, the rest coarse)
+## NOW → product-complete (rolling-wave: CURPLAN1 detailed, the rest coarse)
 
-### CP1 — Marquee proven: the missed-gate vertical on teamctx  *(NEXT)*
+### CURPLAN1 — Marquee proven: the missed-gate vertical on teamctx  *(IN FLIGHT — A/B built, blocked on push)*
 teamctx has no CI and we don't use Jira, so the only dogfoolable second source right now is CI on
-teamctx itself. Rescoped to one finishable vertical (criteria-changed/Jira → CP2):
-- **Slice A:** add CI to teamctx (GitHub Actions: pytest + ruff + mypy) — prerequisite + overdue; creates the check-run source.
-- **Slice B:** `missed-gate ← GitHub check-runs` connector (reuses GitHub auth). Spike: `scope["files"]` = the branch/PR changed files the gate ran against (engine intersects with your paths).
-- **Slice C:** dogfood on teamctx — a red-CI card on files you're touching changes what you do.
+teamctx itself. Rescoped to one finishable vertical (criteria-changed/Jira → CURPLAN2):
+- **Slice A — ✅ built:** CI (GitHub Actions: pytest + ruff + mypy) — the check-run source.
+- **Slice B — ✅ built, green (190 tests, reviewed):** `missed-gate ← GitHub check-runs` connector (reuses GitHub auth) + `gate-probe` CLI. Spike resolved: `scope["files"]` = request paths (whole-repo gate).
+- **Slice C — ⏳ blocked:** dogfood (a red-CI card changes a real decision) — needs the branch **pushed** (gh token lacks `workflow` scope) → CI runs → dogfood → merge.
 
-**Done when:** a missed-gate card changes a real decision in a real teamctx session.
+Built on `build/cp1-missed-gate` (local, unpushed). **Done when:** a missed-gate card changes a real decision in a real teamctx session.
 
-### CP2 — Criteria movement + ambient breadth  *(coarse)*
+### CURPLAN2 — Criteria movement + ambient breadth  *(coarse)*
 - **criteria-changed via the work-tracker family** — instantiate **GitHub Issues first** (dogfoolable, reuses GitHub auth); **Jira** is the same family's second provider (the sales headline), live when there's a venue.
 - The **L (hint) tier** behind a phantom-filter spike; Confluence + GitLab connectors.
 **Done when:** a second-source movement card (issue / ambient) changes a real decision.
 
-### CP3 — Consumable  *(coarse)*
+### CURPLAN3 — Consumable  *(coarse)*
 MCP transport (harvest Jurati) + warm daemon; keep the file/CLI bridge for non-MCP agents.
 **Done when:** an agent consumes teamctx over MCP in a real session.
 
-### CP4 — Ready for others  *(coarse)*
+### CURPLAN4 — Ready for others  *(coarse)*
 Source-integration pipeline (auth broker, permission filter, cache) as multi-user demand
 appears; release gates (README / pip / security-privacy docs matching impl).
 **Done when:** someone other than the maintainer runs it end-to-end.
