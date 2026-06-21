@@ -3,6 +3,7 @@ from teamctx.connectors.gate_status import (
     normalize_failing_gates,
     unavailable_gates_document,
 )
+from teamctx.connectors.github_checks import parse_failing_check_runs, run_github_checks_probe
 from teamctx.core.contracts import RequestContext
 
 
@@ -42,6 +43,54 @@ def test_unavailable_gates_document_reports_status_only() -> None:
     doc = unavailable_gates_document(
         _request(), repo="teamctx/teamctx", observed_at="2026-06-21T00:00:00Z",
         safe_user_message="CI status unavailable.",
+    )
+    assert doc.source_signals == []
+    assert doc.source_statuses[0].status == "unavailable"
+
+
+def test_parse_failing_check_runs_keeps_only_failing() -> None:
+    payload = {"check_runs": [
+        {"name": "pytest", "status": "completed", "conclusion": "failure", "html_url": "u1"},
+        {"name": "ruff", "status": "completed", "conclusion": "success", "html_url": "u2"},
+        {"name": "mypy", "status": "in_progress", "conclusion": None, "html_url": "u3"},
+    ]}
+    failing = parse_failing_check_runs(payload)
+    assert failing == [("pytest", "u1")]
+
+
+def test_probe_uses_injected_opener_and_scopes_to_request_paths() -> None:
+    import json
+
+    class _Resp:
+        def __init__(self, body: bytes) -> None:
+            self._b = body
+        def read(self) -> bytes:
+            return self._b
+        def __enter__(self):  # type: ignore[no-untyped-def]
+            return self
+        def __exit__(self, *a: object) -> None:
+            return None
+
+    def opener(request):  # type: ignore[no-untyped-def]
+        body = json.dumps({"check_runs": [
+            {"name": "pytest", "status": "completed", "conclusion": "failure", "html_url": "u1"}
+        ]}).encode()
+        return _Resp(body)
+
+    doc = run_github_checks_probe(
+        repo="teamctx/teamctx", ref="build/x", token="t",
+        request_context=_request(), observed_at="2026-06-21T00:00:00Z", opener=opener,
+    )
+    assert len(doc.source_signals) == 1
+    sig = doc.source_signals[0]
+    assert sig.signal_type == "missed_gate"
+    assert sig.scope["files"] == ["src/teamctx/core/select.py"]
+
+
+def test_probe_without_token_is_unavailable() -> None:
+    doc = run_github_checks_probe(
+        repo="teamctx/teamctx", ref="build/x", token=None,
+        request_context=_request(), observed_at="2026-06-21T00:00:00Z",
     )
     assert doc.source_signals == []
     assert doc.source_statuses[0].status == "unavailable"
