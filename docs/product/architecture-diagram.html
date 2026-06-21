@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>teamctx · architecture &amp; product</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#0a0d14; --ink-2:#0c1019; --panel:#141a26; --panel-2:#1a2130;
+    --line:rgba(150,172,205,.12); --line-strong:rgba(150,172,205,.26);
+    --text:#eceae3; --muted:#9aa7ba; --faint:#647183;
+    --teal:#4fd6a8; --teal-dim:rgba(79,214,168,.13);
+    --amber:#e6ac63; --amber-dim:rgba(230,172,99,.12);
+    --azure:#74b6ec; --azure-dim:rgba(116,182,236,.12);
+    --coral:#e88f80;
+    --radius:14px;
+    --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+    --sans:'Hanken Grotesk',-apple-system,BlinkMacSystemFont,sans-serif;
+    --display:'Fraunces',Georgia,'Times New Roman',serif;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;background-color:var(--ink);color:var(--text);font-family:var(--sans);
+    line-height:1.5;-webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(1200px 620px at 50% 34%, var(--teal-dim), transparent 70%),
+      radial-gradient(900px 700px at 92% 2%, var(--azure-dim), transparent 60%),
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:auto, auto, 38px 38px, 38px 38px;
+  }
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(120% 90% at 50% 26%, transparent 55%, rgba(0,0,0,.55) 100%);}
+
+  .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:0 28px 80px;}
+
+  /* ---------- tabs (CSS-only) ---------- */
+  .tabin{position:absolute;width:0;height:0;opacity:0;pointer-events:none;}
+  .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:20px;flex-wrap:wrap;
+    padding:16px 4px 14px;margin-bottom:26px;
+    background:linear-gradient(180deg, rgba(10,13,20,.94), rgba(10,13,20,.78));
+    backdrop-filter:blur(9px);border-bottom:1px solid var(--line);}
+  .wordmark{font-family:var(--display);font-weight:600;font-size:24px;letter-spacing:-.02em;}
+  .wordmark span{color:var(--teal);font-style:italic;font-weight:500;}
+  .topbar .tag{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--faint);}
+  .tabs{margin-left:auto;display:flex;gap:6px;padding:4px;border:1px solid var(--line);border-radius:999px;
+    background:rgba(0,0,0,.25);}
+  .tab{font-family:var(--mono);font-size:12px;letter-spacing:.05em;color:var(--muted);cursor:pointer;
+    padding:8px 16px;border-radius:999px;user-select:none;transition:color .2s, background .2s;white-space:nowrap;}
+  .tab:hover{color:var(--text);}
+  #t-eng:checked ~ .topbar .tab[for="t-eng"],
+  #t-prod:checked ~ .topbar .tab[for="t-prod"]{color:var(--ink);background:var(--teal);font-weight:600;
+    box-shadow:0 0 18px -4px var(--teal);}
+
+  .panel{display:none;}
+  #t-eng:checked ~ .panel-eng,
+  #t-prod:checked ~ .panel-prod{display:block;animation:rise .5s cubic-bezier(.2,.7,.3,1);}
+  @keyframes rise{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+  @media (prefers-reduced-motion:reduce){#t-eng:checked ~ .panel-eng,#t-prod:checked ~ .panel-prod{animation:none;}}
+
+  /* ---------- shared bits ---------- */
+  .kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--teal);display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal);}
+  .kicker .sep{color:var(--faint);}
+  .badge{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+    padding:2px 7px;border-radius:999px;white-space:nowrap;}
+  .b-live{color:#062b20;background:var(--teal);}
+  .b-new{color:var(--teal);border:1px solid var(--teal);}
+  .b-def{color:var(--amber);border:1px solid rgba(230,172,99,.5);background:var(--amber-dim);}
+  .b-thm{color:var(--azure);border:1px solid rgba(116,182,236,.55);background:var(--azure-dim);}
+
+  /* =================================================================
+     ENGINEERING PANEL
+  ================================================================= */
+  header.eng-head{position:relative;border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg, rgba(20,26,38,.72), rgba(12,16,25,.5));padding:32px 32px 26px;overflow:hidden;}
+  .eng-head h1{font-family:var(--display);font-optical-sizing:auto;font-weight:600;
+    font-size:clamp(40px,7vw,78px);line-height:.92;margin:14px 0 6px;letter-spacing:-.02em;}
+  .eng-head h1 .x{color:var(--teal);font-style:italic;font-weight:500;}
+  .lede{max-width:760px;color:var(--muted);font-size:clamp(15px,1.8vw,18px);margin:6px 0 0;}
+  .lede b{color:var(--text);font-weight:600;}
+  .invariants{display:flex;flex-wrap:wrap;gap:9px;margin-top:22px;}
+  .inv{font-family:var(--mono);font-size:11.5px;color:var(--text);border:1px solid var(--line-strong);
+    border-radius:999px;padding:7px 13px;background:rgba(255,255,255,.015);display:flex;gap:8px;align-items:center;}
+  .inv::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--coral);}
+  .inv:nth-child(2)::before{background:var(--teal);}
+  .inv:nth-child(3)::before{background:var(--amber);}
+  .inv:nth-child(4)::before{background:var(--azure);}
+  .legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:20px;padding-top:16px;border-top:1px dashed var(--line);
+    font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;}
+  .legend span{display:flex;align-items:center;gap:7px;}
+  .swatch{width:11px;height:11px;border-radius:3px;}
+  .sw-live{background:var(--teal);}.sw-def{background:var(--amber);}.sw-thm{border:1.5px solid var(--azure);background:var(--azure-dim);}
+
+  .flow{display:flex;align-items:center;justify-content:center;gap:14px;padding:14px 0;}
+  .flow .stem{width:1px;height:34px;background:linear-gradient(var(--line-strong),transparent);}
+  .flow .chev{color:var(--faint);font-size:13px;font-family:var(--mono);}
+  .flow .note{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint);}
+
+  .band{position:relative;margin:0 0 8px;}
+  .band-head{display:flex;align-items:baseline;gap:14px;margin:0 0 14px;padding-left:2px;}
+  .band-no{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.18em;border:1px solid var(--line);border-radius:6px;padding:3px 8px;}
+  .band-title{font-family:var(--display);font-weight:500;font-size:clamp(20px,3vw,27px);letter-spacing:-.01em;}
+  .band-sub{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.06em;margin-left:auto;text-align:right;}
+
+  .grid{display:grid;gap:12px;}
+  .g4{grid-template-columns:repeat(4,1fr);}.g3{grid-template-columns:repeat(3,1fr);}
+  .g2{grid-template-columns:repeat(2,1fr);}.g5{grid-template-columns:repeat(5,1fr);}
+
+  .card{position:relative;border:1px solid var(--line);border-radius:12px;
+    background:linear-gradient(180deg, rgba(20,26,38,.62), rgba(13,17,26,.62));padding:15px 16px 15px 18px;overflow:hidden;
+    transition:transform .22s cubic-bezier(.2,.7,.3,1), border-color .22s, box-shadow .22s, background .22s;}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line-strong);transition:background .22s, box-shadow .22s;}
+  .card:hover{transform:translateY(-4px);border-color:var(--line-strong);
+    box-shadow:0 14px 40px -22px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.02) inset;
+    background:linear-gradient(180deg, rgba(25,32,46,.8), rgba(15,20,30,.7));}
+  .card .ct{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .card .cd{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.42;}
+  .card .cd code,.card .ct code{font-family:var(--mono);font-size:11.5px;color:#cfe9df;background:rgba(79,214,168,.08);padding:1px 5px;border-radius:4px;}
+  .card .meta{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:9px;letter-spacing:.03em;}
+  .card.live::before{background:var(--teal);box-shadow:0 0 16px -2px var(--teal);}
+  .card.deferred::before{background:var(--amber);}
+  .card.deferred{opacity:.92;}
+  .card.core::before{background:linear-gradient(var(--teal),var(--azure));}
+  .band.heart{border:1px solid var(--line-strong);border-radius:18px;padding:18px 16px 16px;
+    background:radial-gradient(700px 300px at 50% 0%, var(--teal-dim), transparent 70%);}
+
+  .matrix{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:rgba(12,16,25,.5);}
+  .matrix table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .matrix th{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line-strong);font-weight:500;}
+  .matrix td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--muted);}
+  .matrix tr:last-child td{border-bottom:none;}
+  .matrix tr:hover td{background:rgba(255,255,255,.018);}
+  .matrix .kname{font-family:var(--mono);color:var(--text);font-weight:600;}
+  .matrix code{font-family:var(--mono);font-size:11.5px;color:#cfe9df;}
+  .matrix .exi{color:var(--teal);}
+  .band.road{border:1px dashed rgba(230,172,99,.4);border-radius:18px;padding:18px 16px 14px;
+    background:radial-gradient(700px 280px at 50% 0%, var(--amber-dim), transparent 70%);}
+  .band.road .band-title{color:var(--amber);}
+  footer{margin-top:34px;border-top:1px solid var(--line);padding-top:22px;display:flex;flex-wrap:wrap;gap:18px 26px;align-items:flex-start;justify-content:space-between;}
+  .thms{display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:10px 26px;}
+  .thm{font-size:12px;color:var(--muted);}
+  .thm b{font-family:var(--mono);color:var(--azure);font-weight:600;font-size:11.5px;letter-spacing:.04em;}
+  .sig{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.05em;text-align:right;line-height:1.8;}
+  .sig .obs{color:var(--teal);}
+
+  /* =================================================================
+     PRODUCT / SALES PANEL
+  ================================================================= */
+  .phero{border:1px solid var(--line);border-radius:18px;padding:44px 40px 38px;overflow:hidden;position:relative;
+    background:linear-gradient(180deg, rgba(20,26,38,.7), rgba(12,16,25,.45));}
+  .phero h2{font-family:var(--display);font-optical-sizing:auto;font-weight:600;letter-spacing:-.02em;
+    font-size:clamp(34px,5.4vw,62px);line-height:1.02;margin:18px 0 0;max-width:18ch;}
+  .phero h2 em{color:var(--teal);font-style:italic;font-weight:500;}
+  .phero .sub{max-width:680px;color:var(--muted);font-size:clamp(16px,2vw,20px);margin:20px 0 0;line-height:1.5;}
+  .phero .sub b{color:var(--text);font-weight:600;}
+  .cat{display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:26px;font-family:var(--mono);
+    font-size:12px;letter-spacing:.04em;color:var(--muted);border:1px solid var(--line-strong);border-radius:10px;padding:11px 15px;background:rgba(0,0,0,.2);}
+  .cat b{color:var(--teal);}
+  .cat s{color:var(--faint);text-decoration-color:var(--faint);}
+
+  .psec{margin-top:30px;}
+  .psec-h{font-family:var(--mono);font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--faint);
+    margin:0 0 16px;display:flex;align-items:center;gap:12px;}
+  .psec-h::after{content:"";flex:1;height:1px;background:var(--line);}
+
+  .shift{border-left:2px solid var(--coral);padding:6px 0 6px 22px;max-width:860px;}
+  .shift p{font-family:var(--display);font-weight:400;font-size:clamp(19px,2.6vw,27px);line-height:1.34;color:var(--text);margin:0;}
+  .shift p b{color:var(--coral);font-weight:600;}
+  .shift .small{font-family:var(--sans);font-size:14.5px;color:var(--muted);margin-top:14px;line-height:1.5;}
+
+  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .pillar{border:1px solid var(--line);border-radius:14px;padding:22px 20px;background:linear-gradient(180deg, rgba(20,26,38,.6), rgba(13,17,26,.55));
+    transition:transform .22s, border-color .22s, box-shadow .22s;}
+  .pillar:hover{transform:translateY(-4px);border-color:var(--line-strong);box-shadow:0 16px 44px -24px rgba(0,0,0,.9);}
+  .pillar .n{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.1em;}
+  .pillar h3{font-family:var(--display);font-weight:600;font-size:22px;line-height:1.12;margin:12px 0 10px;letter-spacing:-.01em;}
+  .pillar p{font-size:13.5px;color:var(--muted);margin:0;line-height:1.5;}
+
+  .feats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .feat{border:1px solid var(--line);border-radius:12px;padding:18px;background:rgba(18,23,34,.5);transition:transform .2s,border-color .2s;}
+  .feat:hover{transform:translateY(-3px);border-color:var(--line-strong);}
+  .feat .ic{font-family:var(--mono);font-size:18px;color:var(--teal);}
+  .feat h4{font-size:15px;font-weight:700;margin:12px 0 6px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .feat p{font-size:13px;color:var(--muted);margin:0;line-height:1.46;}
+
+  .posmap{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .pos{border:1px solid var(--line);border-radius:14px;padding:22px 20px;background:rgba(15,19,29,.5);position:relative;}
+  .pos .tagln{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);}
+  .pos h4{font-family:var(--display);font-weight:500;font-size:19px;margin:10px 0 8px;color:var(--muted);}
+  .pos p{font-size:13px;color:var(--faint);margin:0;line-height:1.45;}
+  .pos.us{border-color:rgba(79,214,168,.5);background:radial-gradient(400px 200px at 50% 0%, var(--teal-dim), rgba(15,19,29,.6));}
+  .pos.us h4{color:var(--teal);}.pos.us p{color:var(--muted);}
+  .pos.us .tagln{color:var(--teal);}
+  .cargo{font-family:var(--display);font-weight:400;font-style:italic;font-size:clamp(18px,2.4vw,24px);color:var(--text);
+    text-align:center;margin:22px auto 0;max-width:760px;line-height:1.4;}
+  .cargo b{color:var(--teal);font-style:normal;font-weight:600;}
+
+  .believe{display:grid;grid-template-columns:1.1fr 1fr;gap:14px;align-items:stretch;}
+  .believe .lead{border:1px solid var(--line);border-radius:14px;padding:24px;background:linear-gradient(180deg, rgba(20,26,38,.6), rgba(13,17,26,.5));}
+  .believe .lead h3{font-family:var(--display);font-weight:600;font-size:24px;margin:0 0 12px;letter-spacing:-.01em;}
+  .believe .lead p{color:var(--muted);font-size:14px;line-height:1.55;margin:0;}
+  .believe .lead p b{color:var(--text);}
+  .guars{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .guar{border:1px solid var(--line);border-radius:12px;padding:15px;background:rgba(18,23,34,.5);}
+  .guar .gt{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--azure);display:flex;gap:8px;align-items:center;}
+  .guar .gd{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.42;}
+
+  .pfoot{margin-top:34px;border-top:1px solid var(--line);padding-top:22px;display:flex;flex-wrap:wrap;gap:16px;
+    align-items:center;justify-content:space-between;}
+  .pfoot .who{font-size:13px;color:var(--muted);max-width:620px;}
+  .pfoot .who b{color:var(--text);}
+  .pfoot .stamp{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.05em;text-align:right;line-height:1.7;}
+  .pfoot .stamp b{color:var(--teal);}
+
+  /* product reframe */
+  .phero .whynow{font-family:var(--mono);font-size:12px;letter-spacing:.03em;color:var(--amber);margin:14px 0 0;}
+  .leadben{display:flex;gap:30px;flex-wrap:wrap;align-items:center;}
+  .leadben .big{font-family:var(--display);font-weight:600;font-size:clamp(30px,4.4vw,48px);line-height:1.0;letter-spacing:-.02em;}
+  .leadben .support{list-style:none;margin:0;padding:0;display:grid;gap:9px;flex:1;min-width:280px;}
+  .leadben .support li{font-size:14.5px;color:var(--muted);padding-left:20px;position:relative;}
+  .leadben .support li::before{content:"+";position:absolute;left:0;color:var(--teal);font-family:var(--mono);}
+  .hedge{font-size:13.5px;color:var(--muted);margin-top:20px;max-width:780px;line-height:1.55;border-left:2px solid var(--line-strong);padding-left:16px;}
+  .hedge b{color:var(--text);}
+  .termcard{font-family:var(--mono);font-size:12.5px;line-height:1.62;border:1px solid var(--line-strong);border-radius:12px;background:rgba(7,10,16,.72);padding:18px 20px;color:var(--muted);overflow-x:auto;white-space:pre-wrap;}
+  .termcard .h{color:var(--teal);font-weight:600;}
+  .termcard .sec{color:var(--faint);}
+  .termcard .b{color:var(--text);}
+  .termcard .w{color:var(--faint);}
+  .cap{font-size:13px;color:var(--muted);margin-top:13px;line-height:1.5;max-width:840px;}
+  .cap b{color:var(--text);}
+  .sources{display:flex;flex-wrap:wrap;gap:9px;}
+  .src{font-family:var(--mono);font-size:12px;border:1px solid var(--line-strong);border-radius:999px;padding:8px 13px;display:flex;align-items:center;gap:8px;color:var(--text);background:rgba(255,255,255,.012);}
+  .src .st{font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:999px;}
+  .src .st.l{color:#062b20;background:var(--teal);}
+  .src .st.p{color:var(--amber);border:1px solid rgba(230,172,99,.5);}
+  .src.planned{opacity:.8;}
+
+  /* ---------- responsive ---------- */
+  @media (max-width:920px){.g4,.g5{grid-template-columns:repeat(2,1fr);}.g3{grid-template-columns:repeat(2,1fr);}
+    .pillars,.feats,.posmap{grid-template-columns:1fr 1fr;}.believe{grid-template-columns:1fr;}}
+  @media (max-width:620px){.g4,.g5,.g3,.g2{grid-template-columns:1fr;}.band-sub{display:none;}
+    .pillars,.feats,.posmap,.guars{grid-template-columns:1fr;}
+    .matrix{overflow-x:auto;}.matrix table{min-width:560px;}.phero{padding:30px 22px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- tab state -->
+  <input type="radio" name="tab" id="t-eng" class="tabin" checked />
+  <input type="radio" name="tab" id="t-prod" class="tabin" />
+
+  <!-- shared sticky bar -->
+  <div class="topbar">
+    <div class="wordmark">team<span>ctx</span></div>
+    <div class="tag">deterministic cross-agent context broker · v0</div>
+    <nav class="tabs">
+      <label class="tab" for="t-eng">Engineering</label>
+      <label class="tab" for="t-prod">Product &amp; Sales</label>
+    </nav>
+  </div>
+
+  <!-- ================= ENGINEERING PANEL ================= -->
+  <div class="panel panel-eng">
+  <header class="eng-head">
+    <div class="kicker"><span class="dot"></span>Architecture<span class="sep">/</span>Feature &amp; Functionality View<span class="sep">/</span>v0 · thesis-complete engine</div>
+    <h1><span>team</span><span class="x">ctx</span></h1>
+    <p class="lede">A <b>deterministic, read-only cross-agent context broker</b> — the credibility engine that tells an agent, <b>before it acts</b>, whether the shared context it is relying on is still trustworthy. It emits typed, witnessed cards plus an honest coverage certificate, and refuses to adjudicate. No model sits in the trusted path.</p>
+    <div class="invariants">
+      <span class="inv">No LLM in the trusted path</span>
+      <span class="inv">Read-only · consent-not-trust</span>
+      <span class="inv">Honest coverage · absence ≠ clearance</span>
+      <span class="inv">Fail-closed privacy</span>
+    </div>
+    <div class="legend">
+      <span><span class="swatch sw-live"></span>Live</span>
+      <span><span class="swatch sw-def"></span>Deferred / roadmap</span>
+      <span><span class="swatch sw-thm"></span>Formal guarantee (T·/S·)</span>
+      <span style="margin-left:auto;color:var(--faint)">flow ↓ request · evidence ↑ · answer ↑</span>
+    </div>
+  </header>
+
+  <div class="flow"><span class="note">request</span><span class="stem"></span><span class="chev">▼</span></div>
+
+  <section class="band">
+    <div class="band-head"><span class="band-no">01</span><span class="band-title">Consumer surface</span><span class="band-sub">how an agent asks · how the answer is read</span></div>
+    <div class="grid g4">
+      <div class="card live"><div class="ct"><code>work-start</code> <span class="badge b-live">live</span></div><div class="cd">Primary agent entry. Derives cards + coverage + a verdict per card kind from live source metadata.</div><div class="meta">cli · the request lifecycle</div></div>
+      <div class="card live"><div class="ct">docs-probe <span class="badge b-new">new</span></div><div class="cd">Surfaces <b>doc-superseded</b> from declared <code>superseded_by:</code> frontmatter; names the current doc.</div><div class="meta">cli · shipped this milestone</div></div>
+      <div class="card core"><div class="ct">Consumer SDK <span class="badge b-thm">T2</span></div><div class="cd"><code>evaluate(query, C, closure)</code> soundly under-approximates the three-valued semantics — verdicts never over-claim.</div><div class="meta">labeled verdict per query</div></div>
+      <div class="card live"><div class="ct">refresh · context · why</div><div class="cd">Write <code>.teamctx/context.json</code>; render a stored answer; explain a card; open a source; record session use.</div><div class="meta">cli · open-source · use</div></div>
+    </div>
+  </section>
+
+  <div class="flow"><span class="chev">▲</span><span class="stem"></span><span class="note">⟨ C , κ ⟩ answer</span></div>
+
+  <section class="band">
+    <div class="band-head"><span class="band-no">02</span><span class="band-title">The broker answer &nbsp;⟨ C , κ ⟩</span><span class="band-sub">certified claims + coverage certificate · the observable</span></div>
+    <div class="grid g4">
+      <div class="card core"><div class="ct">C — certified cards</div><div class="cd">Typed claim cards, ordered by section: <i>Needs attention · Verify before relying · Project guidance · Source unavailable · Good to know.</i></div></div>
+      <div class="card core"><div class="ct">κ.closure</div><div class="cd">Per-proposition completeness: <code>complete</code> / <code>incomplete[policy-gap]</code> / <code>[stale-dep]</code> …</div></div>
+      <div class="card core"><div class="ct">κ.authority <span class="badge b-thm">S2</span></div><div class="cd">Per-subject authority state — surfaces conflict, refuses to pick a winner.</div></div>
+      <div class="card core"><div class="ct">κ.digest <span class="badge b-thm">T1</span></div><div class="cd">Snapshot digest binding the exact inputs → the answer is verifiable by replay.</div></div>
+    </div>
+  </section>
+
+  <div class="flow"><span class="note">derived &amp; certified by</span><span class="stem"></span><span class="chev">▼</span></div>
+
+  <section class="band heart">
+    <div class="band-head"><span class="band-no">03</span><span class="band-title">Pure core engine — the broker</span><span class="band-sub">no I/O · no clock · no randomness · replayable</span></div>
+    <div class="grid g4">
+      <div class="card core"><div class="ct">Typed propositions</div><div class="cd"><code>Prop</code> = predicate · subject · args. <code>witnesses(claim, query)</code> → supports / refutes / unrelated, over typed structure only.</div><div class="meta">build-once seam: claim with polarity</div></div>
+      <div class="card core"><div class="ct">Card-kind registry</div><div class="cd"><code>CARD_KINDS</code>: each kind = derive · query · render · verdict. Adding a kind is additive — control flow unchanged.</div><div class="meta">registry-driven · 4 kinds</div></div>
+      <div class="card core"><div class="ct">Derivation</div><div class="cd">Maps P-visible signals → typed <code>ClaimCard</code>s by structural relevance (repo + path / issue overlap with the request).</div><div class="meta">derive_claims → render_claim</div></div>
+      <div class="card core"><div class="ct">Coverage &amp; closure</div><div class="cd"><code>deps_G</code> per proposition — the mandated source families its truth depends on. Fails loud on an unmodeled predicate.</div><div class="meta">absence of cards ≠ clearance</div></div>
+      <div class="card core"><div class="ct">Privacy projection <span class="badge b-thm">T5</span></div><div class="cd">C / H split + Δ<sub>P</sub>. Selection &amp; digest run over the consumer-visible projection only → existence-privacy by construction.</div><div class="meta">H carries no certificate weight</div></div>
+      <div class="card core"><div class="ct">Thin authority <span class="badge b-thm">S2</span></div><div class="cd">Assesses declared authority per subject; surfaces conflict, never adjudicates.</div><div class="meta">refuse-to-pick</div></div>
+      <div class="card core"><div class="ct">Verifiable replay <span class="badge b-thm">T1</span></div><div class="cd">Snapshot digest over the projection binds request + signals + statuses + declarations.</div><div class="meta">deterministic ⇒ auditable</div></div>
+      <div class="card core"><div class="ct">Severity</div><div class="cd">Deterministic decomposition (kind_base × magnitude × scope). Conformance-golden; calibration deferred.</div><div class="meta">structure locked, values later</div></div>
+    </div>
+  </section>
+
+  <div class="flow"><span class="chev">▲</span><span class="stem"></span><span class="note">typed over</span></div>
+
+  <section class="band">
+    <div class="band-head"><span class="band-no">04</span><span class="band-title">Core Contract v0 — the versioned seam</span><span class="band-sub">durable interface between connectors and the core</span></div>
+    <div class="grid g3">
+      <div class="card"><div class="ct">CoreContractDocument</div><div class="cd">source_signals · source_statuses · source_open_targets · guidance_records · request_context.</div></div>
+      <div class="card"><div class="ct">Fail-closed policy</div><div class="cd"><code>PolicyDecision</code> validators · visibility firewall · default-deny source bodies · reference-integrity check.</div></div>
+      <div class="card"><div class="ct">Project state</div><div class="cd"><code>.teamctx/config.json</code> · <code>.teamctx/authority.json</code> · session selection.</div></div>
+    </div>
+  </section>
+
+  <div class="flow"><span class="chev">▲</span><span class="stem"></span><span class="note">normalized into</span></div>
+
+  <section class="band">
+    <div class="band-head"><span class="band-no">05</span><span class="band-title">Connectors — the I/O edge</span><span class="band-sub">fetch &amp; normalize · never derive cards</span></div>
+    <div class="grid g5">
+      <div class="card live"><div class="ct">collision <span class="badge b-live">live</span></div><div class="cd">GitHub PRs touching your paths.</div><div class="meta">github.py · forge_review.py</div></div>
+      <div class="card live"><div class="ct">doc-superseded <span class="badge b-live">live</span></div><div class="cd">Declared <code>superseded_by</code> frontmatter.</div><div class="meta">docs.py · docs_supersession.py</div></div>
+      <div class="card live"><div class="ct">authority <span class="badge b-live">live</span></div><div class="cd">Declared authority loader.</div><div class="meta">declared_authority.py</div></div>
+      <div class="card deferred"><div class="ct">criteria-changed <span class="badge b-def">deferred</span></div><div class="cd">Acceptance criteria changed on a linked issue.</div><div class="meta">source: issue tracker</div></div>
+      <div class="card deferred"><div class="ct">missed-gate <span class="badge b-def">deferred</span></div><div class="cd">A required gate failed on files you change.</div><div class="meta">source: CI check-runs</div></div>
+    </div>
+  </section>
+
+  <div class="flow"><span class="chev">▲</span><span class="stem"></span><span class="note">observed from</span></div>
+
+  <section class="band">
+    <div class="band-head"><span class="band-no">06</span><span class="band-title">Sources — the world</span><span class="band-sub">untrusted until typed &amp; policy-gated</span></div>
+    <div class="grid g5">
+      <div class="card"><div class="ct">GitHub PRs</div><div class="cd">open PRs · changed paths</div></div>
+      <div class="card"><div class="ct">Repo docs</div><div class="cd">markdown + frontmatter</div></div>
+      <div class="card deferred"><div class="ct">Issue tracker</div><div class="cd">acceptance criteria</div></div>
+      <div class="card deferred"><div class="ct">CI / deploy</div><div class="cd">check-runs · gates</div></div>
+      <div class="card"><div class="ct">.teamctx / *</div><div class="cd">config · authority</div></div>
+    </div>
+  </section>
+
+  <section class="band" style="margin-top:30px">
+    <div class="band-head"><span class="band-no">▦</span><span class="band-title">The card-kind family</span><span class="band-sub">a closed, engine-complete set of four</span></div>
+    <div class="matrix">
+      <table>
+        <thead><tr><th>Kind</th><th>Claim predicate</th><th>Shape</th><th>Depends on (deps_G)</th><th>Verdict</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td class="kname">collision</td><td><code>pr_conflicts_with_path</code></td><td class="exi">existential</td><td>git_hosting</td><td>Conflict check</td><td><span class="badge b-live">live</span></td></tr>
+          <tr><td class="kname">doc-superseded</td><td><code>doc_superseded</code></td><td class="exi">existential</td><td>docs</td><td>Docs check</td><td><span class="badge b-live">live</span></td></tr>
+          <tr><td class="kname">criteria-changed</td><td><code>issue_criteria_changed</code></td><td class="exi">existential</td><td>issue_tracker</td><td>Criteria check</td><td><span class="badge b-def">deferred</span></td></tr>
+          <tr><td class="kname">missed-gate</td><td><code>gate_failed</code></td><td class="exi">existential</td><td>ci_deploy</td><td>Gate check</td><td><span class="badge b-def">deferred</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:10px;letter-spacing:.03em;">Each existential claim refutes its universal twin (<code style="color:#cfe9df">no_pr_conflicts_with_paths</code>, <code style="color:#cfe9df">no_superseded_docs</code>, …). The engine ships all four; connectors go live one at a time, pulled by real-world dogfood.</p>
+  </section>
+
+  <section class="band road" style="margin-top:30px">
+    <div class="band-head"><span class="band-no" style="border-color:rgba(230,172,99,.4);color:var(--amber)">↗</span><span class="band-title">Roadmap — the product's planned extent</span><span class="band-sub">deferred behind locked seams</span></div>
+    <div class="grid g3">
+      <div class="card deferred"><div class="ct">Durable memory layer</div><div class="cd">The deferred second package (Ambara lineage). Stateless broker now → durable memory later, across one frozen seam.</div></div>
+      <div class="card deferred"><div class="ct">Distribution</div><div class="cd">MCP transport · IDE panel · pip / launch. Candidate seed: a teamctx⇄Kagenti/Rosso integration — after usefulness is proven.</div></div>
+      <div class="card deferred"><div class="ct">Full &amp; graduated authority</div><div class="cd">Temporary-override states · <code>.teamctx</code> → durable graduation · conflict-precision tuning.</div></div>
+      <div class="card deferred"><div class="ct">Live criteria / gate connectors</div><div class="cd">Wire issue-tracker &amp; CI check-run sources; missed-gate via check-runs is the cheapest next.</div></div>
+      <div class="card deferred"><div class="ct">Protocol v1.1</div><div class="cd">Reviewed tightenings, not yet written to the paper.</div></div>
+      <div class="card deferred"><div class="ct">Severity calibration</div><div class="cd">Tune the default constants once telemetry exists.</div></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="thms">
+      <div class="thm"><b>T1</b> — verifiable replay: the answer is a pure function of digested inputs.</div>
+      <div class="thm"><b>T2</b> — sound evaluate: a verdict never asserts more than the evidence supports.</div>
+      <div class="thm"><b>T5</b> — existence-privacy: a consumer cannot detect that invisible context exists.</div>
+      <div class="thm"><b>S2</b> — thin authority: the broker surfaces conflict and refuses to pick.</div>
+    </div>
+    <div class="sig">teamctx · core contract <span class="obs">v0</span><br/>observable = ⟨ C , κ ⟩ · replayable by digest<br/>feature/functionality view · 2026-06-21</div>
+  </footer>
+  </div><!-- /panel-eng -->
+
+  <!-- ================= PRODUCT / SALES PANEL ================= -->
+  <div class="panel panel-prod">
+  <section class="phero">
+    <div class="kicker"><span class="dot"></span>Product<span class="sep">/</span>Value · Positioning</div>
+    <p class="whynow">Agents broke the speed at which work moves. Team coordination didn't keep up.</p>
+    <h2>Timely, <em>ambient team context.</em></h2>
+    <p class="sub">Humans and their agents, working from the <b>same live picture</b> of the current state of the work — and the standards around it. The movement in your PRs, your tickets, your docs, surfaced where the work happens, the moment it's relevant.</p>
+    <div class="cat"><b>Context, not memory</b><span class="sep">·</span>delivered, not stored<span class="sep">·</span>the facts already live in your tools — teamctx transforms the <b>delivery</b>, not the content</div>
+  </section>
+
+  <section class="psec">
+    <div class="psec-h">What it's for</div>
+    <div class="leadben">
+      <div class="big">Fewer collisions.<br/>Less rework.</div>
+      <ul class="support">
+        <li>The standards around the work, actually adhered to</li>
+        <li>Faster ramp onto unfamiliar code, faster resumption after a break</li>
+        <li>Cross-agent continuity — swap Claude Code, Cursor, Codex freely; context is just data</li>
+        <li>Fewer stale-spec and missed-gate mistakes</li>
+      </ul>
+    </div>
+    <p class="hedge">It <b>informs; it doesn't enforce.</b> The benefit is better-informed work when the team acts on it — never a guaranteed outcome. And the absence of a card is never an all-clear: teamctx always tells you what it <b>couldn't</b> check.</p>
+  </section>
+
+  <section class="psec">
+    <div class="psec-h">A work-start moment</div>
+    <div class="termcard"><span class="h">teamctx · working context · fix-webhook-retries</span>
+<span class="sec">─ Needs attention ──────────────────────────────</span>
+• Open PR #214 (yours) already refactors <span class="b">webhooks/retry.py</span> — the file
+  you're about to touch. Unmerged, 3 days old.
+    <span class="w">why: same-file overlap with your changed paths · github PR #214 · 12s ago</span>
+• Linked issue PROJ-88 acceptance criteria changed 6h ago: retry cap is now 5 (was 3).
+    <span class="w">why: criteria changed after your branch point · jira PROJ-88 · 6h ago</span>
+<span class="sec">─ Coverage ──────────────────────────────────────</span>
+checked: github ✓ (12s)   jira ✓ (6h)</div>
+    <p class="cap"><b>Illustrative — the target experience.</b> One glance before the agent acts: a PR you'd forgotten and a ticket whose criteria moved — without leaving the editor or asking "go check all my PRs and issues." <b>GitHub and repo docs are live today; Jira, Confluence and the rest are on the roadmap</b> (see the source strip below, and the Engineering tab).</p>
+  </section>
+
+  <section class="psec">
+    <div class="psec-h">The because — the credibility engine</div>
+    <div class="believe">
+      <div class="lead">
+        <h3>Why a team can trust the picture.</h3>
+        <p>The differentiator under the category: <b>no LLM in the content path.</b> Facts arrive <b>verbatim, source-backed, one-click verifiable, and replayable</b> — teamctx is the deterministic ground an agent can stand on and check itself against. <b>Complementary to the LLM, never adversarial:</b> the model does judgment and generation, teamctx hands it trustworthy current facts. The same construction means it <b>can't track</b> you and <b>can't be hijacked</b> by a poisoned artifact.</p>
+      </div>
+      <div class="guars">
+        <div class="guar"><div class="gt"><span class="badge b-thm">T2</span>Sound</div><div class="gd">Never claims more than the evidence supports.</div></div>
+        <div class="guar"><div class="gt"><span class="badge b-thm">T1</span>Auditable</div><div class="gd">Every answer reproduces from its inputs.</div></div>
+        <div class="guar"><div class="gt"><span class="badge b-thm">T5</span>Private</div><div class="gd">Invisible context stays invisible.</div></div>
+        <div class="guar"><div class="gt"><span class="badge b-thm">S2</span>In its lane</div><div class="gd">Surfaces conflict; leaves the call to you.</div></div>
+      </div>
+    </div>
+    <p class="cap">Credibility is the <b>because</b>, not the marquee — it's what makes "the same live picture" a claim a security team and a developer can both trust. Safety (it can't cause harm) is table stakes, delivered free by the same construction.</p>
+  </section>
+
+  <section class="psec">
+    <div class="psec-h">Where it sits</div>
+    <div class="posmap">
+      <div class="pos"><div class="tagln">Optimization</div><h4>Context compression</h4><p>Shrinks the window to fit more in. Says nothing about whether the context is <i>current</i>.</p></div>
+      <div class="pos"><div class="tagln">Infrastructure</div><h4>Agent platforms &amp; mesh</h4><p>Deploy, route and authenticate agents. Moves and secures the pipes — not the truth of what flows through them.</p></div>
+      <div class="pos us"><div class="tagln">Ambient context</div><h4>teamctx</h4><p>The shared live picture of the work — made trustworthy. Rides on top of both; complementary to the LLM.</p></div>
+    </div>
+    <p class="cargo">Compression shrinks the cargo. Infrastructure moves and secures it. <b>teamctx makes sure it's the current cargo — and that you can trust it.</b></p>
+  </section>
+
+  <section class="psec">
+    <div class="psec-h">Draws from your tools</div>
+    <div class="sources">
+      <span class="src">GitHub <span class="st l">live</span></span>
+      <span class="src">Repo docs <span class="st l">live</span></span>
+      <span class="src planned">GitLab <span class="st p">planned</span></span>
+      <span class="src planned">Jira / Linear <span class="st p">planned</span></span>
+      <span class="src planned">Confluence <span class="st p">planned</span></span>
+      <span class="src planned">Slack handoffs <span class="st p">planned</span></span>
+    </div>
+    <p class="cap"><b>Read-only and permission-scoped</b> — your agent sees exactly what you can see, nothing more, and never learns that what it can't see even exists. Honest about what's wired today versus planned.</p>
+  </section>
+
+  <div class="pfoot">
+    <div class="who"><b>Primary consumer: a human using an agent</b>, who acts on the context — solo founder to regulated enterprise, same engine, configs not editions. Fully-autonomous agents are adjacent, and later.</div>
+    <div class="stamp">teamctx · <b>v0</b> · timely, ambient team context<br/>early · theorem-backed · 2 live sources, more on the way</div>
+  </div>
+  </div><!-- /panel-prod -->
+
+</div>
+</body>
+</html>
