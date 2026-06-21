@@ -5,6 +5,8 @@ load-bearing. Keep changes aligned with the documented product contract.
 
 ## Operating Contract
 
+- **Read `docs/product/plan/CURRENT.md` first, every session** — it is the one current plan
+  (now → product-complete) and the pointer to where we are. Re-orient from it before acting.
 - Read `README.md`, `docs/product/product-brief.md`,
   `docs/engineering/architecture.md`, `docs/engineering/security-privacy.md`,
   and `docs/engineering/build-plan.md` before changing product or implementation surfaces.

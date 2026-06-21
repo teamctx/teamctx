@@ -1,5 +1,9 @@
 # teamctx — State & Plan (session capture, 2026-06-18)
 
+> **Previous (2026-06-18 snapshot).** The *current* plan is
+> [`docs/product/plan/CURRENT.md`](../plan/CURRENT.md). Kept as history: the decisions and
+> spine below remain valid; the "no code yet" status predates the engine build. Previous, not stale.
+
 *Where we are, what we decided and learned, what's open, and where we go next.
 Companion to the [architecture decision record](architecture-decision.md), the
 **consolidated [protocol paper v1.0](../../research/teamctx-protocol-v1.0.md)**
