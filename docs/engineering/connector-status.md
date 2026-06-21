@@ -10,6 +10,12 @@ proof of usefulness.)
 | Kind | Engine | Live connector |
 |------|--------|----------------|
 | collision (`pr_conflicts_with_path`) | ✅ | ✅ GitHub PRs — `connectors/github.py` |
-| doc-superseded (`doc_superseded`) | ✅ | 🔨 in progress — declared-frontmatter docs probe (`docs/superpowers/plans/2026-06-20-doc-superseded-connector.md`) |
+| doc-superseded (`doc_superseded`) | ✅ | ✅ declared-frontmatter docs probe (merged 2026-06-20) — *dogfood not yet run* |
 | criteria-changed (`issue_criteria_changed`) | ✅ | ⏳ deferred — pulled when a dogfood needs it |
 | missed-gate (`gate_failed`) | ✅ | ⏳ deferred — pulled when a dogfood needs it |
+
+> **The 4 kinds are the certified (S) tier, not the whole product.** The broader source
+> breadth (Jira/Confluence/GitLab/Slack), the ambient **L (hint) tier**, and MCP transport
+> are tracked in the [Product Completion plan](../product/sprints/2026-06-21-product-completion-plan.md).
+> Feeding the two dormant kinds — missed-gate (← GitHub check-runs) and criteria-changed
+> (← Jira) — is the cheapest next breadth: connector-only work, no engine change.
