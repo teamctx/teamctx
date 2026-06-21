@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>teamctx — timely, ambient team context for AI coding agents</title>
+<meta name="description" content="teamctx is a deterministic, read-only broker that gives your agents and your team the same live picture of the current state of the work — surfacing movement in your PRs, issues, and docs at the moment it's relevant. No LLM in the trusted path." />
+<meta property="og:title" content="teamctx — timely, ambient team context" />
+<meta property="og:description" content="The same live picture of the work, for humans and their agents. Deterministic, source-backed, verifiable — no model in the trusted path." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#0a0d14; --ink-2:#0c1019; --panel:#141a26; --panel-2:#1a2130;
+    --line:rgba(150,172,205,.12); --line-2:rgba(150,172,205,.24);
+    --text:#eceae3; --muted:#9aa7ba; --faint:#647183;
+    --teal:#4fd6a8; --teal-dim:rgba(79,214,168,.13);
+    --amber:#e6ac63; --azure:#74b6ec; --azure-dim:rgba(116,182,236,.12); --coral:#e88f80;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+    --sans:'Hanken Grotesk',-apple-system,BlinkMacSystemFont,sans-serif;
+    --display:'Fraunces',Georgia,serif;
+    --maxw:1080px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);line-height:1.6;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+    background-image:
+      radial-gradient(1100px 560px at 50% -5%, var(--teal-dim), transparent 70%),
+      radial-gradient(900px 600px at 100% 8%, var(--azure-dim), transparent 60%),
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:auto, auto, 40px 40px, 40px 40px;
+    background-attachment:fixed;
+  }
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.04;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(130% 100% at 50% 0%, transparent 60%, rgba(0,0,0,.6) 100%);}
+  .wrap{position:relative;z-index:1;max-width:var(--maxw);margin:0 auto;padding:0 28px;}
+  a{color:inherit;}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);
+    background:linear-gradient(180deg, rgba(10,13,20,.9), rgba(10,13,20,.6));border-bottom:1px solid var(--line);}
+  nav .row{display:flex;align-items:center;gap:24px;height:62px;}
+  .brand{font-family:var(--display);font-weight:600;font-size:21px;letter-spacing:-.02em;text-decoration:none;}
+  .brand .x{color:var(--teal);font-style:italic;font-weight:500;}
+  nav .links{margin-left:auto;display:flex;gap:26px;align-items:center;font-family:var(--mono);font-size:12.5px;letter-spacing:.02em;}
+  nav .links a{color:var(--muted);text-decoration:none;transition:color .2s;}
+  nav .links a:hover{color:var(--text);}
+  nav .gh{border:1px solid var(--line-2);border-radius:8px;padding:7px 13px;color:var(--text)!important;}
+  nav .gh:hover{border-color:var(--teal);}
+  @media (max-width:680px){nav .links a:not(.gh){display:none;}}
+
+  /* hero */
+  .hero{padding:96px 0 70px;position:relative;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--teal);
+    display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal);}
+  .eyebrow .sep{color:var(--faint);}
+  h1{font-family:var(--display);font-optical-sizing:auto;font-weight:600;letter-spacing:-.025em;
+    font-size:clamp(44px,8.2vw,92px);line-height:.96;margin:22px 0 0;max-width:14ch;}
+  h1 em{color:var(--teal);font-style:italic;font-weight:500;}
+  .hero .sub{max-width:680px;color:var(--muted);font-size:clamp(17px,2.1vw,21px);margin:26px 0 0;line-height:1.5;}
+  .hero .sub b{color:var(--text);font-weight:600;}
+  .cta{display:flex;gap:14px;flex-wrap:wrap;margin-top:34px;}
+  .btn{font-family:var(--mono);font-size:13.5px;letter-spacing:.02em;text-decoration:none;border-radius:10px;padding:13px 20px;
+    transition:transform .2s, box-shadow .2s, border-color .2s, background .2s;display:inline-flex;align-items:center;gap:9px;}
+  .btn-p{background:var(--teal);color:#06241b;font-weight:600;box-shadow:0 0 30px -8px var(--teal);}
+  .btn-p:hover{transform:translateY(-2px);box-shadow:0 8px 36px -10px var(--teal);}
+  .btn-s{border:1px solid var(--line-2);color:var(--text);}
+  .btn-s:hover{border-color:var(--teal);transform:translateY(-2px);}
+  .cat{margin-top:30px;font-family:var(--mono);font-size:12.5px;color:var(--muted);letter-spacing:.02em;
+    border-left:2px solid var(--teal);padding:4px 0 4px 16px;}
+  .cat b{color:var(--teal);}
+
+  /* sections */
+  section{padding:62px 0;border-top:1px solid var(--line);}
+  .kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--faint);margin:0 0 18px;display:flex;align-items:center;gap:12px;}
+  .kicker::after{content:"";flex:1;height:1px;background:var(--line);}
+  h2{font-family:var(--display);font-weight:500;font-size:clamp(28px,4.2vw,42px);letter-spacing:-.02em;line-height:1.08;margin:0;}
+  .lead-p{color:var(--muted);font-size:clamp(16px,1.9vw,18px);max-width:740px;margin:18px 0 0;line-height:1.55;}
+  .lead-p b{color:var(--text);}
+
+  /* the shift */
+  .shift{border-left:2px solid var(--coral);padding:6px 0 6px 24px;max-width:880px;}
+  .shift p{font-family:var(--display);font-weight:400;font-size:clamp(20px,3vw,30px);line-height:1.32;margin:0;color:var(--text);}
+  .shift p b{color:var(--coral);font-weight:600;}
+  .shift .small{font-family:var(--sans);font-size:15.5px;color:var(--muted);margin-top:16px;line-height:1.55;}
+  .shift .small b{color:var(--text);}
+
+  /* lead benefit */
+  .benefit{display:flex;gap:40px;flex-wrap:wrap;align-items:center;}
+  .benefit .big{font-family:var(--display);font-weight:600;font-size:clamp(34px,5vw,56px);line-height:1.0;letter-spacing:-.02em;flex:0 0 auto;}
+  .benefit ul{list-style:none;margin:0;padding:0;display:grid;gap:11px;flex:1;min-width:300px;}
+  .benefit li{font-size:15.5px;color:var(--muted);padding-left:24px;position:relative;}
+  .benefit li::before{content:"+";position:absolute;left:0;color:var(--teal);font-family:var(--mono);}
+  .benefit li b{color:var(--text);}
+  .hedge{font-size:14px;color:var(--muted);margin-top:26px;max-width:760px;border-left:2px solid var(--line-2);padding-left:16px;line-height:1.55;}
+  .hedge b{color:var(--text);}
+
+  /* terminal */
+  .term{font-family:var(--mono);font-size:13px;line-height:1.7;border:1px solid var(--line-2);border-radius:14px;
+    background:rgba(7,10,16,.8);overflow:hidden;box-shadow:0 30px 80px -40px rgba(0,0,0,.9);}
+  .term .bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.015);}
+  .term .bar i{width:11px;height:11px;border-radius:50%;background:var(--faint);display:inline-block;}
+  .term .bar i:nth-child(1){background:#e8675b;}.term .bar i:nth-child(2){background:#e6ac63;}.term .bar i:nth-child(3){background:#4fd6a8;}
+  .term .bar span{margin-left:10px;color:var(--faint);font-size:11.5px;letter-spacing:.04em;}
+  .term pre{margin:0;padding:20px 22px;white-space:pre-wrap;color:var(--muted);overflow-x:auto;}
+  .term .h{color:var(--teal);font-weight:600;}
+  .term .sec{color:var(--faint);}
+  .term .b{color:var(--text);}
+  .term .w{color:var(--faint);}
+  .term .bad{color:var(--amber);}
+  .cap{font-size:13.5px;color:var(--muted);margin-top:16px;max-width:820px;line-height:1.55;}
+  .cap b{color:var(--text);}
+
+  /* grids */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:28px;}
+  .grid2{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-top:28px;align-items:start;}
+  .card{border:1px solid var(--line);border-radius:14px;padding:24px 22px;background:linear-gradient(180deg,rgba(20,26,38,.55),rgba(13,17,26,.5));
+    transition:transform .25s cubic-bezier(.2,.7,.3,1),border-color .25s,box-shadow .25s;}
+  .card:hover{transform:translateY(-5px);border-color:var(--line-2);box-shadow:0 22px 60px -34px rgba(0,0,0,.9);}
+  .card .n{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.1em;}
+  .card h3{font-family:var(--display);font-weight:600;font-size:21px;line-height:1.15;margin:12px 0 10px;letter-spacing:-.01em;}
+  .card p{font-size:14px;color:var(--muted);margin:0;line-height:1.55;}
+
+  /* because / guarantees */
+  .because{border:1px solid var(--line);border-radius:16px;padding:30px;background:radial-gradient(600px 260px at 0% 0%,var(--teal-dim),transparent 70%);}
+  .because h3{font-family:var(--display);font-weight:600;font-size:clamp(22px,3vw,28px);margin:0 0 14px;letter-spacing:-.01em;}
+  .because p{color:var(--muted);font-size:15px;line-height:1.6;margin:0;}
+  .because p b{color:var(--text);}
+  .guars{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+  .guar{border:1px solid var(--line);border-radius:12px;padding:16px;background:rgba(18,23,34,.5);}
+  .guar .gt{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--azure);display:flex;gap:9px;align-items:center;}
+  .badge{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.06em;border:1px solid rgba(116,182,236,.5);color:var(--azure);background:var(--azure-dim);padding:2px 6px;border-radius:999px;}
+  .guar .gd{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.45;}
+
+  /* positioning */
+  .pos{border:1px solid var(--line);border-radius:14px;padding:24px 22px;background:rgba(15,19,29,.5);}
+  .pos .t{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);}
+  .pos h4{font-family:var(--display);font-weight:500;font-size:20px;margin:10px 0 8px;color:var(--muted);}
+  .pos p{font-size:13.5px;color:var(--faint);margin:0;line-height:1.5;}
+  .pos.us{border-color:rgba(79,214,168,.5);background:radial-gradient(420px 200px at 50% 0%,var(--teal-dim),rgba(15,19,29,.6));}
+  .pos.us h4{color:var(--teal);}.pos.us p{color:var(--muted);}.pos.us .t{color:var(--teal);}
+  .cargo{font-family:var(--display);font-style:italic;font-size:clamp(18px,2.4vw,24px);text-align:center;margin:26px auto 0;max-width:760px;line-height:1.4;color:var(--text);}
+  .cargo b{color:var(--teal);font-style:normal;font-weight:600;}
+
+  /* sources */
+  .srcs{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;}
+  .src{font-family:var(--mono);font-size:13px;border:1px solid var(--line-2);border-radius:999px;padding:9px 15px;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.012);}
+  .src .st{font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;}
+  .src .st.l{color:#06241b;background:var(--teal);}
+  .src .st.p{color:var(--amber);border:1px solid rgba(230,172,99,.5);}
+  .src.planned{opacity:.82;}
+
+  /* footer */
+  footer{border-top:1px solid var(--line);padding:48px 0 60px;}
+  .foot{display:flex;flex-wrap:wrap;gap:24px;justify-content:space-between;align-items:flex-start;}
+  .foot .who{max-width:560px;color:var(--muted);font-size:14px;line-height:1.6;}
+  .foot .who b{color:var(--text);}
+  .foot .meta{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:right;line-height:1.9;letter-spacing:.03em;}
+  .foot .meta a{color:var(--muted);text-decoration:none;}
+  .foot .meta a:hover{color:var(--teal);}
+  .foot .stamp{margin-top:14px;color:var(--teal);}
+
+  /* entrance (load-only; no display toggling, so nothing gets stuck hidden) */
+  @keyframes rise{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+  .anim{opacity:0;animation:rise .7s cubic-bezier(.2,.7,.3,1) forwards;}
+  .d1{animation-delay:.05s}.d2{animation-delay:.14s}.d3{animation-delay:.23s}.d4{animation-delay:.32s}.d5{animation-delay:.41s}
+  @media (prefers-reduced-motion:reduce){.anim{animation:none;opacity:1;}}
+
+  @media (max-width:820px){.grid3{grid-template-columns:1fr;}.grid2{grid-template-columns:1fr;}.guars{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap row">
+    <a class="brand" href="#top">team<span class="x">ctx</span></a>
+    <div class="links">
+      <a href="#how">How it works</a>
+      <a href="#trust">Why trust it</a>
+      <a href="#where">Where it sits</a>
+      <a class="gh" href="https://github.com/teamctx/teamctx">GitHub →</a>
+    </div>
+  </div>
+</nav>
+
+<div id="top"></div>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow anim d1"><span class="dot"></span>Deterministic context broker for AI coding agents<span class="sep">·</span>open source<span class="sep">·</span>early</div>
+    <h1 class="anim d2">Timely, <em>ambient team context.</em></h1>
+    <p class="sub anim d3">Your agents and your team, working from the <b>same live picture</b> of the current state of the work — and the standards around it. teamctx surfaces the movement in your PRs, issues, and docs <b>at the moment it's relevant</b>, so fewer changes land on ground that already moved.</p>
+    <div class="cta anim d4">
+      <a class="btn btn-p" href="#how">See it at work-start ↓</a>
+      <a class="btn btn-s" href="#trust">Why you can trust it</a>
+    </div>
+    <div class="cat anim d5"><b>Context, not memory.</b> &nbsp;The facts already live in your tools — teamctx transforms the <b>delivery</b>, not the content. Not compression. Not infrastructure.</div>
+  </div>
+</header>
+
+<!-- THE SHIFT -->
+<section>
+  <div class="wrap">
+    <div class="kicker">The shift</div>
+    <div class="shift">
+      <p>Agents broke the speed at which work moves. Team coordination didn't keep up — so agents <b>confidently build against a spec another agent already replaced</b>, or a file a teammate is mid-PR on.</p>
+      <p class="small">Authentication and routing don't catch this: two perfectly-secured agents can still act on contradictory context. The failure isn't infrastructural, it's <b>epistemic</b> — nobody is checking whether what the agent believes is still true. That's the gap teamctx closes.</p>
+    </div>
+  </div>
+</section>
+
+<!-- WHAT YOU GET -->
+<section>
+  <div class="wrap">
+    <div class="kicker">What it's for</div>
+    <div class="benefit">
+      <div class="big">Fewer collisions.<br/>Less rework.</div>
+      <ul>
+        <li>The <b>standards around the work</b>, actually adhered to</li>
+        <li>Faster ramp onto unfamiliar code, faster resumption after a break</li>
+        <li><b>Cross-agent continuity</b> — swap Claude Code, Cursor, Codex freely; context is just data</li>
+        <li>Fewer stale-spec and missed-gate mistakes</li>
+      </ul>
+    </div>
+    <p class="hedge">It <b>informs; it doesn't enforce.</b> The benefit is better-informed work when the team acts on it — never a guaranteed outcome. And the absence of a card is never an all-clear: teamctx always tells you what it <b>couldn't</b> check.</p>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="wrap">
+    <div class="kicker">A work-start moment</div>
+    <h2>Before the agent acts, it gets the picture.</h2>
+    <p class="lead-p">At the start of a task — a new branch, a resumed session — your agent asks teamctx for context and gets compact, typed, permission-scoped <b>cards</b> plus an honest <b>coverage</b> note. Rendered directly, never through a model.</p>
+    <div class="term" style="margin-top:28px">
+      <div class="bar"><i></i><i></i><i></i><span>teamctx · working context · fix-webhook-retries</span></div>
+<pre><span class="sec">─ Needs attention ──────────────────────────────</span>
+• Open PR #214 (yours) already refactors <span class="b">webhooks/retry.py</span> — the file
+  you're about to touch. Unmerged, 3 days old.
+    <span class="w">why: same-file overlap with your changed paths · github PR #214 · 12s ago</span>
+• Linked issue PROJ-88 acceptance criteria changed 6h ago: retry cap is now 5 (was 3).
+    <span class="w">why: criteria changed after your branch point · issue PROJ-88 · 6h ago</span>
+<span class="sec">─ Coverage ──────────────────────────────────────</span>
+checked: git ✓ (12s)   issues ✓ (6h)
+<span class="w">Absence of a card is not an all-clear; unobserved or stale sources are reported as Unknown.</span></pre>
+    </div>
+    <p class="cap"><b>Illustrative.</b> One glance kills two silent rework spirals — without leaving the editor or asking "go check all my PRs and issues." That standing question is now answered deterministically, off-model.</p>
+  </div>
+</section>
+
+<!-- THE BECAUSE -->
+<section id="trust">
+  <div class="wrap">
+    <div class="kicker">Why you can trust it — the credibility engine</div>
+    <div class="grid2">
+      <div class="because">
+        <h3>A credibility tool has to be more credible than what it checks.</h3>
+        <p><b>No LLM in the content path.</b> Facts arrive <b>verbatim, source-backed, one-click verifiable, and replayable</b> — teamctx is the deterministic ground an agent can stand on and check itself against. <b>Complementary to the model, never adversarial:</b> the LLM does judgment and generation; teamctx hands it trustworthy current facts. The same construction means it <b>can't track</b> you and <b>can't be hijacked</b> by a poisoned artifact. Its guarantees aren't promises — they're properties of a deterministic engine.</p>
+      </div>
+      <div class="guars">
+        <div class="guar"><div class="gt"><span class="badge">sound</span>Never over-claims</div><div class="gd">A verdict never asserts more than the evidence supports.</div></div>
+        <div class="guar"><div class="gt"><span class="badge">auditable</span>Replayable</div><div class="gd">Every answer reproduces from a digest of its inputs.</div></div>
+        <div class="guar"><div class="gt"><span class="badge">private</span>Existence-safe</div><div class="gd">It can't reveal context you're not permitted to see.</div></div>
+        <div class="guar"><div class="gt"><span class="badge">in its lane</span>Won't adjudicate</div><div class="gd">Surfaces conflict; leaves the call to you.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHERE IT SITS -->
+<section id="where">
+  <div class="wrap">
+    <div class="kicker">Where it sits</div>
+    <h2>The context layer — made trustworthy.</h2>
+    <div class="grid3">
+      <div class="pos"><div class="t">Optimization</div><h4>Context compression</h4><p>Shrinks the window to fit more in. Says nothing about whether the context is still <i>current</i>.</p></div>
+      <div class="pos"><div class="t">Infrastructure</div><h4>Agent platforms &amp; mesh</h4><p>Deploy, route, and authenticate agents. Moves and secures the pipes — not the truth of what flows through them.</p></div>
+      <div class="pos us"><div class="t">Ambient context</div><h4>teamctx</h4><p>The shared live picture of the work — made trustworthy. Rides on top of both; complementary to the LLM.</p></div>
+    </div>
+    <p class="cargo">Compression shrinks the cargo. Infrastructure moves and secures it. <b>teamctx makes sure it's the current cargo — and that you can trust it.</b></p>
+  </div>
+</section>
+
+<!-- SOURCES -->
+<section>
+  <div class="wrap">
+    <div class="kicker">Draws from your tools</div>
+    <h2>Read-only. Permission-scoped.</h2>
+    <p class="lead-p">Your agent sees exactly what <b>you</b> can see, nothing more — and never learns that what it can't see even exists. No new system of record, nothing to migrate. Honest about what's wired today versus planned.</p>
+    <div class="srcs" style="margin-top:24px">
+      <span class="src">GitHub PRs <span class="st l">live</span></span>
+      <span class="src">Repo docs <span class="st l">live</span></span>
+      <span class="src planned">CI check-runs <span class="st p">planned</span></span>
+      <span class="src planned">GitLab <span class="st p">planned</span></span>
+      <span class="src planned">Jira / Linear <span class="st p">planned</span></span>
+      <span class="src planned">Confluence <span class="st p">planned</span></span>
+      <span class="src planned">Slack handoffs <span class="st p">planned</span></span>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap foot">
+    <div class="who">
+      <b>For teams running more than one agent on a shared codebase</b> — and the platform teams who have to keep them from quietly stepping on each other. Solo founder to regulated enterprise: same engine, configs not editions.
+      <div class="stamp">teamctx · early · Apache-2.0 · no model in the trusted path.</div>
+    </div>
+    <div class="meta">
+      <a href="https://github.com/teamctx/teamctx">github.com/teamctx/teamctx</a><br/>
+      deterministic · read-only · open source<br/>
+      <span style="color:var(--faint)">timely, ambient team context</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
