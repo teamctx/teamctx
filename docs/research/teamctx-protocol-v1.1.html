@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>teamctx · Honest Context (protocol v1.1)</title>
+<meta name="description" content="teamctx protocol paper v1.1 — a deterministic broker with observable soundness, existence-privacy, and injection-resistant selection for AI coding agents." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#faf8f3; --paper-2:#f3efe6; --ink:#1a1c22; --soft:#4a4f5a; --faint:#8b8f99;
+    --line:#e3ddd0; --teal:#127a5b; --teal-soft:#e7f3ee; --rule:#d9d2c4;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+    --serif:'Newsreader',Georgia,'Times New Roman',serif;
+    --display:'Fraunces',Georgia,serif;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);
+    font-size:18px;line-height:1.62;-webkit-font-smoothing:antialiased;}
+  /* top bar */
+  .bar{position:sticky;top:0;z-index:10;background:rgba(250,248,243,.92);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);}
+  .bar .in{max-width:880px;margin:0 auto;padding:12px 28px;display:flex;align-items:center;gap:16px;font-family:var(--mono);font-size:12.5px;}
+  .bar .wm{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:-.01em;}
+  .bar .wm .x{color:var(--teal);font-style:italic;}
+  .bar .v{color:var(--faint);letter-spacing:.06em;}
+  .bar a{margin-left:auto;color:var(--teal);text-decoration:none;}
+  .bar a:hover{text-decoration:underline;}
+
+  main{max-width:760px;margin:0 auto;padding:54px 28px 120px;}
+  #doc{opacity:0;transition:opacity .4s ease;}
+  #doc.ready{opacity:1;}
+
+  /* typography */
+  #doc h1{font-family:var(--display);font-optical-sizing:auto;font-weight:600;font-size:clamp(30px,5vw,44px);
+    line-height:1.12;letter-spacing:-.02em;margin:0 0 8px;}
+  #doc h2{font-family:var(--display);font-weight:600;font-size:clamp(22px,3.4vw,30px);letter-spacing:-.01em;
+    margin:52px 0 14px;padding-top:18px;border-top:1px solid var(--rule);}
+  #doc h3{font-family:var(--display);font-weight:500;font-size:21px;margin:32px 0 8px;}
+  #doc p{margin:0 0 16px;}
+  #doc em{color:var(--soft);}
+  #doc strong{font-weight:600;color:var(--ink);}
+  #doc a{color:var(--teal);}
+  #doc blockquote{margin:20px 0;padding:4px 0 4px 20px;border-left:3px solid var(--teal);
+    background:linear-gradient(90deg,var(--teal-soft),transparent 80%);color:var(--soft);font-style:italic;}
+  #doc blockquote strong{color:var(--ink);}
+  #doc ul,#doc ol{padding-left:24px;margin:0 0 16px;}
+  #doc li{margin:5px 0;}
+  #doc hr{border:none;border-top:1px solid var(--rule);margin:40px 0;}
+  /* the leading italic abstract-ish note */
+  #doc > p:first-of-type em, #doc > p em:only-child{}
+
+  /* code — the formal model leans on these heavily */
+  #doc code{font-family:var(--mono);font-size:.82em;background:var(--paper-2);border:1px solid var(--line);
+    border-radius:4px;padding:.08em .34em;color:#0e5f47;}
+  #doc pre{font-family:var(--mono);font-size:13px;line-height:1.55;background:#1c1f27;color:#e8e6e0;
+    border-radius:10px;padding:18px 20px;overflow-x:auto;margin:0 0 20px;border:1px solid #2a2e38;}
+  #doc pre code{background:none;border:none;padding:0;color:inherit;font-size:13px;}
+
+  #doc table{border-collapse:collapse;width:100%;margin:0 0 20px;font-size:15px;}
+  #doc th,#doc td{border:1px solid var(--line);padding:8px 11px;text-align:left;font-family:var(--mono);font-size:12.5px;}
+  #doc th{background:var(--paper-2);}
+
+  .status{font-family:var(--mono);font-size:14px;color:var(--soft);text-align:center;padding:60px 20px;}
+  .status code{background:var(--paper-2);border:1px solid var(--line);border-radius:4px;padding:2px 7px;}
+  footer{max-width:760px;margin:0 auto;padding:0 28px 80px;font-family:var(--mono);font-size:11.5px;color:var(--faint);
+    border-top:1px solid var(--rule);padding-top:20px;}
+  footer a{color:var(--teal);text-decoration:none;}
+</style>
+</head>
+<body>
+  <div class="bar"><div class="in">
+    <span class="wm">team<span class="x">ctx</span></span>
+    <span class="v">protocol · v1.1</span>
+    <a href="https://teamctx.dev">teamctx.dev →</a>
+  </div></div>
+
+  <main>
+    <article id="doc"></article>
+    <div id="status" class="status">Loading the paper…</div>
+  </main>
+  <footer>
+    Rendered from <a href="teamctx-protocol-v1.1.md"><code>teamctx-protocol-v1.1.md</code></a> — the markdown is the source of truth. ·
+    teamctx · deterministic context assurance
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous"></script>
+  <script>
+    // Backed by the .md file: fetch and render it. (Needs to be served over http(s);
+    // browsers block fetch() of a sibling file under file:// — see the fallback message.)
+    const SRC = "teamctx-protocol-v1.1.md";
+    const docEl = document.getElementById("doc");
+    const statusEl = document.getElementById("status");
+
+    fetch(SRC)
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+      .then(function (md) {
+        marked.setOptions({ gfm: true, breaks: false });
+        docEl.innerHTML = marked.parse(md);
+        docEl.classList.add("ready");
+        statusEl.style.display = "none";
+        document.title = "teamctx · " + (docEl.querySelector("h1")?.textContent || "protocol v1.1");
+      })
+      .catch(function (e) {
+        statusEl.innerHTML =
+          "Couldn't load <code>" + SRC + "</code> (" + e.message + ").<br><br>" +
+          "This page renders the markdown file next to it. Open it over a local server, e.g.<br>" +
+          "<code>python -m http.server</code> in <code>docs/research/</code>, then visit " +
+          "<code>teamctx-protocol-v1.1.html</code> — or read the " +
+          "<a href='" + SRC + "'>markdown directly</a>.";
+      });
+  </script>
+</body>
+</html>
