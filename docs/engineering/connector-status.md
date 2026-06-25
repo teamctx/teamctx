@@ -11,11 +11,12 @@ proof of usefulness.)
 |------|--------|----------------|
 | collision (`pr_conflicts_with_path`) | ✅ | ✅ GitHub PRs — `connectors/github.py` |
 | doc-superseded (`doc_superseded`) | ✅ | ✅ declared-frontmatter docs probe (merged 2026-06-20) — *dogfood not yet run* |
-| criteria-changed (`issue_criteria_changed`) | ✅ | ⏳ deferred — pulled when a dogfood needs it |
-| missed-gate (`gate_failed`) | ✅ | ⏳ deferred — pulled when a dogfood needs it |
+| criteria-changed (`issue_criteria_changed`) | ✅ | ✅ GitHub Issues — `connectors/github_issues.py` + `connectors/issue_criteria.py` |
+| missed-gate (`gate_failed`) | ✅ | ✅ GitHub check-runs — `connectors/github_checks.py` + `connectors/gate_status.py` |
 
 > **The 4 kinds are the certified (S) tier, not the whole product.** The broader source
 > breadth (Jira/Confluence/GitLab/Slack), the ambient **L (hint) tier**, and MCP transport
 > are tracked in the [Product Completion plan](../product/sprints/2026-06-21-product-completion-plan.md).
-> Feeding the two dormant kinds — missed-gate (← GitHub check-runs) and criteria-changed
-> (← Jira) — is the cheapest next breadth: connector-only work, no engine change.
+> All four certified kinds now have live connectors. Next breadth: the **L (hint) tier**
+> (ambient awareness, ~43% of high-value events), Jira as a second issue-tracker provider,
+> and Confluence/GitLab connectors.
