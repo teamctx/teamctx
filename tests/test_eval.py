@@ -146,6 +146,22 @@ def test_export_pack_empty_dir_raises(tmp_path) -> None:
         export_eval_pack(tmp_path, tmp_path / "out")
 
 
+def test_shipped_example_scenario_is_valid_and_runs() -> None:
+    """The checked-in example must stay loadable and produce a real context arm — it is the
+    out-of-the-box proof that the evidence engine runs against the live engine."""
+
+    from pathlib import Path
+
+    example = Path(__file__).resolve().parents[1] / "examples" / "eval-scenarios"
+    scenarios = sorted(example.glob("*.json"))
+    assert scenarios, "no example scenarios shipped"
+    for path in scenarios:
+        scenario = load_scenario(path)
+        context = render_context_prompt(scenario)
+        assert "Working context" in context
+        assert scenario.task in context
+
+
 def _scenario() -> EvalScenario:
     import json as _json
     import tempfile
