@@ -79,13 +79,20 @@ MCP server so agents consume teamctx programmatically (not manual CLI).
   over stdio, wrapping the shared `work_start.render_work_start` use case (CLI + MCP run ONE
   path). Token from server env; `mcp` optional extra; console script `teamctx-mcp`. Verified
   end-to-end with a real stdio client against the live teamctx repo (all four checks flow).
-- **Slice B — later:** individual probe tools (gate/issue/docs/collision) for targeted queries.
-- **Slice C — later:** config defaults (`.teamctx/config.json`) + warm daemon.
-- **Slice D — ⏳ the dogfood:** Edgar registers `teamctx-mcp` in Claude Code and an agent calls
-  `work_start` in a real session. Connect: `claude mcp add teamctx -e GITHUB_TOKEN=$(gh auth
-  token) -- ~/.local/bin/teamctx-mcp`.
+- **Slice D — ✅ DONE (2026-06-25):** a real agent in a fresh Claude Code session called
+  `mcp__teamctx__work_start` against the live teamctx repo; all four checks flowed back. The
+  agent parsed the labeled verdicts AND correctly reasoned about honest-UNKNOWN ("refuses a
+  false green") — the deterministic positioning landed in a real agent's reasoning. Connect:
+  `GITHUB_TOKEN_FILE` form (token stays in `.secrets/`).
+- **Slice C — NEXT (reprioritized by the dogfood):** smart defaults + auto-discovery. The
+  dogfood showed the friction is NOT missing tools — it's that the agent had to do git
+  archaeology for repo/branch, and criteria/docs came back UNKNOWN because it had no way to
+  know linked issues / docs_root. So: `.teamctx/config.json` declares repo + docs_root;
+  work_start auto-detects branch; (follow-on) discover linked issues from branch/commits/PR.
+- **Slice B — deprioritized:** individual probe tools (gate/issue/docs/collision). The dogfood
+  showed no need — work_start is what agents reach for; make it smarter, don't add tools.
 
-**Done when:** an agent consumes teamctx over MCP in a real session (Slice D).
+**CURPLAN3 done-gate MET (Slice D).** Remaining slices are enhancements, not the gate.
 
 ### CURPLAN4 — Ready for others  *(coarse)*
 Source-integration pipeline (auth broker, permission filter, cache) as multi-user demand
