@@ -17,6 +17,7 @@ from teamctx.claude_quality import assess_claude_run_dir
 from teamctx.connectors.declared_authority import load_declared_authority
 from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.github import run_github_pr_probe
+from teamctx.connectors.github_checks import run_github_checks_probe
 from teamctx.context import agent_prompt_cards, context_cards
 from teamctx.contract_documents import (
     ContractDocumentError,
@@ -213,6 +214,46 @@ def docs_probe_command(
     )
     document = run_docs_supersession_probe(
         repo=repo, root=root, request_context=request_context, observed_at=observed_at
+    )
+    click.echo(_work_start_view(document), nl=False)
+
+
+@main.command("gate-probe")
+@click.option("--repo", required=True, help="GitHub repository in owner/name form.")
+@click.option("--ref", required=True, help="Git ref (branch or SHA) to read check-runs for.")
+@click.option("--path", "paths", multiple=True, required=True,
+              help="A path the work is about to touch.")
+@click.option("--branch", default=None, help="Current branch name.")
+@click.option("--task", default="Start work.", show_default=True, help="Task text.")
+@click.option("--token-env", default="GITHUB_TOKEN", show_default=True, help="Token env var name.")
+def gate_probe_command(
+    repo: str,
+    ref: str,
+    paths: tuple[str, ...],
+    branch: str | None,
+    task: str,
+    token_env: str,
+) -> None:
+    """Derive missed-gate context from failing GitHub check-runs."""
+
+    observed_at = _utc_now_string()
+    request_context = RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id=f"github-checks-probe:{repo}:{observed_at}",
+        repo=repo,
+        branch=branch,
+        task=task,
+        paths=list(paths),
+        linked_issues=[],
+        requested_at=observed_at,
+        requesting_principal=None,
+    )
+    document = run_github_checks_probe(
+        repo=repo,
+        ref=ref,
+        token=os.environ.get(token_env),
+        request_context=request_context,
+        observed_at=observed_at,
     )
     click.echo(_work_start_view(document), nl=False)
 
