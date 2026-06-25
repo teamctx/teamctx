@@ -8,17 +8,24 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Literal
 
+from teamctx.connectors._contract import (
+    metadata_only_policy,
+    slug,
+    source_status,
+    unavailable_document,
+)
 from teamctx.core.contracts import (
     CoreContractDocument,
-    PolicyDecision,
     RequestContext,
     Scope,
+    SourceFamily,
     SourceSignal,
-    SourceStatus,
     SourceStatusValue,
 )
+
+_POLICY_REASON = "Issue metadata is allowed as evidence; source bodies are not included."
+_SOURCE_FAMILY: SourceFamily = "issue_tracker"
 
 
 @dataclass(frozen=True)
@@ -63,9 +70,9 @@ def normalize_issue_changes(
         source_signals.append(
             SourceSignal(
                 schema_version="teamctx.source_signal.v0",
-                id=f"sig_issue_{_slug(change.issue)}_{index}",
+                id=f"sig_issue_{slug(change.issue)}_{index}",
                 signal_type="criteria_changed",
-                source_family="issue_tracker",
+                source_family=_SOURCE_FAMILY,
                 scope=scope,
                 evidence_summary=change.detail,
                 source_display=f"GitHub Issue {change.issue}: {change.title}",
@@ -75,18 +82,20 @@ def normalize_issue_changes(
                 created_at=change.updated_at,
                 observed_at=observed_at,
                 expires_at=expires_at,
-                policy=_policy_metadata_only(),
+                policy=metadata_only_policy(_POLICY_REASON),
             )
         )
 
     source_statuses = [
-        _issue_source_status(
+        source_status(
             source_id=source_id,
-            repo=request_context.repo,
+            source_family=_SOURCE_FAMILY,
+            scope={"repo": request_context.repo},
             status="fresh",
             observed_at=observed_at,
             safe_user_message="Issue tracker status refreshed.",
             visibility="silent",
+            policy_reason=_POLICY_REASON,
         )
     ]
     return CoreContractDocument(
@@ -110,59 +119,13 @@ def unavailable_issues_document(
     status: SourceStatusValue = "unavailable",
     safe_user_message: str,
 ) -> CoreContractDocument:
-    return CoreContractDocument(
-        schema_version="teamctx.core_contract_document.v0",
-        request_context=request_context,
-        source_signals=[],
-        source_statuses=[
-            _issue_source_status(
-                source_id=source_id,
-                repo=repo,
-                status=status,
-                observed_at=observed_at,
-                safe_user_message=safe_user_message,
-                visibility="warning_when_relevant",
-            )
-        ],
-        source_open_targets=[],
-        guidance_records=[],
-        session_context_uses=[],
-        context_cards=[],
-    )
-
-
-def _issue_source_status(
-    *,
-    source_id: str,
-    repo: str,
-    status: SourceStatusValue,
-    observed_at: str,
-    safe_user_message: str,
-    visibility: Literal["silent", "warning_when_relevant", "always"],
-) -> SourceStatus:
-    return SourceStatus(
-        schema_version="teamctx.source_status.v0",
+    return unavailable_document(
+        request_context,
         source_id=source_id,
-        source_family="issue_tracker",
+        source_family=_SOURCE_FAMILY,
         scope={"repo": repo},
+        observed_at=observed_at,
         status=status,
-        last_checked_at=observed_at if status != "stale" else None,
         safe_user_message=safe_user_message,
-        normal_context_visibility=visibility,
-        policy=_policy_metadata_only(),
+        policy_reason=_POLICY_REASON,
     )
-
-
-def _policy_metadata_only() -> PolicyDecision:
-    return PolicyDecision(
-        schema_version="teamctx.policy_decision.v0",
-        can_render_to_user=True,
-        can_render_to_agent=True,
-        can_include_source_text=False,
-        requires_review_for_guidance=False,
-        decision_reason="Issue metadata is allowed as evidence; source bodies are not included.",
-    )
-
-
-def _slug(issue: str) -> str:
-    return "".join(ch if ch.isalnum() else "_" for ch in issue)
