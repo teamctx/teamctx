@@ -43,14 +43,19 @@ Issues = "https://github.com/teamctx/teamctx/issues"
 
 [project.scripts]
 teamctx = "teamctx.cli:main"
+teamctx-mcp = "teamctx.mcp_server:main"
 
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "hypothesis>=6.100",
     "ruff>=0.6",
     "mypy>=1.10",
+    "mcp>=1.0",
 ]
 
 [tool.ruff]

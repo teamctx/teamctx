@@ -25,7 +25,7 @@ from teamctx.contract_render import (
     render_contract_open_source,
     render_contract_why,
 )
-from teamctx.core.broker import broker_answer, broker_answer_from_documents
+from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.eval.pack import export_eval_pack
 from teamctx.eval.scenario import EvalScenarioError
@@ -38,7 +38,8 @@ from teamctx.project_config import (
     maybe_load_project_config,
     write_project_config,
 )
-from teamctx.runner import WorkStartInputs, run_work_start_connectors
+from teamctx.runner import WorkStartInputs
+from teamctx.work_start import render_work_start
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -186,11 +187,7 @@ def work_start_command(
         docs_root=docs_root,
         ref=ref,
     )
-    observed_at = _utc_now_string()
-    request_context, documents = run_work_start_connectors(inputs, observed_at=observed_at)
-    declarations = load_declared_authority(Path(".teamctx/authority.json"))
-    answer = broker_answer_from_documents(request_context, documents, declarations)
-    click.echo(render_broker_answer(answer), nl=False)
+    click.echo(render_work_start(inputs, observed_at=_utc_now_string()), nl=False)
 
 
 @main.command("docs-probe")

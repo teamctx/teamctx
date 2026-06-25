@@ -1,0 +1,78 @@
+"""Tests for the teamctx MCP server (CURPLAN3: agents consume teamctx over MCP).
+
+The tool is a thin wrapper over the same use case the CLI runs, so these focus on the MCP
+seam: the tool is registered, callable, returns the broker's text, and degrades honestly.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+from teamctx.mcp_server import mcp, work_start
+
+
+def _content_text(result: object) -> str:
+    """Flatten whatever call_tool returns (content blocks, or a (content, structured) tuple)
+    into a single string for assertions."""
+
+    items: object = result
+    if isinstance(result, tuple):
+        items = result[0]
+    if isinstance(items, list | tuple):
+        parts = [getattr(block, "text", "") for block in items]
+        return "\n".join(p for p in parts if p)
+    return str(items)
+
+
+def test_work_start_tool_is_directly_callable_and_degrades_without_token(monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    output = work_start(repo="acme/widgets", paths=["src/app/core.py"])
+    assert "Working context" in output
+    # no token => source unavailable => Unknown, never a false clear
+    assert "Conflict check: UNKNOWN" in output
+
+
+def test_work_start_tool_surfaces_a_collision(monkeypatch) -> None:
+    import teamctx.connectors.github as gh
+    from teamctx.connectors.forge_review import ForgeReviewPullRequest
+
+    def fake_prs(**kwargs):  # type: ignore[no-untyped-def]
+        return [
+            ForgeReviewPullRequest(
+                provider="github",
+                repo="acme/widgets",
+                number=7,
+                state="open",
+                url="https://github.com/acme/widgets/pull/7",
+                title=None,
+                changed_paths=("src/app/core.py",),
+                created_at="2026-06-25T10:00:00Z",
+                updated_at="2026-06-25T11:00:00Z",
+            )
+        ]
+
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", fake_prs)
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+    output = work_start(repo="acme/widgets", paths=["src/app/core.py"])
+    assert "Conflict check: NOT CLEAR" in output
+    assert "PR #7" in output
+
+
+def test_list_tools_exposes_work_start() -> None:
+    tools = asyncio.run(mcp.list_tools())
+    names = {tool.name for tool in tools}
+    assert "work_start" in names
+    # the description tells the agent when to call it
+    work_start_tool = next(tool for tool in tools if tool.name == "work_start")
+    assert "before" in (work_start_tool.description or "").lower()
+
+
+def test_call_tool_runs_the_broker_over_mcp(monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = asyncio.run(
+        mcp.call_tool("work_start", {"repo": "acme/widgets", "paths": ["src/app/core.py"]})
+    )
+    text = _content_text(result)
+    assert "Working context" in text
+    assert "Conflict check: UNKNOWN" in text
