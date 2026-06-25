@@ -78,6 +78,34 @@ Autonomous agents = adjacent, harder sell, later. Iterate scope from real usage.
 
 ---
 
+## Differentiation vs. agent-memory ecosystem (added 2026-06-25)
+
+*Driven by landscape analysis of RH ET "From context to dreams" blog (Jun 2026) and the
+broader agent-memory wave (Mem0, OpenClaw memory, Anthropic Managed Agents memory,
+Langgraph memory). See [landscape note](../../research/landscape-agent-memory-2026-06.md).*
+
+The industry is converging on **agent memory** — LLM-augmented write-back storage that
+solves "agents forget." teamctx solves **"agents can't safely coordinate"** — a different
+problem in the same neighborhood. The distinction:
+
+- **Memory = recall.** An agent remembers what it learned. Probabilistic, LLM-extracted,
+  mutable, dreaming-consolidated. Solves single-agent continuity.
+- **Context = assurance.** An agent knows what's currently true in the team's work. 
+  Deterministic, source-backed, read-only, verifiable. Solves multi-agent coordination.
+
+teamctx **complements** memory systems — it is the trust layer that governs what crosses
+agent boundaries once agents have their own memory. The same "enterprise mind" vision that
+the memory ecosystem aspires to requires a non-probabilistic coordination substrate
+underneath it. That substrate is teamctx.
+
+**The credibility engine is the differentiator:** when the industry converges on
+probabilistic memory as the default, deterministic source-backed delivery becomes the
+scarce thing. teamctx's construction — no LLM in the content path, verbatim, verifiable,
+non-retained — is not a limitation, it's the **reason to exist alongside** the memory
+layer.
+
+---
+
 ## Still open (copy, not strategy)
 
 - The exact **lead-benefit wording**, written against a real page. The same lead may render
