@@ -14,7 +14,13 @@ from typing import Any, cast
 import pytest
 
 from teamctx.core.authority import AuthorityDecl
-from teamctx.core.contracts import CoreContractDocument, PolicyDecision, SourceSignal, SourceStatus
+from teamctx.core.contracts import (
+    CoreContractDocument,
+    PolicyDecision,
+    RequestContext,
+    SourceSignal,
+    SourceStatus,
+)
 from teamctx.core.evaluate import Valuation, evaluate
 from teamctx.core.prop import Prop, SubjectRef, witnesses
 from teamctx.core.select import (
@@ -509,9 +515,7 @@ def test_collision_card_has_reason_code_and_severity() -> None:
     assert card.severity.kind_base == 0.8
 
 
-def _request_context(repo: str, paths: list[str]) -> "RequestContext":
-    from teamctx.core.contracts import RequestContext
-
+def _request_context(repo: str, paths: list[str]) -> RequestContext:
     return RequestContext(
         schema_version="teamctx.request_context.v0",
         request_id="req_test",
@@ -539,6 +543,12 @@ def test_doc_superseded_card_names_the_superseding_doc() -> None:
 
 def test_doc_superseded_card_falls_back_without_superseding_doc() -> None:
     request = _request_context("r", ["docs/old.md"])
-    signal = _typed_signal("doc_superseded", "docs", {"repo": "r", "doc": "docs/old.md"}, "sig_doc_y")
-    card = render_doc_superseded_claim(_derive_doc_superseded_claim(request, signal))  # type: ignore[arg-type]
-    assert card.why_this_matters == "the doc docs/old.md was superseded; verify it is current before relying."
+    signal = _typed_signal(
+        "doc_superseded", "docs", {"repo": "r", "doc": "docs/old.md"}, "sig_doc_y"
+    )
+    claim_card = _derive_doc_superseded_claim(request, signal)
+    assert claim_card is not None
+    card = render_doc_superseded_claim(claim_card)
+    assert card.why_this_matters == (
+        "the doc docs/old.md was superseded; verify it is current before relying."
+    )
