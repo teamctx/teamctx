@@ -54,28 +54,30 @@ positioning differentiation.
 **Open obligation (from v1.2):** measured **E4/E5** numbers — needs conformance-corpus
 replay harness.
 
-## NOW → product-complete (FOUNDATION HARDENING in flight; MCP paused behind it)
+## NOW → product-complete (FOUNDATION HARDENING done; MCP is next up)
 
-### FOUNDATION HARDENING — one model, valid evidence engine, clean seams  *(IN FLIGHT — bounded mode, constraints OFF)*
+### FOUNDATION HARDENING — COMPLETE (2026-06-25, merged to main)
 
-**Edgar's call 2026-06-25: stop forward motion and make the base excellent before MCP.** The
-code review found two structural problems under the green tests: (1) **two parallel models
-live in `core/`** — the real contracts model AND a retired prototype model, so the automated
-evidence engine validates a stand-in, not the live engine; (2) **the compose seam is missing**
-— `work-start` is collision-only, and verdict assembly is stuck in `cli.py`.
+**Edgar's call: stop forward motion, make the base excellent before MCP.** The code review
+found two structural problems under the green tests: (1) two parallel models in `core/` (real
+contracts model + retired prototype) so the automated evidence engine validated a stand-in;
+(2) missing compose seam — `work-start` was collision-only. Both fixed across five phases,
+green at each step, merged to main (`2f183df`):
+- **ONE model** — prototype + prototype-coupled campaign deleted (~1450 lines); evidence engine
+  rebuilt on the real broker (`eval/`), so the A/B context arm IS the live product output.
+- **Broker entry point + compose seam** (`core/broker.py`); **unified `work-start`** runs all
+  connectors (`runner.py`); verdict logic in one place.
+- Clean seams: shared connector helpers, render de-dup, `py.typed`, tests linted in CI.
+- 180 tests, ruff(src+tests) + mypy strict + purity green; CI verified.
 
-Full plan (the ONE plan in flight, read first):
-[2026-06-25-foundation-hardening.md](../sprints/2026-06-25-foundation-hardening.md).
-Five phases, green at each step: broker entry point + compose seam → unified work-start →
-kill the prototype model (one model) → engine internal cleanup → validate the foundation.
+Full record: [2026-06-25-foundation-hardening.md](../sprints/2026-06-25-foundation-hardening.md).
+**E4/E5 harness** deferred to normal mode (needs a labelled corpus = the research campaign).
 
-**Done when:** one model (no code imports a non-contracts type), the evidence engine tests the
-REAL engine end-to-end, the seams are clean, and we'd stand behind the base unconditionally.
-
-### CURPLAN3 — Consumable: MCP transport  *(PAUSED behind foundation hardening)*
-MCP server so agents consume teamctx programmatically (not manual CLI). Build it on the
-foundation's `broker_answer` entry point, not a transport-adapter hack. Resumes when the
-foundation is rock-solid. **Done when:** an agent consumes teamctx over MCP in a real session.
+### CURPLAN3 — Consumable: MCP transport  *(NEXT UP — build on `broker_answer`)*
+MCP server so agents consume teamctx programmatically (not manual CLI). The foundation gives a
+clean base: the MCP `work_start` tool wraps `runner.run_work_start_connectors` →
+`broker_answer_from_documents` → `render_broker_answer` — the same path the CLI uses, no
+transport-adapter hack. **Done when:** an agent consumes teamctx over MCP in a real session.
 
 ### CURPLAN4 — Ready for others  *(coarse)*
 Source-integration pipeline (auth broker, permission filter, cache) as multi-user demand
