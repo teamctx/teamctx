@@ -31,7 +31,7 @@ from teamctx.contract_render import (
     render_contract_open_source,
     render_contract_why,
 )
-from teamctx.core.broker import broker_answer
+from teamctx.core.broker import broker_answer, broker_answer_from_documents
 from teamctx.core.cards import find_card
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.core.models import Fixture
@@ -46,6 +46,7 @@ from teamctx.project_config import (
     write_project_config,
 )
 from teamctx.render import render_baseline_prompt, render_benchmark_prompt, render_context_cards
+from teamctx.runner import WorkStartInputs, run_work_start_connectors
 from teamctx.session import add_card_to_session, read_session
 from teamctx.source_open import SourceOpenError, render_open_source
 from teamctx.why import render_why
@@ -153,7 +154,7 @@ def github_pr_probe_command(
 @click.option(
     "--path", "paths", multiple=True, required=True, help="A path the work is about to touch."
 )
-@click.option("--branch", default=None, help="Current branch name.")
+@click.option("--branch", default=None, help="Current branch name (also the default gate ref).")
 @click.option("--task", default="Start work.", show_default=True, help="Task text.")
 @click.option(
     "--token-env",
@@ -164,6 +165,10 @@ def github_pr_probe_command(
 @click.option(
     "--include-title/--omit-title", default=False, help="Allow PR titles in normalized metadata."
 )
+@click.option("--issue", "issues", multiple=True, help="A linked issue to check (e.g. #42).")
+@click.option("--since", default=None, help="ISO timestamp: issue changes after this are surfaced.")
+@click.option("--docs-root", default=None, help="Docs root to scan for supersession frontmatter.")
+@click.option("--ref", default=None, help="Gate ref to read check-runs for (defaults to --branch).")
 def work_start_command(
     repo: str,
     paths: tuple[str, ...],
@@ -171,18 +176,32 @@ def work_start_command(
     task: str,
     token_env: str,
     include_title: bool,
+    issues: tuple[str, ...],
+    since: str | None,
+    docs_root: str | None,
+    ref: str | None,
 ) -> None:
-    """Derive work-start context (collision cards + honest coverage) from GitHub PR metadata."""
+    """Derive unified work-start context: run every connector the inputs allow (collisions +
+    gates + linked-issue criteria + relied-on docs), compose, and report cards + honest
+    coverage + one verdict per check. Sources not reachable from the inputs stay Unknown."""
 
-    document = _github_contract_document(
+    inputs = WorkStartInputs(
         repo=repo,
         paths=paths,
         branch=branch,
         task=task,
-        token_env=token_env,
-        include_title=include_title,
+        token=os.environ.get(token_env),
+        include_titles=include_title,
+        issues=issues,
+        since=since,
+        docs_root=docs_root,
+        ref=ref,
     )
-    click.echo(_work_start_view(document), nl=False)
+    observed_at = _utc_now_string()
+    request_context, documents = run_work_start_connectors(inputs, observed_at=observed_at)
+    declarations = load_declared_authority(Path(".teamctx/authority.json"))
+    answer = broker_answer_from_documents(request_context, documents, declarations)
+    click.echo(render_broker_answer(answer), nl=False)
 
 
 @main.command("docs-probe")
