@@ -26,16 +26,15 @@ from teamctx.contract_documents import (
     write_contract_document,
 )
 from teamctx.contract_render import (
+    render_broker_answer,
     render_contract_context,
     render_contract_open_source,
     render_contract_why,
-    render_selection,
 )
+from teamctx.core.broker import broker_answer
 from teamctx.core.cards import find_card
 from teamctx.core.contracts import CoreContractDocument, RequestContext
-from teamctx.core.evaluate import evaluate
 from teamctx.core.models import Fixture
-from teamctx.core.select import CARD_KINDS, select_context
 from teamctx.fixtures import FixtureError, load_fixture
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
@@ -798,22 +797,13 @@ def _github_contract_document(
 
 def _work_start_view(document: CoreContractDocument) -> str:
     declarations = load_declared_authority(Path(".teamctx/authority.json"))
-    selection = select_context(
+    answer = broker_answer(
         document.request_context,
         document.source_signals,
         document.source_statuses,
         declarations,
     )
-    verdicts = tuple(
-        (
-            kind.verdict_label,
-            evaluate(
-                kind.query(document.request_context), selection.claim_cards, selection.closure
-            ),
-        )
-        for kind in CARD_KINDS
-    )
-    return render_selection(selection, verdicts)
+    return render_broker_answer(answer)
 
 
 def _load_contract_or_raise(path: Path) -> CoreContractDocument:
