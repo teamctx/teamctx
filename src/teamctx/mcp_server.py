@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from datetime import UTC, datetime
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -52,13 +53,30 @@ def work_start(
         paths=tuple(paths),
         branch=branch,
         task=task,
-        token=os.environ.get("GITHUB_TOKEN"),
+        token=_resolve_github_token(),
         issues=tuple(issues or ()),
         since=since,
         docs_root=docs_root,
         ref=ref,
     )
     return render_work_start(inputs, observed_at=_utc_now_string())
+
+
+def _resolve_github_token() -> str | None:
+    """The token, resolved server-side. ``GITHUB_TOKEN`` (the value) takes precedence;
+    otherwise ``GITHUB_TOKEN_FILE`` (a path) is read — so a file-based secret stays in one
+    place and is never copied into the MCP client config. No token → honest UNKNOWN."""
+
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        return token
+    token_file = os.environ.get("GITHUB_TOKEN_FILE")
+    if token_file:
+        try:
+            return Path(token_file).expanduser().read_text(encoding="utf-8").strip() or None
+        except OSError:
+            return None
+    return None
 
 
 def _utc_now_string() -> str:
