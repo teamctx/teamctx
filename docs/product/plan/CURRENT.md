@@ -73,11 +73,19 @@ green at each step, merged to main (`2f183df`):
 Full record: [2026-06-25-foundation-hardening.md](../sprints/2026-06-25-foundation-hardening.md).
 **E4/E5 harness** deferred to normal mode (needs a labelled corpus = the research campaign).
 
-### CURPLAN3 — Consumable: MCP transport  *(NEXT UP — build on `broker_answer`)*
-MCP server so agents consume teamctx programmatically (not manual CLI). The foundation gives a
-clean base: the MCP `work_start` tool wraps `runner.run_work_start_connectors` →
-`broker_answer_from_documents` → `render_broker_answer` — the same path the CLI uses, no
-transport-adapter hack. **Done when:** an agent consumes teamctx over MCP in a real session.
+### CURPLAN3 — Consumable: MCP transport  *(IN FLIGHT — Slice A done, dogfood pending)*
+MCP server so agents consume teamctx programmatically (not manual CLI).
+- **Slice A — ✅ done (merged `f232502`):** `teamctx/mcp_server.py` — FastMCP `work_start` tool
+  over stdio, wrapping the shared `work_start.render_work_start` use case (CLI + MCP run ONE
+  path). Token from server env; `mcp` optional extra; console script `teamctx-mcp`. Verified
+  end-to-end with a real stdio client against the live teamctx repo (all four checks flow).
+- **Slice B — later:** individual probe tools (gate/issue/docs/collision) for targeted queries.
+- **Slice C — later:** config defaults (`.teamctx/config.json`) + warm daemon.
+- **Slice D — ⏳ the dogfood:** Edgar registers `teamctx-mcp` in Claude Code and an agent calls
+  `work_start` in a real session. Connect: `claude mcp add teamctx -e GITHUB_TOKEN=$(gh auth
+  token) -- ~/.local/bin/teamctx-mcp`.
+
+**Done when:** an agent consumes teamctx over MCP in a real session (Slice D).
 
 ### CURPLAN4 — Ready for others  *(coarse)*
 Source-integration pipeline (auth broker, permission filter, cache) as multi-user demand
