@@ -54,31 +54,28 @@ positioning differentiation.
 **Open obligation (from v1.2):** measured **E4/E5** numbers — needs conformance-corpus
 replay harness.
 
-## NOW → product-complete (rolling-wave: CURPLAN3 detailed, the rest coarse)
+## NOW → product-complete (FOUNDATION HARDENING in flight; MCP paused behind it)
 
-### CURPLAN3 — Consumable: MCP transport  *(NEXT UP)*
+### FOUNDATION HARDENING — one model, valid evidence engine, clean seams  *(IN FLIGHT — bounded mode, constraints OFF)*
 
-teamctx is currently CLI-only. For the "context for agents" positioning to be real, agents
-need to consume it programmatically — not through a human running a shell command. MCP is
-the integration standard the ecosystem is converging on.
+**Edgar's call 2026-06-25: stop forward motion and make the base excellent before MCP.** The
+code review found two structural problems under the green tests: (1) **two parallel models
+live in `core/`** — the real contracts model AND a retired prototype model, so the automated
+evidence engine validates a stand-in, not the live engine; (2) **the compose seam is missing**
+— `work-start` is collision-only, and verdict assembly is stuck in `cli.py`.
 
-**What:** MCP server exposing teamctx probes as tools. An agent calls `work-start` (or
-individual probes) via MCP and gets the context cards + verdict as a tool result.
+Full plan (the ONE plan in flight, read first):
+[2026-06-25-foundation-hardening.md](../sprints/2026-06-25-foundation-hardening.md).
+Five phases, green at each step: broker entry point + compose seam → unified work-start →
+kill the prototype model (one model) → engine internal cleanup → validate the foundation.
 
-**Harvest:** Jurati v1 had an MCP implementation — reuse the transport plumbing, not the
-old context model. The CLI already has the probe → render pipeline; MCP wraps it.
+**Done when:** one model (no code imports a non-contracts type), the evidence engine tests the
+REAL engine end-to-end, the seams are clean, and we'd stand behind the base unconditionally.
 
-**Slices (to be detailed at sprint start):**
-- **Slice A:** MCP server skeleton — expose `work-start` as a tool (combines collision +
-  doc-superseded + missed-gate + criteria-changed probes, renders the unified view)
-- **Slice B:** Individual probe tools (`gate-probe`, `issue-probe`, `docs-probe`,
-  `github-pr-probe`) for targeted queries
-- **Slice C:** Warm daemon + config — persistent process that agents connect to, reads
-  `.teamctx/config.json` for defaults (repo, token, etc.)
-- **Slice D:** Dogfood — an agent (Claude Code or OpenClaw) consumes teamctx over MCP in a
-  real session, and the context changes a decision
-
-**Done when:** an agent consumes teamctx over MCP in a real session.
+### CURPLAN3 — Consumable: MCP transport  *(PAUSED behind foundation hardening)*
+MCP server so agents consume teamctx programmatically (not manual CLI). Build it on the
+foundation's `broker_answer` entry point, not a transport-adapter hack. Resumes when the
+foundation is rock-solid. **Done when:** an agent consumes teamctx over MCP in a real session.
 
 ### CURPLAN4 — Ready for others  *(coarse)*
 Source-integration pipeline (auth broker, permission filter, cache) as multi-user demand
