@@ -96,6 +96,28 @@ claim and its tactic. Recorded so we don't re-litigate.
 
 ---
 
+## Status (2026-06-25) — COMPLETE
+
+All five phases shipped on branch `foundation-hardening`, green at each step:
+- **Phase 1 ✓** broker entry point + compose seam (`core/broker.py`), verdict loop out of cli.
+- **Phase 2 ✓** unified `work-start` runs all connectors (`runner.py`); live-dogfooded.
+- **Phase 3 ✓** one model — prototype + prototype-coupled campaign deleted (~1450 lines);
+  evidence engine rebuilt on the real broker (`eval/`, option B). `grep` confirms no
+  prototype imports remain.
+- **Phase 4 ✓** tests linted in CI + `py.typed`; shared connector helpers (`connectors/_contract.py`);
+  render de-dup. All byte-identical.
+- **Phase 5 ✓** shipped example scenario (`examples/eval-scenarios/`) runs against the real
+  engine; full conformance gate green (180 tests, ruff src+tests, mypy strict, purity, one-model).
+
+**Decision on §5.3 (E4/E5 harness) — deferred to normal mode (my call, flag for override).**
+The E4/E5 numbers (false-`Unknown` rate; consumer false-clear rate) need a labelled
+conformance *corpus* to measure against — and building that corpus is the research campaign
+that §6 explicitly puts OUT of the foundation. Wiring a measurement harness with no corpus to
+feed it would be premature scaffolding (the very thing we just deleted). E4/E5 stays the
+documented protocol-v1.2 obligation, to be built in normal mode when the corpus exists. The
+foundation requirement — the evidence engine is VALID and RUNNABLE against the live engine —
+is met without it.
+
 ## 4. The phases (build-once order; green at every step)
 
 Discipline that holds even with constraints off: **the tree stays green at each phase**

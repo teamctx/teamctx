@@ -1,4 +1,8 @@
-from teamctx.connectors.docs import parse_frontmatter, parse_superseded_docs, run_docs_supersession_probe
+from teamctx.connectors.docs import (
+    parse_frontmatter,
+    parse_superseded_docs,
+    run_docs_supersession_probe,
+)
 from teamctx.connectors.docs_supersession import (
     SupersededDoc,
     normalize_superseded_docs,
@@ -65,7 +69,10 @@ def test_unavailable_docs_document_reports_status_only() -> None:
 
 def test_parse_superseded_docs_keeps_only_declared() -> None:
     files = [
-        ("docs/superpowers/specs/old.md", "---\nsuperseded_by: docs/superpowers/research/new.md\n---\n# Old\n"),
+        (
+            "docs/superpowers/specs/old.md",
+            "---\nsuperseded_by: docs/superpowers/research/new.md\n---\n# Old\n",
+        ),
         ("docs/superpowers/specs/current.md", "# No frontmatter\n"),
     ]
     docs = parse_superseded_docs(repo="tempo-64/model-citizens", files=files)
@@ -77,7 +84,12 @@ def test_parse_superseded_docs_keeps_only_declared() -> None:
 def test_probe_uses_injected_reader_and_emits_signal() -> None:
     def reader(root: str) -> list[tuple[str, str]]:
         assert root == "docs/superpowers"
-        return [("docs/superpowers/specs/old.md", "---\nsuperseded_by: docs/superpowers/research/new.md\n---\n")]
+        return [
+            (
+                "docs/superpowers/specs/old.md",
+                "---\nsuperseded_by: docs/superpowers/research/new.md\n---\n",
+            )
+        ]
 
     document = run_docs_supersession_probe(
         repo="tempo-64/model-citizens",

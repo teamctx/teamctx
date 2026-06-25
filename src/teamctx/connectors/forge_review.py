@@ -11,19 +11,27 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
+from teamctx.connectors._contract import metadata_only_policy, source_status, unavailable_document
 from teamctx.core.contracts import (
     ContextCard,
     CoreContractDocument,
-    PolicyDecision,
     RequestContext,
     Scope,
+    SourceFamily,
     SourceOpenTarget,
     SourceSignal,
     SourceStatus,
     SourceStatusValue,
+    SourceStatusVisibility,
 )
 
 ForgeProvider = Literal["github", "gitlab"]
+
+_SIGNAL_POLICY_REASON = (
+    "Forge-review metadata is allowed as evidence; source bodies are not included."
+)
+_STATUS_POLICY_REASON = "Source health can render without source body text."
+_SOURCE_FAMILY: SourceFamily = "git_hosting"
 
 
 @dataclass(frozen=True)
@@ -75,9 +83,7 @@ def normalize_forge_review_prs(
         if pr.labels:
             scope["labels"] = list(pr.labels)
 
-        policy = policy_metadata_only(
-            "Forge-review metadata is allowed as evidence; source bodies are not included."
-        )
+        policy = metadata_only_policy(_SIGNAL_POLICY_REASON)
         source_signals.append(
             SourceSignal(
                 schema_version="teamctx.source_signal.v0",
@@ -160,25 +166,15 @@ def unavailable_forge_review_document(
     status: SourceStatusValue = "unavailable",
     safe_user_message: str,
 ) -> CoreContractDocument:
-    return CoreContractDocument(
-        schema_version="teamctx.core_contract_document.v0",
-        request_context=request_context,
-        source_signals=[],
-        source_statuses=[
-            forge_review_source_status(
-                source_id=source_id,
-                provider=provider,
-                repo=repo,
-                status=status,
-                observed_at=observed_at,
-                safe_user_message=safe_user_message,
-                visibility="warning_when_relevant",
-            )
-        ],
-        source_open_targets=[],
-        guidance_records=[],
-        session_context_uses=[],
-        context_cards=[],
+    return unavailable_document(
+        request_context,
+        source_id=source_id,
+        source_family=_SOURCE_FAMILY,
+        scope={"provider": provider, "repo": repo},
+        observed_at=observed_at,
+        status=status,
+        safe_user_message=safe_user_message,
+        policy_reason=_STATUS_POLICY_REASON,
     )
 
 
@@ -190,29 +186,17 @@ def forge_review_source_status(
     status: SourceStatusValue,
     observed_at: str,
     safe_user_message: str,
-    visibility: Literal["silent", "warning_when_relevant", "always"],
+    visibility: SourceStatusVisibility,
 ) -> SourceStatus:
-    return SourceStatus(
-        schema_version="teamctx.source_status.v0",
+    return source_status(
         source_id=source_id,
-        source_family="git_hosting",
+        source_family=_SOURCE_FAMILY,
         scope={"provider": provider, "repo": repo},
         status=status,
-        last_checked_at=observed_at if status != "stale" else None,
+        observed_at=observed_at,
         safe_user_message=safe_user_message,
-        normal_context_visibility=visibility,
-        policy=policy_metadata_only("Source health can render without source body text."),
-    )
-
-
-def policy_metadata_only(reason: str) -> PolicyDecision:
-    return PolicyDecision(
-        schema_version="teamctx.policy_decision.v0",
-        can_render_to_user=True,
-        can_render_to_agent=True,
-        can_include_source_text=False,
-        requires_review_for_guidance=False,
-        decision_reason=reason,
+        visibility=visibility,
+        policy_reason=_STATUS_POLICY_REASON,
     )
 
 

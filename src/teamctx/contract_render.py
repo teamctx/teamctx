@@ -6,6 +6,7 @@ from collections import OrderedDict
 from collections.abc import Iterable, Sequence
 
 from teamctx.core.authority import AuthorityEntry
+from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import (
     ContextCard,
     CoreContractDocument,
@@ -107,6 +108,13 @@ def render_selection(
         lines.extend(["", _verdict_line(label, verdict)])
 
     return "\n".join(lines) + "\n"
+
+
+def render_broker_answer(answer: BrokerAnswer) -> str:
+    """Human-plane render of the broker's complete answer (selection + verdicts). The one
+    call every transport uses to turn a ``BrokerAnswer`` into terminal text."""
+
+    return render_selection(answer.selection, answer.verdicts)
 
 
 def _verdict_line(label: str, verdict: Valuation) -> str:

@@ -13,7 +13,13 @@ from dataclasses import dataclass
 from typing import Literal
 
 from teamctx.core.authority import AuthorityDecl, AuthorityEntry, assess_authority
-from teamctx.core.contracts import ContextCard, RequestContext, SourceSignal, SourceStatus
+from teamctx.core.contracts import (
+    ContextCard,
+    RequestContext,
+    SectionName,
+    SourceSignal,
+    SourceStatus,
+)
 from teamctx.core.prop import Prop, SubjectRef
 from teamctx.core.severity import compute_severity
 from teamctx.core.snapshot import snapshot_digest as _snapshot_digest
@@ -119,6 +125,39 @@ def _derive_collision_claim(
     return ClaimCard(claim=claim, signal=signal)
 
 
+def _render_claim_card(
+    claim_card: ClaimCard,
+    *,
+    section: SectionName,
+    why_this_matters: str,
+    reason: str,
+    reason_code: str,
+) -> ContextCard:
+    """The shared render skeleton. Every kind's card differs only in section, why, reason,
+    and reason_code; the rest (status-only body, verify-before-relying, severity) is uniform."""
+
+    claim = claim_card.claim
+    signal = claim_card.signal
+    return ContextCard(
+        schema_version="teamctx.context_card.v0",
+        id=f"card_{signal.id}",
+        section=section,
+        text=signal.evidence_summary,
+        why_this_matters=why_this_matters,
+        source_display=signal.source_display,
+        refs=[signal.id],
+        reason=reason,
+        scope=dict(signal.scope),
+        freshness=signal.freshness,
+        confidence=signal.confidence,
+        source_body="status_only",
+        source_open_target_id=None,
+        agent_instruction="verify_before_relying",
+        reason_code=reason_code,
+        severity=compute_severity(claim.predicate, claim),
+    )
+
+
 def render_collision_claim(claim_card: ClaimCard) -> ContextCard:
     """Render a collision claim into a human-plane ``ContextCard``.
 
@@ -127,25 +166,13 @@ def render_collision_claim(claim_card: ClaimCard) -> ContextCard:
     """
 
     claim = claim_card.claim
-    signal = claim_card.signal
     overlap = ", ".join(claim.subject.paths)
-    return ContextCard(
-        schema_version="teamctx.context_card.v0",
-        id=f"card_{signal.id}",
+    return _render_claim_card(
+        claim_card,
         section="Needs attention",
-        text=signal.evidence_summary,
         why_this_matters=f"you are editing {claim.subject.paths[0]}.",  # most-salient path
-        source_display=signal.source_display,
-        refs=[signal.id],
         reason=f"same repository and file path as the current task: {overlap}",
-        scope=dict(signal.scope),
-        freshness=signal.freshness,
-        confidence=signal.confidence,
-        source_body="status_only",
-        source_open_target_id=None,
-        agent_instruction="verify_before_relying",
         reason_code="collision.same_path",
-        severity=compute_severity(claim.predicate, claim),
     )
 
 
@@ -166,26 +193,13 @@ def _derive_criteria_changed_claim(
 def render_criteria_changed_claim(claim_card: ClaimCard) -> ContextCard:
     """Render a criteria-changed claim into a human-plane ``ContextCard``."""
 
-    claim = claim_card.claim
-    signal = claim_card.signal
-    issue = claim.subject.paths[0]
-    return ContextCard(
-        schema_version="teamctx.context_card.v0",
-        id=f"card_{signal.id}",
+    issue = claim_card.claim.subject.paths[0]
+    return _render_claim_card(
+        claim_card,
         section="Verify before relying",
-        text=signal.evidence_summary,
         why_this_matters=f"acceptance criteria for {issue} changed; re-check before relying.",
-        source_display=signal.source_display,
-        refs=[signal.id],
         reason=f"linked issue {issue} had its acceptance criteria changed",
-        scope=dict(signal.scope),
-        freshness=signal.freshness,
-        confidence=signal.confidence,
-        source_body="status_only",
-        source_open_target_id=None,
-        agent_instruction="verify_before_relying",
         reason_code="criteria.changed",
-        severity=compute_severity(claim.predicate, claim),
     )
 
 
@@ -240,49 +254,25 @@ def render_doc_superseded_claim(claim_card: ClaimCard) -> ContextCard:
     else:
         why = f"the doc {doc} was superseded; verify it is current before relying."
         reason = f"a doc you rely on ({doc}) was superseded"
-    return ContextCard(
-        schema_version="teamctx.context_card.v0",
-        id=f"card_{signal.id}",
+    return _render_claim_card(
+        claim_card,
         section="Verify before relying",
-        text=signal.evidence_summary,
         why_this_matters=why,
-        source_display=signal.source_display,
-        refs=[signal.id],
         reason=reason,
-        scope=dict(signal.scope),
-        freshness=signal.freshness,
-        confidence=signal.confidence,
-        source_body="status_only",
-        source_open_target_id=None,
-        agent_instruction="verify_before_relying",
         reason_code="doc.superseded",
-        severity=compute_severity(claim.predicate, claim),
     )
 
 
 def render_missed_gate_claim(claim_card: ClaimCard) -> ContextCard:
     """Render a missed-gate claim into a human-plane ``ContextCard``."""
 
-    claim = claim_card.claim
-    signal = claim_card.signal
-    overlap = ", ".join(claim.subject.paths)
-    return ContextCard(
-        schema_version="teamctx.context_card.v0",
-        id=f"card_{signal.id}",
+    overlap = ", ".join(claim_card.claim.subject.paths)
+    return _render_claim_card(
+        claim_card,
         section="Needs attention",
-        text=signal.evidence_summary,
         why_this_matters=f"a required gate failed on files you are changing: {overlap}.",
-        source_display=signal.source_display,
-        refs=[signal.id],
         reason=f"a required gate failed on {overlap}",
-        scope=dict(signal.scope),
-        freshness=signal.freshness,
-        confidence=signal.confidence,
-        source_body="status_only",
-        source_open_target_id=None,
-        agent_instruction="verify_before_relying",
         reason_code="gate.failed",
-        severity=compute_severity(claim.predicate, claim),
     )
 
 
