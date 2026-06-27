@@ -56,3 +56,6 @@ def test_malformed_settings_error_paths(tmp_path, monkeypatch) -> None:
     p.write_text(json.dumps({"hooks": "bad"}), encoding="utf-8")  # hooks not a dict
     r = CliRunner().invoke(main, ["install-hook"])
     assert r.exit_code != 0 and "fix or remove" in r.output
+    p.write_text(json.dumps({"hooks": None}), encoding="utf-8")  # hooks explicitly null
+    r = CliRunner().invoke(main, ["install-hook"])
+    assert r.exit_code != 0 and "fix or remove" in r.output

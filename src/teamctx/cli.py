@@ -519,7 +519,7 @@ def install_hook_command(print_only: bool, settings_path: Path) -> None:
     settings = _load_settings(settings_path)
     if not _has_hook_entry(settings):
         hooks = settings.get("hooks")
-        if hooks is not None and not isinstance(hooks, dict):
+        if "hooks" in settings and not isinstance(hooks, dict):
             raise click.ClickException(
                 f"{settings_path}: its 'hooks' value isn't a JSON object — "
                 "fix or remove that key and re-run."
