@@ -12,9 +12,10 @@ consumption surface** (the moment a unit of work begins), not a ceiling. Directi
 common contract → pure deterministic core → render — and explicitly **not (B)** a unified
 team-context substrate. Breadth is fuel for the one operation, never the product itself.
 
-**North star (decided 2026-06-27):** teamctx is *reality-grounding for agentic work* — it
-**attests to reality, never transforms it** (no LLM in the middle); lay the floor early. Lead
-positioning against the **context-engine** category (Unblocked), NOT agent-memory. Full strategy:
+**North star (decided 2026-06-27):** teamctx is *reality-grounding for agentic work* — **no LLM
+in the content path**: it transforms *delivery, not content*, and is faithful to the
+source-of-record (*fidelity ≠ truth*, not universal truth). Lay the floor early. Lead positioning
+against the **context-engine** category (Unblocked), NOT agent-memory. Full strategy:
 [reality-grounding](../vision/reality-grounding-strategy-2026-06.md) ·
 [competitor analysis](../../research/competitive-context-engines-2026-06.md).
 

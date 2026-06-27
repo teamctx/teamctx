@@ -6,12 +6,15 @@
 ## The one-line thesis
 
 teamctx is **reality-grounding for agentic work**: it keeps every actor — agent or human —
-pinned to the current, verifiable state of the systems a team already lives in, undistorted.
-Its defining property is that it **attests to reality; it never transforms it.** Every other
-tool in the agent stack synthesizes, summarizes, resolves, compresses, or remembers a lossy
-version of reality. teamctx is the one layer structurally forbidden from interpreting — because
-the instant a model sits in the middle, the thing meant to anchor the system can drift too. "No
-LLM in the middle" isn't a feature; it's the definition.
+pinned to the current, **source-backed** state of the systems a team already lives in. Its
+defining property is **no LLM in the content path** — it normalizes, routes, selects, and renders
+the record, but it never reinterprets what the record *means*. It transforms the **delivery, not
+the content**, so facts arrive verbatim, source-backed, and verifiable. Every other tool in the
+agent stack synthesizes, summarizes, resolves, or remembers a lossy version of the record; teamctx
+is the one layer that doesn't put a model between you and the source — because the instant a model
+interprets in the middle, the thing meant to anchor the system can drift too. Scoped precisely: it
+is the reference for *what is currently true in the record* — **not** *what's the right call* (the
+agent's job), and **not** *is the record correct* (**fidelity ≠ truth**).
 
 ## Why this is the product needed now
 
@@ -28,8 +31,8 @@ LLM in the middle" isn't a feature; it's the definition.
 - **The need is orthogonal to model quality.** Faithfulness is not intelligence. A smarter model
   doesn't turn a paraphrase back into the original, can't be proven or audited after the fact, and
   "right on average" is worthless for the slice where being wrong is expensive. The need for a
-  non-mutating attestation layer doesn't shrink as models improve. This is a floor, not a feature
-  that gets obsoleted.
+  deterministic, source-backed layer (no model in the content path) doesn't shrink as models
+  improve. This is a floor, not a feature that gets obsoleted.
 
 *Lineage:* the founding thesis of Jurati → Ambara → teamctx, clarified — "here's reality, right
 now; decide on that; we promise it's accurate as best we can (nothing is 100%)." Same underlying
@@ -84,24 +87,30 @@ to stay the judge of what the agent does.
 - **M3 — judgeable conflict cards.** Surface-don't-adjudicate done so a human adjudicates in ~10s
   (what changed, the evidence, open-the-source). → already **Sprint 2** (`why`/`open-source`
   rebuild on the broker).
-- **M4 — "never a false green," stated and proven.** Make the no-false-all-clear guarantee
-  explicit; back it with the E4/E5 numbers. The one claim a synthesizer structurally cannot make;
-  matters most in the autonomous case. → guarantee = positioning now; proof = **Sprint 3**.
+- **M4 — the honest-coverage bar now; the guarantee proven later.** State the bar we can stand
+  behind today: *a green never means unobserved sources were okay; UNKNOWN stays UNKNOWN — coverage
+  gaps are never folded into a clear.* The stronger "never a false green" *guarantee* is a claim
+  that must not outrun its proof, so it waits for the E4/E5 numbers. Still the one claim a
+  synthesizer structurally cannot make; matters most in the autonomous case. → design bar = now;
+  measured guarantee = **Sprint 3**.
 - **M5 — verifiable replay as a trust artifact (expansion).** "This verdict is reproducible;
   here's the digest" — for the accountable / audit-adjacent buyer. Engine already has the replay
   (T1); productize later. → **later**.
 
 ## Positioning lead (Sprint 2 README / landing opens with this)
 
-> teamctx keeps every agent — and every human working through one — grounded in your team's
-> actual reality. There's no LLM in the middle: before you or your agent touch a file, it
-> surfaces the real current state — a colliding PR, a moved acceptance criterion, a failing gate,
-> a superseded doc — as evidence you can judge, flags conflicts instead of silently picking a
-> winner, and says plainly what it couldn't see. The other tools in this category run all of that
-> through a model and hand back one confident, synthesized answer — and a confident wrong answer,
-> delivered through a terminal you trust, is worse than no answer at all. We don't interpret
-> reality for you; we keep everyone synced to it, the same way every time. A green means checked,
-> not guessed. It's the layer you run when being wrong is expensive.
+> Before you or your agent touch files, teamctx tells you what changed, what conflicts, what
+> failed, and what it couldn't verify — the colliding PR, the moved acceptance criterion, the
+> failing gate, the superseded doc — as evidence you can judge, not a verdict it picked for you.
+> Why trust it? There's no LLM in the content path: it hands you the record verbatim and
+> source-backed, the same way every time, and it says plainly where it couldn't look — UNKNOWN
+> stays UNKNOWN. The other tools run all of that through a model and hand back one confident,
+> synthesized answer — and a confident wrong answer, delivered through a terminal you trust, is
+> worse than no answer at all. A green means checked, not guessed. It's the layer you run when
+> being wrong is expensive.
+
+*(Lead with the felt benefit; the no-LLM/deterministic construction is the credibility engine —
+the* because*, not the headline. See [positioning.md](./positioning.md).)*
 
 ## Risks (honest)
 
@@ -112,6 +121,11 @@ to stay the judge of what the agent does.
   through us — a decade-long, trust-and-integration climb. Right summit; not a near-term identity.
 - **Moat = ceiling.** We win the buyers who feel the drift pain; we don't win everyone, and
   shouldn't try.
+- **GIGO / source-record quality (the caveat our central word demands).** "Reality" here means the
+  *record*, faithfully — so a stale or wrong source is propagated faithfully unless freshness,
+  authority, or coverage signals catch it. Faithfulness is the promise; source correctness is not
+  (*fidelity ≠ truth*). The hedge is the freshness/authority/coverage machinery plus honest-UNKNOWN
+  — and saying plainly that we never claim to make the record *true*, only to deliver it undistorted.
 
 ## Discipline
 
