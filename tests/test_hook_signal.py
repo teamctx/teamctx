@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from teamctx.connectors._contract import metadata_only_policy, source_status
 from teamctx.core.broker import broker_answer
-from teamctx.core.contracts import RequestContext, SourceSignal
+from teamctx.core.contracts import RequestContext, SourceSignal, SourceStatus
 from teamctx.hook_signal import hook_signal
 
 
@@ -39,7 +39,7 @@ def _collision_signal() -> SourceSignal:
     )
 
 
-def _fresh_status(family: str):
+def _fresh_status(family: str) -> SourceStatus:
     return source_status(
         source_id=f"{family}-probe",
         source_family=family,
@@ -52,7 +52,7 @@ def _fresh_status(family: str):
     )
 
 
-def _unavailable_status(family: str):
+def _unavailable_status(family: str) -> SourceStatus:
     return source_status(
         source_id=f"{family}-probe",
         source_family=family,
@@ -79,6 +79,14 @@ def test_cant_verify_when_github_unreachable_no_token() -> None:
     assert "GitHub" in text
     assert "install-hook" in text
     assert "keep working" in text
+
+
+def test_cant_verify_with_token_present_is_transient() -> None:
+    answer = broker_answer(_request(), [], [_unavailable_status("git_hosting")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "GitHub" in text
+    assert "transient" in text
+    assert "install-hook" not in text  # the token-present message must not tell them to install
 
 
 def test_ready_names_the_clear_checks_no_lowstakes_hedge() -> None:

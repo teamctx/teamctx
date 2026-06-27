@@ -12,7 +12,7 @@ from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import ContextCard
 from teamctx.core.evaluate import Valuation
 
-_IMPORTANT = ("Conflict check", "Gate check")
+_HEADLINE_CHECKS = ("Conflict check", "Gate check")
 _CLEAR_PHRASE = {
     "Conflict check": "no open pull requests touch these files",
     "Gate check": "CI is green",
@@ -35,10 +35,10 @@ def hook_signal(answer: BrokerAnswer, *, file_path: str, token_present: bool) ->
 
     blocked = [
         label
-        for label in _IMPORTANT
+        for label in _HEADLINE_CHECKS
         if label in verdicts
         and verdicts[label].value == "unknown"
-        and verdicts[label].reason.startswith("incomplete[stale-dep]")
+        and verdicts[label].reason == "incomplete[stale-dep]"
     ]
     if blocked:
         return _cant_verify(token_present)
@@ -49,7 +49,10 @@ def hook_signal(answer: BrokerAnswer, *, file_path: str, token_present: bool) ->
 def _heads_up(findings: list[ContextCard], file_path: str) -> str:
     lines = [f"teamctx — before you edit {file_path}, from the team's current work:"]
     lines.extend(f"  • {card.text} — {card.why_this_matters}" for card in findings)
-    lines.append("Pass along anything relevant to whoever you're working with so they can decide.")
+    lines.append(
+        "Factor these into your plan, and surface anything relevant to your human "
+        "collaborator so they can decide."
+    )
     return "\n".join(lines)
 
 
@@ -58,15 +61,14 @@ def _cant_verify(token_present: bool) -> str:
         return (
             "teamctx couldn't check what else is happening around this file — it doesn't have "
             "access to GitHub yet. To switch that on, run `teamctx install-hook` and it'll "
-            "walk you through giving it a token. If you'd rather not connect it right now, "
-            "that's fine — keep working; you just won't get a heads-up about open pull requests "
-            "on the same files or checks that are failing."
+            "walk you through giving it a token. If you'd rather not connect it right now, keep "
+            "working — you just won't get a heads-up about open pull requests on the same files "
+            "or checks that are failing."
         )
     return (
         "teamctx couldn't reach GitHub just now, so it couldn't check for open pull requests or "
-        "failing checks on these files — usually a passing connection issue, worth a retry. "
-        "Until it's back you won't get those warnings, so glance at GitHub yourself if "
-        "this file is sensitive."
+        "failing checks on these files — likely a transient connection issue. You won't get those "
+        "warnings this session, so glance at GitHub yourself if this file is sensitive."
     )
 
 
