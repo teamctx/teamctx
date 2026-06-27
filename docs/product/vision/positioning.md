@@ -78,7 +78,36 @@ Autonomous agents = adjacent, harder sell, later. Iterate scope from real usage.
 
 ---
 
-## Differentiation vs. agent-memory ecosystem (added 2026-06-25)
+## Differentiation vs. context-engines — the PRIMARY competitor (added 2026-06-27)
+
+*Driven by [competitive analysis](../../research/competitive-context-engines-2026-06.md): the real
+neighbor is the "context engine for engineering" category — **Unblocked** (above it, Glean), NOT
+the agent-memory wave. Same sources, same MCP surface, same buyer — **opposite mechanism.** Full
+strategy: [reality-grounding](reality-grounding-strategy-2026-06.md).*
+
+Unblocked synthesizes your PRs, tickets, docs, and chat into **one reconciled answer** and resolves
+contradictions for you (recency/authority). teamctx is the mechanistic mirror image, by design:
+
+- **They transform; we attest.** They put an LLM in the content path and return the model's
+  interpretation; we keep no LLM in the content path and return the record verbatim, source-backed
+  (delivery transformed, *content* not).
+- **They resolve; we surface.** They collapse a conflict into one answer; we flag it and let the
+  human/agent judge.
+- **They answer; we admit gaps.** They have no coverage-honesty; our UNKNOWN says where *not* to
+  trust the green.
+- **Same signals, opposite output:** both use freshness/authority — they to pick a winner, we to
+  flag staleness and refuse to pick.
+
+**Lead against this category, not agent-memory.** The deep three — no-LLM-in-content-path,
+coverage-honesty, surface-don't-adjudicate — a RAG synthesizer structurally cannot retrofit; the
+thin diffs (proactive push, source-permission) it can. Lead with the deep three. Core value,
+plainly: *a confident wrong answer delivered through a terminal you trust is worse than no answer
+at all.*
+
+## Differentiation vs. agent-memory ecosystem — the *secondary* foil (added 2026-06-25)
+
+*Note (2026-06-27): this is the **lesser** foil — easy to differentiate from and not where the real
+competition is; the primary competitor is the context-engine category above. Original driver below.*
 
 *Driven by landscape analysis of RH ET "From context to dreams" blog (Jun 2026) and the
 broader agent-memory wave (Mem0, OpenClaw memory, Anthropic Managed Agents memory,
