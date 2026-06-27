@@ -24,7 +24,10 @@ def _content_text(result: object) -> str:
     return str(items)
 
 
-def test_work_start_tool_is_directly_callable_and_degrades_without_token(monkeypatch) -> None:
+def test_work_start_tool_is_directly_callable_and_degrades_without_token(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     output = work_start(repo="acme/widgets", paths=["src/app/core.py"])
     assert "Working context" in output
@@ -32,7 +35,8 @@ def test_work_start_tool_is_directly_callable_and_degrades_without_token(monkeyp
     assert "Conflict check: UNKNOWN" in output
 
 
-def test_work_start_tool_surfaces_a_collision(monkeypatch) -> None:
+def test_work_start_tool_surfaces_a_collision(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
     import teamctx.connectors.github as gh
     from teamctx.connectors.forge_review import ForgeReviewPullRequest
 
@@ -91,7 +95,8 @@ def test_list_tools_exposes_work_start() -> None:
     assert "before" in (work_start_tool.description or "").lower()
 
 
-def test_call_tool_runs_the_broker_over_mcp(monkeypatch) -> None:
+def test_call_tool_runs_the_broker_over_mcp(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     result = asyncio.run(
         mcp.call_tool("work_start", {"repo": "acme/widgets", "paths": ["src/app/core.py"]})
@@ -99,3 +104,35 @@ def test_call_tool_runs_the_broker_over_mcp(monkeypatch) -> None:
     text = _content_text(result)
     assert "Working context" in text
     assert "Conflict check: UNKNOWN" in text
+
+
+def test_work_start_resolves_repo_from_root(monkeypatch, tmp_path) -> None:
+    import subprocess
+
+    import teamctx.mcp_server as mcp_server
+
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True)
+    (tmp_path / "f.txt").write_text("x", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "i"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin",
+                    "git@github.com:acme/widgets.git"], check=True)
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
+
+    captured: dict[str, object] = {}
+
+    def fake_render(inputs, *, observed_at):  # type: ignore[no-untyped-def]
+        captured["repo"] = inputs.repo
+        return "ok"
+
+    monkeypatch.setattr(mcp_server, "render_work_start", fake_render)
+    assert work_start(paths=["src/x.py"]) == "ok"
+    assert captured["repo"] == "acme/widgets"
+
+
+def test_work_start_returns_error_text_when_repo_unresolvable(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))  # non-git, no config
+    out = work_start(paths=["src/x.py"])
+    assert "could not determine the repository" in out
