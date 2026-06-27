@@ -79,9 +79,7 @@ def test_non_git_dir_fails_safe(monkeypatch, capsys, tmp_path) -> None:
         "tool_input": {"file_path": "src/app.py"}, "cwd": str(tmp_path), "session_id": "s2",
     })
     out = _run(payload, monkeypatch, capsys)
-    if out.strip():
-        data = json.loads(out)
-        assert "permissionDecision" not in data["hookSpecificOutput"]
+    assert out.strip() == "" or "permissionDecision" not in json.loads(out)["hookSpecificOutput"]
 
 
 def test_non_edit_tool_is_noop(monkeypatch, capsys, tmp_path) -> None:
@@ -91,4 +89,16 @@ def test_non_edit_tool_is_noop(monkeypatch, capsys, tmp_path) -> None:
         "tool_input": {"command": "ls"}, "cwd": str(tmp_path), "session_id": "s3",
     })
     out = _run(payload, monkeypatch, capsys)
+    assert out.strip() == ""
+
+
+def test_systemexit_in_ground_is_swallowed(monkeypatch, capsys, tmp_path) -> None:
+    _init_repo(tmp_path)
+    monkeypatch.setenv("TEAMCTX_HOOK_CACHE", str(tmp_path / "cache"))
+
+    def boom(root, file_path):
+        raise SystemExit(1)
+
+    monkeypatch.setattr(hook, "_ground", boom)
+    out = _run(_payload(tmp_path), monkeypatch, capsys)  # must not raise / exit the process
     assert out.strip() == ""

@@ -19,8 +19,10 @@ _EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 
 
 def main() -> None:
-    # noqa: BLE001 — a hook must never crash the session
-    with contextlib.suppress(Exception):  # fail-safe: stay silent, allow the edit
+    # Suppress BaseException, not just Exception: SystemExit/KeyboardInterrupt would otherwise
+    # escape, exit non-zero, and let Claude Code block the edit. This is a short-lived hook
+    # subprocess, so swallowing them and exiting 0 is correct — a hook must never crash the session.
+    with contextlib.suppress(BaseException):  # fail-safe: stay silent, allow the edit
         _run()
 
 
@@ -38,6 +40,7 @@ def _run() -> None:
         return
     if _already_grounded(session_id):  # once per session — cheap no-op path ends here
         return
+    # mark before grounding: on error we stay silent rather than retry every edit
     _mark_grounded(session_id)
 
     text = _ground(Path(cwd), file_path)  # imports the broker lazily
@@ -62,6 +65,7 @@ def _cache_dir() -> Path:
 
 
 def _marker(session_id: str) -> Path:
+    # safe: Claude Code session ids are UUIDs (hex + '-')
     safe = "".join(c for c in session_id if c.isalnum() or c in "-_")
     return _cache_dir() / f"{safe}.grounded"
 
@@ -87,6 +91,7 @@ def _changed_paths(root: Path) -> list[str]:
         name = line[3:].strip()
         if " -> " in name:  # rename
             name = name.split(" -> ", 1)[1]
+        name = name.strip('"')
         if name:
             paths.append(name)
     return paths
