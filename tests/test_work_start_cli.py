@@ -41,11 +41,12 @@ def test_work_start_with_no_token_degrades_honestly(monkeypatch, tmp_path: Path)
     assert "Conflict check: UNKNOWN" in result.output
 
 
-def test_work_start_unified_surfaces_all_four_checks(monkeypatch) -> None:
+def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path) -> None:
     """Unified work-start runs every connector the inputs allow and reports one verdict per
     check. With a branch + issue + docs-root supplied (and the fetchers stubbed), all four
     verdict lines appear — collision, gate, criteria, docs — in a single answer."""
 
+    monkeypatch.chdir(tmp_path)
     import teamctx.connectors.github as gh
     import teamctx.connectors.github_checks as gc
     import teamctx.connectors.github_issues as gi
@@ -110,3 +111,14 @@ def test_work_start_errors_when_repo_unresolvable(monkeypatch, tmp_path: Path) -
     result = CliRunner().invoke(main, ["work-start", "--path", "src/x.py"])
     assert result.exit_code != 0
     assert "could not determine the repository" in result.output
+
+
+def test_work_start_errors_on_malformed_config(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "config.json").write_text("{ not valid json", encoding="utf-8")
+    result = CliRunner().invoke(
+        main, ["work-start", "--github-repo", "acme/widgets", "--path", "src/x.py"]
+    )
+    assert result.exit_code != 0
+    assert "config" in result.output.lower()  # clean message, not a traceback

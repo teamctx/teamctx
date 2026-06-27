@@ -164,7 +164,7 @@ def github_pr_probe_command(
 @click.option("--docs-root", default=None, help="Docs root to scan for supersession frontmatter.")
 @click.option("--ref", default=None, help="Gate ref to read check-runs for (defaults to --branch).")
 def work_start_command(
-    repo: str,
+    repo: str | None,
     paths: tuple[str, ...],
     branch: str | None,
     task: str,
