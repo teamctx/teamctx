@@ -58,6 +58,16 @@ def test_branch_from_git_not_config_and_docs_root_from_config(monkeypatch, tmp_p
     assert inputs.docs_root == "docs"
 
 
+def test_explicit_docs_root_wins_over_config(monkeypatch, tmp_path: Path) -> None:
+    _write_config(tmp_path, repo="from/config", docs_root="from/config")
+    monkeypatch.setattr(resolve_mod, "detect_repo", lambda root: None)
+    monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: None)
+    inputs = resolve_work_start_inputs(
+        paths=("src/x.py",), docs_root="from/explicit", root=tmp_path
+    )
+    assert inputs.docs_root == "from/explicit"
+
+
 def test_resolves_from_a_real_repo_and_config(tmp_path: Path) -> None:
     subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t"], check=True)
