@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 
-from teamctx.mcp_server import _resolve_github_token, mcp, work_start
+from teamctx.mcp_server import mcp, work_start
 
 
 def _content_text(result: object) -> str:
@@ -61,29 +61,6 @@ def test_work_start_tool_surfaces_a_collision(monkeypatch, tmp_path) -> None:
     output = work_start(repo="acme/widgets", paths=["src/app/core.py"])
     assert "Conflict check: NOT CLEAR" in output
     assert "PR #7" in output
-
-
-def test_resolve_token_prefers_env_then_file_then_none(monkeypatch, tmp_path) -> None:
-    # 1) GITHUB_TOKEN value wins
-    monkeypatch.setenv("GITHUB_TOKEN", "from-env")
-    monkeypatch.delenv("GITHUB_TOKEN_FILE", raising=False)
-    assert _resolve_github_token() == "from-env"
-
-    # 2) no value, but GITHUB_TOKEN_FILE points at a file -> read + strip it
-    token_file = tmp_path / "ghtoken"
-    token_file.write_text("from-file\n", encoding="utf-8")
-    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-    monkeypatch.setenv("GITHUB_TOKEN_FILE", str(token_file))
-    assert _resolve_github_token() == "from-file"
-
-    # 3) nothing configured -> None (honest UNKNOWN downstream)
-    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-    monkeypatch.delenv("GITHUB_TOKEN_FILE", raising=False)
-    assert _resolve_github_token() is None
-
-    # 4) a token file path that does not exist -> None, never a crash
-    monkeypatch.setenv("GITHUB_TOKEN_FILE", str(tmp_path / "missing"))
-    assert _resolve_github_token() is None
 
 
 def test_list_tools_exposes_work_start() -> None:

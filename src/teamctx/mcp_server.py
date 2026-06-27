@@ -60,7 +60,7 @@ def work_start(
             issues=tuple(issues or ()),
             since=since,
             ref=ref,
-            token=_resolve_github_token(),
+            token=resolve_github_token(),
             root=_resolution_root(),
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
@@ -71,12 +71,6 @@ def work_start(
 def _resolution_root() -> Path:
     override = os.environ.get("TEAMCTX_PROJECT_ROOT")
     return Path(override) if override else Path.cwd()
-
-
-def _resolve_github_token() -> str | None:
-    """The token, resolved server-side (see teamctx.tokens). No token → honest UNKNOWN."""
-
-    return resolve_github_token()
 
 
 def _utc_now_string() -> str:
