@@ -38,7 +38,7 @@ from teamctx.project_config import (
     maybe_load_project_config,
     write_project_config,
 )
-from teamctx.runner import WorkStartInputs
+from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
 from teamctx.work_start import render_work_start
 
 
@@ -140,7 +140,11 @@ def github_pr_probe_command(
 
 
 @main.command("work-start")
-@click.option("--github-repo", "repo", required=True, help="GitHub repository in owner/name form.")
+@click.option(
+    "--github-repo", "repo", default=None,
+    help="GitHub repo owner/name. Optional: auto-detected from the git 'origin' remote or "
+         ".teamctx/config.json when omitted.",
+)
 @click.option(
     "--path", "paths", multiple=True, required=True, help="A path the work is about to touch."
 )
@@ -175,18 +179,22 @@ def work_start_command(
     gates + linked-issue criteria + relied-on docs), compose, and report cards + honest
     coverage + one verdict per check. Sources not reachable from the inputs stay Unknown."""
 
-    inputs = WorkStartInputs(
-        repo=repo,
-        paths=paths,
-        branch=branch,
-        task=task,
-        token=os.environ.get(token_env),
-        include_titles=include_title,
-        issues=issues,
-        since=since,
-        docs_root=docs_root,
-        ref=ref,
-    )
+    try:
+        inputs = resolve_work_start_inputs(
+            paths=paths,
+            repo=repo,
+            branch=branch,
+            docs_root=docs_root,
+            task=task,
+            issues=issues,
+            since=since,
+            ref=ref,
+            include_titles=include_title,
+            token=os.environ.get(token_env),
+            root=Path.cwd(),
+        )
+    except (WorkStartResolutionError, ProjectConfigError) as exc:
+        raise click.ClickException(str(exc)) from exc
     click.echo(render_work_start(inputs, observed_at=_utc_now_string()), nl=False)
 
 
