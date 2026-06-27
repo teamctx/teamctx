@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 from datetime import UTC, datetime
@@ -498,7 +499,12 @@ _CLAUDE_MD_SNIPPET = (
 
 
 @main.command("install-hook")
-@click.option("--print", "print_only", is_flag=True, help="Show what would change; write nothing.")
+@click.option(
+    "--print",
+    "print_only",
+    is_flag=True,
+    help="Show the resulting settings and snippet; write nothing.",
+)
 @click.option(
     "--settings",
     "settings_path",
@@ -512,7 +518,20 @@ def install_hook_command(print_only: bool, settings_path: Path) -> None:
 
     settings = _load_settings(settings_path)
     if not _has_hook_entry(settings):
-        settings.setdefault("hooks", {}).setdefault("PreToolUse", []).append(_HOOK_ENTRY)
+        hooks = settings.get("hooks")
+        if hooks is not None and not isinstance(hooks, dict):
+            raise click.ClickException(
+                f"{settings_path}: its 'hooks' value isn't a JSON object — "
+                "fix or remove that key and re-run."
+            )
+        pre = (hooks or {}).get("PreToolUse")
+        if pre is not None and not isinstance(pre, list):
+            raise click.ClickException(
+                f"{settings_path}: 'hooks.PreToolUse' isn't a list — fix or remove it and re-run."
+            )
+        settings.setdefault("hooks", {}).setdefault("PreToolUse", []).append(
+            copy.deepcopy(_HOOK_ENTRY)
+        )
 
     if print_only:
         click.echo(json.dumps(settings, indent=2))
@@ -540,9 +559,18 @@ def _load_settings(path: Path) -> dict[str, Any]:
 
 
 def _has_hook_entry(settings: dict[str, Any]) -> bool:
-    for entry in settings.get("hooks", {}).get("PreToolUse", []):
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        return False
+    pre = hooks.get("PreToolUse")
+    if not isinstance(pre, list):
+        return False
+    for entry in pre:
+        if not isinstance(entry, dict):
+            continue
         if entry.get("matcher") == _HOOK_MATCHER and any(
-            command.get("command") == "teamctx-hook" for command in entry.get("hooks", [])
+            isinstance(c, dict) and c.get("command") == "teamctx-hook"
+            for c in entry.get("hooks", [])
         ):
             return True
     return False

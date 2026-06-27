@@ -18,7 +18,8 @@ def test_install_hook_writes_idempotent_settings(tmp_path, monkeypatch) -> None:
         and any(c.get("command") == "teamctx-hook" for c in h.get("hooks", []))
         for h in pre
     )
-    CliRunner().invoke(main, ["install-hook"])  # idempotent: no duplicate
+    r2 = CliRunner().invoke(main, ["install-hook"])  # idempotent: no duplicate
+    assert r2.exit_code == 0, r2.output
     settings2 = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
     assert len(settings2["hooks"]["PreToolUse"]) == len(pre)
     assert "work-start" in r1.output  # prints the portable instruction
@@ -43,3 +44,15 @@ def test_install_hook_merges_existing_settings(tmp_path, monkeypatch) -> None:
     assert settings["model"] == "opus"  # preserved
     assert "Stop" in settings["hooks"]  # preserved
     assert "PreToolUse" in settings["hooks"]  # added
+
+
+def test_malformed_settings_error_paths(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    p = tmp_path / ".claude" / "settings.json"
+    p.parent.mkdir()
+    p.write_text("[]", encoding="utf-8")  # valid JSON, not an object
+    r = CliRunner().invoke(main, ["install-hook"])
+    assert r.exit_code != 0 and "JSON object" in r.output
+    p.write_text(json.dumps({"hooks": "bad"}), encoding="utf-8")  # hooks not a dict
+    r = CliRunner().invoke(main, ["install-hook"])
+    assert r.exit_code != 0 and "fix or remove" in r.output
