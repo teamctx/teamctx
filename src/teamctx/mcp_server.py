@@ -49,23 +49,6 @@ def work_start(
     the server's working tree and ``.teamctx/config.json``; pass them only to override.
     """
 
-    return _run_work_start(
-        paths=paths, repo=repo, branch=branch, task=task,
-        issues=issues, since=since, docs_root=docs_root, ref=ref,
-    )
-
-
-def _run_work_start(
-    *,
-    paths: list[str],
-    repo: str | None,
-    branch: str | None,
-    task: str,
-    issues: list[str] | None,
-    since: str | None,
-    docs_root: str | None,
-    ref: str | None,
-) -> str:
     try:
         inputs = resolve_work_start_inputs(
             paths=tuple(paths),

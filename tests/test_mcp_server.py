@@ -116,6 +116,7 @@ def test_work_start_resolves_repo_from_root(monkeypatch, tmp_path) -> None:
     subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True)
     (tmp_path / "f.txt").write_text("x", encoding="utf-8")
     subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    # git needs a committed HEAD before a remote can be added
     subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "i"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin",
                     "git@github.com:acme/widgets.git"], check=True)
