@@ -15,7 +15,8 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from teamctx.runner import WorkStartInputs
+from teamctx.project_config import ProjectConfigError
+from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
 from teamctx.work_start import render_work_start
 
 mcp = FastMCP("teamctx")
@@ -26,14 +27,15 @@ _WORK_START_DESCRIPTION = (
     "acceptance criteria on linked issues, and superseded docs you rely on. Returns cards + "
     "an honest coverage report + one verdict per check (clear / NOT CLEAR / UNKNOWN). It "
     "informs; it does not block — read it and factor it into your plan. A source the inputs "
-    "cannot reach is reported UNKNOWN, never a false all-clear."
+    "cannot reach is reported UNKNOWN, never a false all-clear. Repo, branch, and docs root "
+    "are auto-detected from the working tree and .teamctx/config.json; pass them only to override."
 )
 
 
 @mcp.tool(name="work_start", description=_WORK_START_DESCRIPTION)
 def work_start(
-    repo: str,
     paths: list[str],
+    repo: str | None = None,
     branch: str | None = None,
     task: str = "Start work.",
     issues: list[str] | None = None,
@@ -43,23 +45,31 @@ def work_start(
 ) -> str:
     """Run the unified work-start broker and return its answer as text.
 
-    repo: owner/name. paths: files the work will touch. branch: current branch (also the
-    default gate ref). issues: linked issues like ``#42`` (with ``since`` to check criteria
-    movement). docs_root: a docs directory to scan for supersession. ref: explicit gate ref.
+    paths: files the work will touch (required). repo/branch/docs_root are auto-detected from
+    the server's working tree and ``.teamctx/config.json``; pass them only to override.
     """
 
-    inputs = WorkStartInputs(
-        repo=repo,
-        paths=tuple(paths),
-        branch=branch,
-        task=task,
-        token=_resolve_github_token(),
-        issues=tuple(issues or ()),
-        since=since,
-        docs_root=docs_root,
-        ref=ref,
-    )
-    return render_work_start(inputs, observed_at=_utc_now_string())
+    try:
+        inputs = resolve_work_start_inputs(
+            paths=tuple(paths),
+            repo=repo,
+            branch=branch,
+            docs_root=docs_root,
+            task=task,
+            issues=tuple(issues or ()),
+            since=since,
+            ref=ref,
+            token=_resolve_github_token(),
+            root=_resolution_root(),
+        )
+    except (WorkStartResolutionError, ProjectConfigError) as exc:
+        return str(exc)
+    return render_work_start(inputs, observed_at=_utc_now_string(), project_root=_resolution_root())
+
+
+def _resolution_root() -> Path:
+    override = os.environ.get("TEAMCTX_PROJECT_ROOT")
+    return Path(override) if override else Path.cwd()
 
 
 def _resolve_github_token() -> str | None:

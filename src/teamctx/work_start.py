@@ -23,11 +23,14 @@ def render_work_start(
     *,
     observed_at: str,
     authority_path: Path = DEFAULT_AUTHORITY_PATH,
+    project_root: Path = Path("."),
 ) -> str:
     """Run every applicable connector, compose, evaluate, and render the work-start answer
     (cards + honest coverage + one verdict per check) as terminal text."""
 
-    request_context, documents = run_work_start_connectors(inputs, observed_at=observed_at)
+    request_context, documents = run_work_start_connectors(
+        inputs, observed_at=observed_at, project_root=project_root
+    )
     declarations = load_declared_authority(authority_path)
     answer = broker_answer_from_documents(request_context, documents, declarations)
     return render_broker_answer(answer)

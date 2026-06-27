@@ -26,10 +26,19 @@ class GitHubSourceConfig(StrictConfigModel):
     include_title: bool = False
 
 
+class WorkStartConfig(StrictConfigModel):
+    """Project-stable inputs for the work-start broker, shared across actors (committed).
+    Per-actor secrets (the token) live in the environment, never here."""
+
+    repo: str | None = None
+    docs_root: str | None = None
+
+
 class ProjectConfig(StrictConfigModel):
     schema_version: Literal["teamctx.project_config.v0"]
     github: GitHubSourceConfig | None = None
     default_output: str = DEFAULT_OUTPUT_PATH
+    work_start: WorkStartConfig | None = None
 
 
 def build_project_config(
