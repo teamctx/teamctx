@@ -6,6 +6,7 @@ import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -483,6 +484,68 @@ def eval_export_command(scenarios_dir: Path, output_dir: Path) -> None:
         raise click.ClickException(str(exc)) from exc
 
     click.echo(f"Exported {len(exports)} eval scenarios to {output_dir}")
+
+
+_HOOK_MATCHER = "Edit|Write|MultiEdit"
+_HOOK_ENTRY = {"matcher": _HOOK_MATCHER, "hooks": [{"type": "command", "command": "teamctx-hook"}]}
+_CLAUDE_MD_SNIPPET = (
+    "## Team context (teamctx)\n"
+    "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
+    "into your plan — it surfaces open PRs touching your files, failing checks, changed specs, and "
+    "superseded docs. Tell your human collaborator anything relevant in plain terms so they can "
+    "decide.\n"
+)
+
+
+@main.command("install-hook")
+@click.option("--print", "print_only", is_flag=True, help="Show what would change; write nothing.")
+@click.option(
+    "--settings",
+    "settings_path",
+    default=Path(".claude/settings.json"),
+    show_default=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Project-local Claude Code settings file.",
+)
+def install_hook_command(print_only: bool, settings_path: Path) -> None:
+    """Opt in to the teamctx reflex: add the PreToolUse hook and print the portable snippet."""
+
+    settings = _load_settings(settings_path)
+    if not _has_hook_entry(settings):
+        settings.setdefault("hooks", {}).setdefault("PreToolUse", []).append(_HOOK_ENTRY)
+
+    if print_only:
+        click.echo(json.dumps(settings, indent=2))
+        click.echo("\nAdd this to your CLAUDE.md:\n")
+        click.echo(_CLAUDE_MD_SNIPPET)
+        return
+
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    click.echo(f"Installed the teamctx reflex hook in {settings_path}.")
+    click.echo("\nAdd this to your CLAUDE.md:\n")
+    click.echo(_CLAUDE_MD_SNIPPET)
+
+
+def _load_settings(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise click.ClickException(f"Could not read {path}: {exc}") from exc
+    if not isinstance(loaded, dict):
+        raise click.ClickException(f"{path} is not a JSON object.")
+    return loaded
+
+
+def _has_hook_entry(settings: dict[str, Any]) -> bool:
+    for entry in settings.get("hooks", {}).get("PreToolUse", []):
+        if entry.get("matcher") == _HOOK_MATCHER and any(
+            command.get("command") == "teamctx-hook" for command in entry.get("hooks", [])
+        ):
+            return True
+    return False
 
 
 class RefreshOptions:
