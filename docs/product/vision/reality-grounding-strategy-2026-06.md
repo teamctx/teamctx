@@ -112,6 +112,18 @@ to stay the judge of what the agent does.
 *(Lead with the felt benefit; the no-LLM/deterministic construction is the credibility engine —
 the* because*, not the headline. See [positioning.md](./positioning.md).)*
 
+## The surfaced-text principle (the product's voice)
+
+Every string teamctx surfaces — cards, verdicts, coverage gaps, errors — is read by a **human about
+to make a decision** (directly, or relayed through their agent). So all of it is **plain** (no
+internal jargon — "ground," "broker," a bare "UNKNOWN"), **decision-enabling** (what it means for
+what they do next), and for anything that couldn't run, it gives the **reason, how to turn it on,
+and what to do if they won't or can't**. Honest, guiding, useful. This isn't polish: our edge is
+"evidence the human can *judge*," and a human can only judge a message they can act on — the copy is
+*how* the value lands. Reserve "reality-grounding," "attest," "broker" for internal/strategy use,
+never for the user. **M2** brings the shared render up to this bar; every user-facing surface
+inherits it.
+
 ## Risks (honest)
 
 - **Runway vs. the wave.** Early-foundation's real risk isn't wrong direction — it's surviving
