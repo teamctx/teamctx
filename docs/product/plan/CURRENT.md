@@ -37,7 +37,7 @@ moved to the live broker; retired in Sprint 2.
 
 ## The arc to product-complete (four sprints)
 
-### Sprint 1 — Effortless, correct invocation  *(IN FLIGHT)*
+### Sprint 1 — Effortless, correct invocation  *(DONE 2026-06-27 — merged `85bded1`; 216 tests, ruff + mypy strict green)*
 Resolve repo + branch + docs_root from git and a clean `.teamctx/config.json`
 (precedence: `explicit > config > git-detect > honest-absent`). Fork false-all-clear closed
 by config override; a genuinely missing repo gives a precise error, not an UNKNOWN wall.
@@ -49,7 +49,7 @@ docs verdicts; forks correct via committed config; non-git / unreachable degrade
 -UNKNOWN; tests cover the UNKNOWN edges, not just the happy path.
 Spec: `docs/superpowers/specs/2026-06-27-work-start-input-resolution-design.md`.
 
-### Sprint 2 — Ready for others, proven multi-actor
+### Sprint 2 — Ready for others, proven multi-actor  *(NEXT)*
 pip/uvx installable; a real `teamctx init` that scaffolds the work_start config; MCP wiring +
 file-based token hygiene documented; README that claims exactly what the code proves. **Retire
 legacy:** drop `refresh`/`context`; rebuild `why`/`open-source` on the live broker. **Validation
