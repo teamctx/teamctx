@@ -17,6 +17,7 @@ from mcp.server.fastmcp import FastMCP
 
 from teamctx.project_config import ProjectConfigError
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
+from teamctx.tokens import resolve_github_token
 from teamctx.work_start import render_work_start
 
 mcp = FastMCP("teamctx")
@@ -73,20 +74,9 @@ def _resolution_root() -> Path:
 
 
 def _resolve_github_token() -> str | None:
-    """The token, resolved server-side. ``GITHUB_TOKEN`` (the value) takes precedence;
-    otherwise ``GITHUB_TOKEN_FILE`` (a path) is read — so a file-based secret stays in one
-    place and is never copied into the MCP client config. No token → honest UNKNOWN."""
+    """The token, resolved server-side (see teamctx.tokens). No token → honest UNKNOWN."""
 
-    token = os.environ.get("GITHUB_TOKEN")
-    if token:
-        return token
-    token_file = os.environ.get("GITHUB_TOKEN_FILE")
-    if token_file:
-        try:
-            return Path(token_file).expanduser().read_text(encoding="utf-8").strip() or None
-        except OSError:
-            return None
-    return None
+    return resolve_github_token()
 
 
 def _utc_now_string() -> str:
