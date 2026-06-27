@@ -13,10 +13,10 @@ worthless, and planting the "ground before you act" habit early is how the norm 
 
 ## Non-goals (sequenced elsewhere, not cut)
 
-- **The shared messaging pass** — bringing the render's verdict/UNKNOWN copy fully up to the
-  [surfaced-text principle](#messaging-the-surfaced-text-principle-applied) for *all* transports is
-  **M2, the immediate next slice**. M1 surfaces today's render as-is, and holds only its *own*
-  messages (errors / can't-run) to the principle.
+- **The shared CLI/MCP render voice pass** — bringing the *shared* render's verdict/UNKNOWN copy
+  fully up to the surfaced-text principle for CLI and MCP is **M2, the immediate next slice**. M1
+  renders its **own** concise hook signal (ready / heads up / can't-verify) for the inline
+  injection; it does not reuse the full CLI report.
 - **Per-file firing** — v1 is once per session. Per-file precision is a later enhancement.
 - **A SessionStart variant** — possible complement, not v1.
 - **Non-Claude-Code hooks** — other harnesses are covered by the portable instruction; native hooks
@@ -50,8 +50,9 @@ Performance). On each Edit/Write/MultiEdit it:
    criteria / docs are repo-wide regardless). `resolve_work_start_inputs(paths=<those>,
    root=Path(cwd), …)` → `render_work_start(...)`, with the token from the environment
    (`GITHUB_TOKEN` / `GITHUB_TOKEN_FILE`).
-4. Emits the result as `additionalContext` (no `permissionDecision`), with a short lead line that
-   helps the agent relay it to its human (see Messaging).
+4. Renders a **concise signal** from the result (see Messaging — *ready* / *heads up* / *can't
+   verify what matters*, not the full CLI report) and emits it as `additionalContext` (no
+   `permissionDecision`), with a short lead that helps the agent relay it to its human.
 5. **Fail-safe, always:** any error (not a git repo, network down, bad config) → exit 0, allow the
    edit, and emit a plain, decision-enabling message *or* nothing. Never a `permissionDecision`,
    never a crash, never a stack trace surfaced to the user.
@@ -91,6 +92,20 @@ anything that couldn't run → **reason + how to turn it on + what to do if you 
 strategy's full statement is in [the surfaced-text principle](../../product/vision/reality-grounding-strategy-2026-06.md);
 M2 brings the shared render up to it.
 
+**The hook speaks in signals, not reports** (resolved in review). It maps the work_start result to
+one of three glanceable signals, scaled to what the developer should do:
+
+- **Ready** — the checks that matter came back clear: a clean go that *names what it checked* (so the
+  claim is honestly scoped, not a bare "all clear"), with no "...but" hedge. Low-stakes coverage
+  gaps (e.g. no linked issue → spec not checked) are **not** headlined; the one-time nudge to link an
+  issue belongs at setup, not every edit.
+  *e.g. "Looks clear to start on `src/api/orders.py` — no open PRs on these files, CI's green, docs current."*
+- **Heads up** — something specific to handle first.
+  *e.g. "Before you edit this: PR #42 already changes this file — worth a look (`gh pr view 42`)."*
+- **Can't verify what matters** — a coverage gap that *changes the decision* (e.g. no GitHub access →
+  collisions/CI unchecked): reason + how to fix + what you're missing. **Honest-UNKNOWN doesn't
+  disappear** — a gap that matters becomes *this* signal; a gap that doesn't isn't headlined.
+
 Exemplar — the hook can't reach GitHub (no token):
 
 > teamctx couldn't check what else is happening around this file — it doesn't have access to GitHub
@@ -119,7 +134,10 @@ no-op path must stay cheap: read stdin, stat the session marker, exit — **befo
     re-run the broker.
   - Fail-safe: a broker/resolve error → exit 0, allow, plain message (or empty), never
     `permissionDecision`.
-  - No token → surfaces the plain "couldn't check GitHub" guidance (reason + fix + fallback).
+  - No token → the **can't-verify** signal: plain "couldn't check GitHub" guidance (reason + fix +
+    fallback), never a false "ready".
+  - Signal mapping: a clear result → **ready** (names the checks, no hedge); a collision/gate/spec/doc
+    finding → **heads up** with the specific item; an important source unreachable → **can't verify**.
   - Non-Edit tool / missing `file_path` → no-op, exit 0.
 - `tests/test_install_hook.py`: `install-hook` writes a valid, idempotent `.claude/settings.json`
   entry and merges with existing hooks; `--print` writes nothing.
@@ -133,12 +151,11 @@ no-op path must stay cheap: read stdin, stat the session marker, exit — **befo
 - That `additionalContext` from a `PreToolUse` hook is delivered to the agent on the tool it fired
   for (sanity-check in a real session as part of the dogfood).
 
-## Open questions for CPO review
+## Decisions (resolved in review, 2026-06-27)
 
-1. When **everything is clear**, should the once-per-session injection still say so (a brief "checked
-   PRs / CI / docs — nothing in your way; criteria not checked — no linked issue"), or stay silent?
-   I lean **say it briefly** — it's one injection per session, it confirms the reflex ran, and the
-   honest-coverage note ("criteria not checked") is itself useful. But silence-on-all-clear is
-   defensible.
-2. Console-script name `teamctx-hook` — fine, or prefer `teamctx hook` despite the import-cost
-   tradeoff? (I recommend the dedicated script for the hot path.)
+1. **Speak in signals, not reports.** The hook output is one of *ready* / *heads up* / *can't verify
+   what matters*. **Ready** is a clean go that names what it checked, with no "...but" hedge;
+   low-stakes coverage gaps are not headlined. Honest-UNKNOWN surfaces only when it changes the
+   decision (the *can't-verify* signal). See Messaging.
+2. **Dedicated `teamctx-hook` console script** (not a `cli.py` subcommand) — keeps the per-edit
+   no-op hot path cheap.
