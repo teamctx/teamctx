@@ -43,10 +43,13 @@ def run_docs_supersession_probe(
     request_context: RequestContext,
     observed_at: str,
     reader: DocReader | None = None,
+    base_dir: Path = Path("."),
 ) -> CoreContractDocument:
-    read = reader if reader is not None else default_doc_reader
     try:
-        files = list(read(root))
+        if reader is not None:
+            files = list(reader(root))
+        else:
+            files = default_doc_reader(root, base_dir=base_dir)
     except OSError:
         return unavailable_docs_document(
             request_context,
@@ -76,9 +79,19 @@ def parse_superseded_docs(
     return docs
 
 
-def default_doc_reader(root: str) -> list[tuple[str, str]]:
-    """Yield (repo-relative-posix-path, text) for every ``*.md`` under ``root``. Run from the
-    repo root so that paths match the ``--path`` a caller passes."""
+def default_doc_reader(root: str, *, base_dir: Path = Path(".")) -> list[tuple[str, str]]:
+    """Yield (repo-root-relative POSIX path, text) for every ``*.md`` under ``base_dir/root``.
 
-    base = Path(root)
-    return [(p.as_posix(), p.read_text(encoding="utf-8")) for p in sorted(base.rglob("*.md"))]
+    Paths are emitted relative to ``base_dir`` (the resolution/project root) so they match the
+    ``--path`` a caller passes, regardless of the process working directory. A missing docs
+    directory raises ``FileNotFoundError`` so the probe reports it as unavailable (honest
+    UNKNOWN) rather than a silent all-clear from an empty scan."""
+
+    docs_dir = base_dir / root
+    if not docs_dir.is_dir():
+        raise FileNotFoundError(docs_dir)
+    files: list[tuple[str, str]] = []
+    for path in sorted(docs_dir.rglob("*.md")):
+        repo_relative = PurePosixPath(root) / path.relative_to(docs_dir).as_posix()
+        files.append((repo_relative.as_posix(), path.read_text(encoding="utf-8")))
+    return files

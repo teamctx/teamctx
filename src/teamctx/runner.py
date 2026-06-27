@@ -11,6 +11,7 @@ Does network/file I/O (via the connectors), so it lives outside the pure core.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.github import run_github_pr_probe
@@ -56,6 +57,7 @@ def run_work_start_connectors(
     inputs: WorkStartInputs,
     *,
     observed_at: str,
+    project_root: Path = Path("."),
 ) -> tuple[RequestContext, list[CoreContractDocument]]:
     """Run each applicable connector against one shared request context.
 
@@ -105,6 +107,7 @@ def run_work_start_connectors(
                 root=inputs.docs_root,
                 request_context=request_context,
                 observed_at=observed_at,
+                base_dir=project_root,
             )
         )
 

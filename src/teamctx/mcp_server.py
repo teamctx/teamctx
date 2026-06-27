@@ -64,7 +64,7 @@ def work_start(
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
         return str(exc)
-    return render_work_start(inputs, observed_at=_utc_now_string())
+    return render_work_start(inputs, observed_at=_utc_now_string(), project_root=_resolution_root())
 
 
 def _resolution_root() -> Path:

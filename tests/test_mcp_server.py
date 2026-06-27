@@ -124,7 +124,7 @@ def test_work_start_resolves_repo_from_root(monkeypatch, tmp_path) -> None:
 
     captured: dict[str, object] = {}
 
-    def fake_render(inputs, *, observed_at):  # type: ignore[no-untyped-def]
+    def fake_render(inputs, *, observed_at, **kwargs):  # type: ignore[no-untyped-def]
         captured["repo"] = inputs.repo
         return "ok"
 
@@ -137,3 +137,33 @@ def test_work_start_returns_error_text_when_repo_unresolvable(monkeypatch, tmp_p
     monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))  # non-git, no config
     out = work_start(paths=["src/x.py"])
     assert "could not determine the repository" in out
+
+
+def test_work_start_docs_scanned_from_project_root_not_cwd(monkeypatch, tmp_path) -> None:
+    import json
+
+    proj = tmp_path / "proj"
+    (proj / ".teamctx").mkdir(parents=True)
+    (proj / ".teamctx" / "config.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "work_start": {"repo": "acme/widgets", "docs_root": "docs"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (proj / "docs").mkdir()
+    (proj / "docs" / "old.md").write_text(
+        "---\nsuperseded_by: docs/new.md\n---\n", encoding="utf-8"
+    )
+    other = tmp_path / "other"
+    other.mkdir()
+    monkeypatch.chdir(other)  # cwd != project root
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(proj))
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    out = work_start(paths=["docs/old.md"])
+
+    assert "Docs check: NOT CLEAR" in out
+    assert "docs/new.md" in out  # names the superseding doc

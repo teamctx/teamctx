@@ -195,7 +195,10 @@ def work_start_command(
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
         raise click.ClickException(str(exc)) from exc
-    click.echo(render_work_start(inputs, observed_at=_utc_now_string()), nl=False)
+    click.echo(
+        render_work_start(inputs, observed_at=_utc_now_string(), project_root=Path.cwd()),
+        nl=False,
+    )
 
 
 @main.command("docs-probe")

@@ -100,3 +100,27 @@ def test_probe_uses_injected_reader_and_emits_signal() -> None:
     )
     assert len(document.source_signals) == 1
     assert document.source_signals[0].scope["doc"] == "docs/superpowers/specs/old.md"
+
+
+def test_default_reader_scans_base_dir_not_cwd(tmp_path, monkeypatch) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "old.md").write_text("---\nsuperseded_by: docs/new.md\n---\n", encoding="utf-8")
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    monkeypatch.chdir(other)  # process cwd is NOT the project root
+    document = run_docs_supersession_probe(
+        repo="r", root="docs", base_dir=tmp_path,
+        request_context=_request(), observed_at="2026-06-20T00:00:00Z",
+    )
+    assert len(document.source_signals) == 1
+    assert document.source_signals[0].scope["doc"] == "docs/old.md"
+
+
+def test_missing_docs_dir_is_unavailable_not_clear(tmp_path) -> None:
+    document = run_docs_supersession_probe(
+        repo="r", root="docs", base_dir=tmp_path,  # tmp_path has no docs/ dir
+        request_context=_request(), observed_at="2026-06-20T00:00:00Z",
+    )
+    assert document.source_signals == []
+    assert document.source_statuses[0].status == "unavailable"
