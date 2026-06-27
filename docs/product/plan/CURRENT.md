@@ -12,6 +12,12 @@ consumption surface** (the moment a unit of work begins), not a ceiling. Directi
 common contract → pure deterministic core → render — and explicitly **not (B)** a unified
 team-context substrate. Breadth is fuel for the one operation, never the product itself.
 
+**North star (decided 2026-06-27):** teamctx is *reality-grounding for agentic work* — it
+**attests to reality, never transforms it** (no LLM in the middle); lay the floor early. Lead
+positioning against the **context-engine** category (Unblocked), NOT agent-memory. Full strategy:
+[reality-grounding](../vision/reality-grounding-strategy-2026-06.md) ·
+[competitor analysis](../../research/competitive-context-engines-2026-06.md).
+
 ## Operating model (synced 2026-06-27)
 
 - **Build each capability complete to the bar.** *Sequencing* (a separable thing built
@@ -56,7 +62,10 @@ legacy:** drop `refresh`/`context`; rebuild `why`/`open-source` on the live brok
 = Edgar in multiple terminals emulating distinct actors** against a shared repo — we don't
 recruit a human, we emulate humans — so the real cross-actor scenarios (collision / criteria /
 doc / gate) surface correctly.
-**Bar:** fresh-actor setup from the README alone, and genuine multi-actor scenarios surfaced
+**Plus M1 (keystone): work_start as a reflex** — opt-in agent hook / one-line `CLAUDE.md` so it
+auto-fires at work-start (also how the grounding *norm* gets planted early). Consider M2
+(actionable honest-UNKNOWN). **Lead all framing with the reality-grounding positioning** (strategy
+doc). **Bar:** fresh-actor setup from the README alone, and genuine multi-actor scenarios surfaced
 correctly across terminals.
 
 ### Sprint 3 — Proof (the numbers)
