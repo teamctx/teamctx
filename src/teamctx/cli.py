@@ -71,16 +71,8 @@ def status() -> None:
     default=None,
     help="Folder of design docs to watch for supersession. Auto-detected from a 'docs' folder.",
 )
-@click.option(
-    "--config",
-    "config_path",
-    default=DEFAULT_CONFIG_PATH,
-    show_default=True,
-    type=click.Path(dir_okay=False, path_type=Path),
-    help="Project config path.",
-)
 @click.option("--force", is_flag=True, help="Overwrite an existing project config.")
-def init_command(repo: str | None, docs_root: str | None, config_path: Path, force: bool) -> None:
+def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
     """Scaffold the project-local teamctx config for work-start."""
 
     root = Path.cwd()
@@ -94,11 +86,11 @@ def init_command(repo: str | None, docs_root: str | None, config_path: Path, for
 
     config = build_work_start_project_config(repo=resolved_repo, docs_root=resolved_docs_root)
     try:
-        write_project_config(config_path, config, overwrite=force)
+        write_project_config(DEFAULT_CONFIG_PATH, config, overwrite=force, exclude_defaults=True)
     except ProjectConfigError as exc:
         raise click.ClickException(f"{exc} Pass --force to overwrite.") from exc
 
-    click.echo(f"Wrote {config_path} for {resolved_repo}.")
+    click.echo(f"Wrote {DEFAULT_CONFIG_PATH} for {resolved_repo}.")
     if resolved_docs_root:
         click.echo(f"  Docs root: {resolved_docs_root} (teamctx will flag superseded docs there).")
     else:
@@ -111,7 +103,10 @@ def init_command(repo: str | None, docs_root: str | None, config_path: Path, for
         "teamctx can see open PRs and failing checks. Without it those read as 'couldn't check', "
         "never a false all-clear."
     )
-    click.echo("Next: run `teamctx work-start` before you start editing.")
+    click.echo(
+        "Next: run `teamctx work-start --path <file you are about to edit>` before you start "
+        "editing."
+    )
 
 
 @main.command("github-pr-probe")

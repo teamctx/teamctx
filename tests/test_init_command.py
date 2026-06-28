@@ -29,7 +29,8 @@ def _config_at(tmp_path: Path) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Case 1: auto-detect repo, no docs/ -> writes work_start, exits 0, prints guidance
+# Case 1: auto-detect repo, no docs/ -> writes a clean work_start-only config,
+#         exits 0, prints a runnable next command and token guidance.
 # ---------------------------------------------------------------------------
 
 
@@ -43,8 +44,15 @@ def test_init_auto_detects_repo_writes_work_start_config(
 
     assert result.exit_code == 0, result.output
     data = _config_at(tmp_path)
-    assert data["work_start"]["repo"] == "acme/widgets"
-    assert "teamctx work-start" in result.output
+    # The canonical first-run file is exactly {schema_version, work_start}: no
+    # legacy github:null or default_output cruft from model defaults.
+    assert set(data) == {"schema_version", "work_start"}
+    # docs_root unset => omitted entirely; only repo present.
+    assert data["work_start"] == {"repo": "acme/widgets"}
+    # The printed next command is runnable as-is (work-start requires --path).
+    assert (
+        "teamctx work-start --path <file you are about to edit>" in result.output
+    )
     assert "GITHUB_TOKEN" in result.output
 
 
