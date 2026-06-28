@@ -59,6 +59,15 @@ def build_project_config(
     )
 
 
+def build_work_start_project_config(
+    *, repo: str, docs_root: str | None = None
+) -> ProjectConfig:
+    return ProjectConfig(
+        schema_version="teamctx.project_config.v0",
+        work_start=WorkStartConfig(repo=repo, docs_root=docs_root),
+    )
+
+
 def load_project_config(path: Path) -> ProjectConfig:
     try:
         raw = path.read_text(encoding="utf-8")

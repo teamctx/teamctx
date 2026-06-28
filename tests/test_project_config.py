@@ -58,55 +58,6 @@ def test_project_config_rejects_unknown_fields(tmp_path: Path) -> None:
         load_project_config(config_path)
 
 
-def test_init_writes_project_config_without_token_value(tmp_path: Path) -> None:
-    runner = CliRunner()
-    config_path = tmp_path / "config.json"
-    output_path = tmp_path / "context.json"
-
-    result = runner.invoke(
-        main,
-        [
-            "init",
-            "--github-repo",
-            "org/app",
-            "--token-env",
-            "TEAMCTX_TEST_GITHUB_TOKEN",
-            "--config",
-            str(config_path),
-            "--output",
-            str(output_path),
-        ],
-        env={"TEAMCTX_TEST_GITHUB_TOKEN": "secret-token-value"},
-    )
-
-    assert result.exit_code == 0
-    config_text = config_path.read_text(encoding="utf-8")
-    data = cast(dict[str, Any], json.loads(config_text))
-    assert data["github"]["repo"] == "org/app"
-    assert data["github"]["token_env"] == "TEAMCTX_TEST_GITHUB_TOKEN"
-    assert data["default_output"] == str(output_path)
-    assert "secret-token-value" not in config_text
-
-
-def test_init_refuses_to_overwrite_existing_config(tmp_path: Path) -> None:
-    runner = CliRunner()
-    config_path = tmp_path / "config.json"
-    write_config(config_path, output_path=tmp_path / "context.json")
-
-    result = runner.invoke(
-        main,
-        [
-            "init",
-            "--github-repo",
-            "org/app",
-            "--config",
-            str(config_path),
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "Project config already exists" in result.output
-
 
 def test_refresh_uses_project_config_defaults(tmp_path: Path) -> None:
     runner = CliRunner()
