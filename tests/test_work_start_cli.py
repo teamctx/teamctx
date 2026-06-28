@@ -49,8 +49,12 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
     import teamctx.connectors.github_checks as gc
     import teamctx.connectors.github_issues as gi
     import teamctx.runner as runner_mod
+    from teamctx.connectors.github import ForgeReviewFetch
 
-    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: [])
+    monkeypatch.setattr(
+        gh, "fetch_github_pull_requests",
+        lambda **kw: ForgeReviewFetch(pull_requests=[], truncated=False),
+    )
     monkeypatch.setattr(gc, "fetch_failing_check_runs", lambda **kw: [])
     monkeypatch.setattr(gi, "fetch_issue_changes", lambda **kw: [])
     # docs probe reads the filesystem; inject an empty reader so no real I/O happens.

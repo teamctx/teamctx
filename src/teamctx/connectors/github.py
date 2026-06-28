@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Protocol, Self, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
@@ -31,6 +32,21 @@ HttpOpener = Callable[[Request], HttpResponse]
 DEFAULT_OPENER = cast(HttpOpener, urlopen)
 
 
+@dataclass(frozen=True)
+class ForgeReviewFetch:
+    """Result of fetching open PRs from the GitHub API.
+
+    ``pull_requests`` is the list of PRs parsed from the response.
+    ``truncated`` is True when the PR list page was full (>= 100 entries, implying more exist
+    that we did not fetch) OR when any single PR's file list page was full (>= 100 files,
+    implying that PR has more changed files than we saw). Both cases mean the coverage is
+    incomplete and the conflict check cannot assert a clean all-clear.
+    """
+
+    pull_requests: list[ForgeReviewPullRequest]
+    truncated: bool
+
+
 class GitHubProbeError(RuntimeError):
     def __init__(self, message: str, *, status_code: int | None = None) -> None:
         super().__init__(message)
@@ -56,7 +72,7 @@ def run_github_pr_probe(
         )
 
     try:
-        pull_requests = fetch_github_pull_requests(
+        fetch = fetch_github_pull_requests(
             repo=repo, token=token, include_titles=include_titles, opener=opener
         )
     except GitHubProbeError as exc:
@@ -70,9 +86,10 @@ def run_github_pr_probe(
 
     return normalize_forge_review_prs(
         request_context,
-        pull_requests,
+        fetch.pull_requests,
         observed_at=observed_at,
         source_id="github_pr_metadata",
+        coverage_truncated=fetch.truncated,
     )
 
 
@@ -82,12 +99,17 @@ def fetch_github_pull_requests(
     token: str,
     include_titles: bool = False,
     opener: HttpOpener = DEFAULT_OPENER,
-) -> list[ForgeReviewPullRequest]:
+) -> ForgeReviewFetch:
     owner, name = split_repo(repo)
     base = f"{GITHUB_API_ROOT}/repos/{quote(owner)}/{quote(name)}"
-    pulls_payload = get_json(f"{base}/pulls?state=open&per_page=30", token=token, opener=opener)
+    pulls_payload = get_json(
+        f"{base}/pulls?state=open&per_page=100", token=token, opener=opener
+    )
     if not isinstance(pulls_payload, list):
         raise GitHubProbeError("GitHub pulls response was not a list")
+
+    # A full page implies more PRs exist that we did not fetch.
+    truncated = len(pulls_payload) >= 100
 
     files_by_pr: dict[int, object] = {}
     for raw_pr in pulls_payload:
@@ -96,18 +118,23 @@ def fetch_github_pull_requests(
         number = raw_pr.get("number")
         if not isinstance(number, int):
             continue
-        files_by_pr[number] = get_json(
+        files_payload = get_json(
             f"{base}/pulls/{number}/files?per_page=100",
             token=token,
             opener=opener,
         )
+        files_by_pr[number] = files_payload
+        # A full files page implies this PR has more changed files than we fetched.
+        if isinstance(files_payload, list) and len(files_payload) >= 100:
+            truncated = True
 
-    return parse_github_pull_requests(
+    pull_requests = parse_github_pull_requests(
         repo=repo,
         pulls_payload=pulls_payload,
         files_by_pr=files_by_pr,
         include_titles=include_titles,
     )
+    return ForgeReviewFetch(pull_requests=pull_requests, truncated=truncated)
 
 
 def parse_github_pull_requests(

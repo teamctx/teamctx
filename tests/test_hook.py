@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 import teamctx.hook as hook
+from teamctx.connectors.github import ForgeReviewFetch
 
 
 def _init_repo(root: Path, url: str = "git@github.com:acme/widgets.git") -> None:
@@ -59,11 +60,14 @@ def test_heads_up_surfaces_a_collision(monkeypatch, capsys, tmp_path) -> None:
     from teamctx.connectors.forge_review import ForgeReviewPullRequest
     monkeypatch.setattr(
         gh, "fetch_github_pull_requests",
-        lambda **kw: [ForgeReviewPullRequest(
-            provider="github", repo="acme/widgets", number=7, state="open",
-            url="https://github.com/acme/widgets/pull/7", title=None,
-            changed_paths=("src/app.py",), created_at="2026-06-27T10:00:00Z",
-            updated_at="2026-06-27T11:00:00Z")],
+        lambda **kw: ForgeReviewFetch(
+            pull_requests=[ForgeReviewPullRequest(
+                provider="github", repo="acme/widgets", number=7, state="open",
+                url="https://github.com/acme/widgets/pull/7", title=None,
+                changed_paths=("src/app.py",), created_at="2026-06-27T10:00:00Z",
+                updated_at="2026-06-27T11:00:00Z")],
+            truncated=False,
+        ),
     )
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     monkeypatch.setenv("TEAMCTX_HOOK_CACHE", str(tmp_path / "cache"))
@@ -108,11 +112,14 @@ def test_absolute_file_path_still_matches_collision(monkeypatch, capsys, tmp_pat
     _init_repo(tmp_path)
     import teamctx.connectors.github as gh
     from teamctx.connectors.forge_review import ForgeReviewPullRequest
-    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: [ForgeReviewPullRequest(
-        provider="github", repo="acme/widgets", number=7, state="open",
-        url="https://github.com/acme/widgets/pull/7", title=None,
-        changed_paths=("src/app.py",), created_at="2026-06-27T10:00:00Z",
-        updated_at="2026-06-27T11:00:00Z")])
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: ForgeReviewFetch(
+        pull_requests=[ForgeReviewPullRequest(
+            provider="github", repo="acme/widgets", number=7, state="open",
+            url="https://github.com/acme/widgets/pull/7", title=None,
+            changed_paths=("src/app.py",), created_at="2026-06-27T10:00:00Z",
+            updated_at="2026-06-27T11:00:00Z")],
+        truncated=False,
+    ))
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     monkeypatch.setenv("TEAMCTX_HOOK_CACHE", str(tmp_path / "cache"))
     abs_path = str(tmp_path / "src" / "app.py")  # Claude Code passes ABSOLUTE paths
@@ -130,7 +137,10 @@ def test_network_calls_are_time_bounded(monkeypatch, capsys, tmp_path) -> None:
 
     import teamctx.connectors.github as gh
     import teamctx.work_start as ws
-    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: [])
+    monkeypatch.setattr(
+        gh, "fetch_github_pull_requests",
+        lambda **kw: ForgeReviewFetch(pull_requests=[], truncated=False),
+    )
     seen: dict[str, object] = {}
     real = ws.work_start_answer
 
