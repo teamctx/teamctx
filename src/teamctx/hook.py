@@ -12,8 +12,9 @@ import contextlib
 import json
 import subprocess
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
+
+from teamctx.clock import utc_now_iso
 
 _EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 
@@ -131,25 +132,21 @@ def _ground(root: Path, file_path: str) -> str:
 
     from teamctx.hook_signal import hook_signal
     from teamctx.resolve import resolve_work_start_inputs
-    from teamctx.tokens import resolve_github_token
+    from teamctx.tokens import resolve_token
     from teamctx.work_start import work_start_answer
 
     rel_file = _repo_relative(root, file_path)
-    token = resolve_github_token()
+    token = resolve_token()
     paths = tuple(dict.fromkeys([rel_file, *_changed_paths(root)]))  # dedup, order-preserving
     inputs = resolve_work_start_inputs(paths=paths, token=token, root=root)
 
     old_timeout = socket.getdefaulttimeout()
     socket.setdefaulttimeout(8)  # bound every network call so a hung GitHub never freezes the edit
     try:
-        answer = work_start_answer(inputs, observed_at=_utc_now(), project_root=root)
+        answer = work_start_answer(inputs, observed_at=utc_now_iso(), project_root=root)
     finally:
         socket.setdefaulttimeout(old_timeout)
     return hook_signal(answer, file_path=rel_file, token_present=token is not None)
-
-
-def _utc_now() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 if __name__ == "__main__":
