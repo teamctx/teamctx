@@ -77,6 +77,16 @@ so honest-UNKNOWN is never silently dropped** (Checked / Couldn't check / Not ch
 review caught and we fixed three would-be silent-clear holes). Also a **repo-wide em-dash scrub**:
 zero em dashes anywhere is now a hard ship gate ([[feedback_no_em_dashes_plain_human]]).
 Spec/plan: `docs/superpowers/{specs,plans}/2026-06-28-m2-messaging-pass*`.
+**Hardening, GitHub truncation honesty: DONE 2026-06-28 (merged `df58744`, 250 tests).** The PR probe
+fetched only the first page of open PRs, a **false clear at the source** on busy repos. Now truncation
+(PR list or any PR's files hitting the 100 page limit) sets a non-fresh source status, routing through
+the existing closure to an honest UNKNOWN conflict verdict; a visible collision still fires. From
+Edgar's 2026-06-28 review. Spec: `docs/superpowers/specs/2026-06-28-github-truncation-honesty.md`.
+*Two sequenced follow-ups:* (1) precise truncation copy by wiring the reserved `incomplete[unbounded]`
+reason (select.py) end to end, so it reads "checked the most recent N open PRs, more exist" instead of
+routing through the M2 render's "couldn't reach GitHub" (touches core closure + assessment + render,
+own slice); (2) path-filtered server-side PR search so very busy repos get a real conflict answer
+instead of UNKNOWN.
 **Remaining slices (ordered):** B `teamctx init` scaffolds the work_start config · C legacy
 retirement (drop `refresh`/`context`, rebuild `why`/`open-source` on the broker) · D packaging
 (pip/uvx) + token-hygiene docs · E README (claims-match-code, **reality-grounding** lead) · then the
