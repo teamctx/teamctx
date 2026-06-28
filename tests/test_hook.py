@@ -102,3 +102,46 @@ def test_systemexit_in_ground_is_swallowed(monkeypatch, capsys, tmp_path) -> Non
     monkeypatch.setattr(hook, "_ground", boom)
     out = _run(_payload(tmp_path), monkeypatch, capsys)  # must not raise / exit the process
     assert out.strip() == ""
+
+
+def test_absolute_file_path_still_matches_collision(monkeypatch, capsys, tmp_path) -> None:
+    _init_repo(tmp_path)
+    import teamctx.connectors.github as gh
+    from teamctx.connectors.forge_review import ForgeReviewPullRequest
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: [ForgeReviewPullRequest(
+        provider="github", repo="acme/widgets", number=7, state="open",
+        url="https://github.com/acme/widgets/pull/7", title=None,
+        changed_paths=("src/app.py",), created_at="2026-06-27T10:00:00Z",
+        updated_at="2026-06-27T11:00:00Z")])
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setenv("TEAMCTX_HOOK_CACHE", str(tmp_path / "cache"))
+    abs_path = str(tmp_path / "src" / "app.py")  # Claude Code passes ABSOLUTE paths
+    payload = json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Edit",
+        "tool_input": {"file_path": abs_path}, "cwd": str(tmp_path), "session_id": "abs-1"})
+    out = _run(payload, monkeypatch, capsys)
+    ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+    assert "PR #7" in ctx  # abs path normalized to repo-relative and matched; no false all-clear
+    assert str(tmp_path) not in ctx  # signal shows the relative path, not the ugly absolute one
+
+
+def test_network_calls_are_time_bounded(monkeypatch, capsys, tmp_path) -> None:
+    _init_repo(tmp_path)
+    import socket
+
+    import teamctx.connectors.github as gh
+    import teamctx.work_start as ws
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: [])
+    seen: dict[str, object] = {}
+    real = ws.work_start_answer
+
+    def spy(*a, **k):
+        seen["timeout"] = socket.getdefaulttimeout()
+        return real(*a, **k)
+
+    monkeypatch.setattr(ws, "work_start_answer", spy)
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setenv("TEAMCTX_HOOK_CACHE", str(tmp_path / "cache"))
+    before = socket.getdefaulttimeout()
+    _run(_payload(tmp_path), monkeypatch, capsys)
+    assert seen["timeout"] == 8  # a network budget is applied during grounding
+    assert socket.getdefaulttimeout() == before  # restored afterward (no global pollution)
