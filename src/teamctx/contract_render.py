@@ -42,6 +42,12 @@ _NOT_CHECKED_PHRASE = {
     "gate": "failing checks (couldn't determine your branch)",
     "conflict": "open PRs (couldn't determine the repository)",
 }
+_UNREACHABLE_PHRASE = {
+    "conflict": "open PRs (couldn't reach GitHub)",
+    "gate": "failing checks (couldn't reach GitHub)",
+    "criteria": "spec changes (couldn't reach GitHub)",
+    "docs": "the docs you rely on (couldn't read the docs folder)",
+}
 _FINDING_ACTION = {
     "conflict": "look at it before you edit so you don't undo each other's work",
     "criteria": "re-check the criteria before you rely on them",
@@ -97,6 +103,9 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
     coverage = _coverage_line(assessment)
     if coverage:
         lines.append(coverage)
+    couldnt = _couldnt_check_line(assessment)
+    if couldnt:
+        lines.append(couldnt)
     not_checked = _not_checked_line(assessment)
     if not_checked:
         lines.append(not_checked)
@@ -160,6 +169,19 @@ def _coverage_line(assessment: WorkStartAssessment) -> str:
         return ""
     label = "Checked: " if assessment.kind == "ready" else "Also checked: "
     return "  " + label + "; ".join(clear) + "."
+
+
+def _couldnt_check_line(assessment: WorkStartAssessment) -> str:
+    # Non-important unreachable checks. The important ones (conflict/gate) are surfaced as the
+    # can't-verify bullets; this keeps honest-UNKNOWN from being silently dropped for the rest.
+    gaps = [
+        _UNREACHABLE_PHRASE[s.check]
+        for s in assessment.checks
+        if s.status == "unreachable" and s.check not in ("conflict", "gate")
+    ]
+    if not gaps:
+        return ""
+    return "  Couldn't check: " + "; ".join(gaps) + "."
 
 
 def _not_checked_line(assessment: WorkStartAssessment) -> str:

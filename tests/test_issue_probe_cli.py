@@ -54,9 +54,10 @@ def test_issue_probe_without_token_degrades_honestly(monkeypatch) -> None:
     )
     assert result.exit_code == 0, result.output
     # no token => issue_tracker unavailable => criteria unreachable (not an important check),
-    # so kind stays "ready"; the render shows "Looks clear to start." without mentioning criteria.
-    # The important checks (conflict, gate) are not_configured here, not unreachable.
+    # so kind stays "ready". But honest-UNKNOWN must not be dropped: the gap is surfaced on the
+    # "Couldn't check:" line, not silently hidden behind the clear headline.
     assert "Looks clear to start." in result.output
+    assert "Couldn't check: spec changes" in result.output
     assert "Not checked:" in result.output
 
 

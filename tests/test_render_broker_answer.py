@@ -77,6 +77,17 @@ def test_cant_verify_when_github_unreachable() -> None:
     _no_jargon(text)
 
 
+def test_non_important_unreachable_is_surfaced_not_hidden() -> None:
+    # issue source down (non-important) keeps kind=ready, but the render must still say it
+    # couldn't check criteria; a silent clear here would be a false all-clear.
+    text = render_broker_answer(
+        broker_answer(_request(), [], [_fresh("git_hosting"), _unavailable("issue_tracker")])
+    )
+    assert text.startswith("Looks clear to start.")
+    assert "Couldn't check: spec changes" in text
+    _no_jargon(text)
+
+
 def test_authority_section_surfaces_a_conflict() -> None:
     decls = [
         AuthorityDecl(subject="rounding-cap", source="ticket", priority=10, value="5", fresh=True),
