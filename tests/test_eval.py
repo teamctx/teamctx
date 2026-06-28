@@ -112,9 +112,9 @@ def test_context_prompt_carries_the_real_derived_card() -> None:
     scenario = _scenario()
     prompt = render_context_prompt(scenario)
     # the card text is DERIVED by the real engine, not authored into the scenario
-    assert "Working context" in prompt
+    assert "Before you start, here is what to handle first:" in prompt
     assert "Open PR #9 changed src/teamctx/core/select.py." in prompt
-    assert "Conflict check: NOT CLEAR" in prompt  # the real verdict, from broker_answer
+    assert "look at it before you edit" in prompt  # the real action phrase, from broker_answer
 
 
 def test_run_one_scenario_dispatches_variant() -> None:
@@ -147,7 +147,7 @@ def test_export_pack_empty_dir_raises(tmp_path) -> None:
 
 
 def test_shipped_example_scenario_is_valid_and_runs() -> None:
-    """The checked-in example must stay loadable and produce a real context arm — it is the
+    """The checked-in example must stay loadable and produce a real context arm; it is the
     out-of-the-box proof that the evidence engine runs against the live engine."""
 
     from pathlib import Path
@@ -158,7 +158,8 @@ def test_shipped_example_scenario_is_valid_and_runs() -> None:
     for path in scenarios:
         scenario = load_scenario(path)
         context = render_context_prompt(scenario)
-        assert "Working context" in context
+        # shipped scenario has a collision + gate failure -> heads-up headline
+        assert "Before you start, here is what to handle first:" in context
         assert scenario.task in context
 
 

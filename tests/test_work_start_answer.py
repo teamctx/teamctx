@@ -24,5 +24,6 @@ def test_render_work_start_still_renders(monkeypatch) -> None:
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     inputs = WorkStartInputs(repo="acme/widgets", paths=("src/x.py",), token="t")
     text = render_work_start(inputs, observed_at=OBS)
-    assert "Working context" in text
-    assert "Conflict check:" in text
+    # conflict clear (git_hosting fresh, no collisions); other checks not configured
+    assert "Looks clear to start." in text
+    assert "no open PRs touch your files" in text

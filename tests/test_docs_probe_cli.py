@@ -21,8 +21,9 @@ def test_docs_probe_surfaces_superseded_card_and_verdict(tmp_path, monkeypatch) 
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
+    assert "Before you start, here is what to handle first:" in result.output
     assert "docs/superpowers/research/new.md" in result.output  # names the current doc
-    assert "Docs check" in result.output  # the verdict label rendered
+    assert "rely on the current one instead" in result.output  # the action phrase
 
 
 def test_docs_probe_with_no_supersession_is_clean(tmp_path, monkeypatch) -> None:
