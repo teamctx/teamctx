@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 
+from teamctx.assessment import CheckState, WorkStartAssessment, assess
 from teamctx.core.authority import AuthorityEntry
 from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import (
@@ -14,7 +15,6 @@ from teamctx.core.contracts import (
     SourceOpenTarget,
     SourceStatus,
 )
-from teamctx.core.evaluate import Valuation
 from teamctx.core.select import ContextSelection
 
 SECTION_ORDER = (
@@ -24,6 +24,30 @@ SECTION_ORDER = (
     "Source unavailable",
     "Good to know",
 )
+
+_HEADLINE = {
+    "ready": "Looks clear to start.",
+    "heads_up": "Before you start, here is what to handle first:",
+    "cant_verify": "Heads up: I couldn't check the important things:",
+}
+_CLEAR_PHRASE = {
+    "conflict": "no open PRs touch your files",
+    "gate": "CI is green",
+    "docs": "the docs you rely on are current",
+    "criteria": "the linked issue's criteria are unchanged",
+}
+_NOT_CHECKED_PHRASE = {
+    "criteria": "spec changes (no issue is linked to this branch; link one to enable)",
+    "docs": "docs (no docs root is configured; set work_start.docs_root to enable)",
+    "gate": "failing checks (couldn't determine your branch)",
+    "conflict": "open PRs (couldn't determine the repository)",
+}
+_FINDING_ACTION = {
+    "conflict": "look at it before you edit so you don't undo each other's work",
+    "criteria": "re-check the criteria before you rely on them",
+    "docs": "rely on the current one instead",
+    "gate": "fix it or wait for a green build before relying on it",
+}
 
 
 def render_contract_context(document: CoreContractDocument) -> str:
@@ -56,78 +80,101 @@ def _authority_line(entry: AuthorityEntry) -> str:
     if entry.state == "resolved":
         return f"- {entry.subject}: resolved (value {entry.value})"
     if entry.state == "conflicted":
-        return f"- {entry.subject}: CONFLICTED — declared sources disagree; not adjudicated"
+        return f"- {entry.subject}: CONFLICTED: declared sources disagree; not adjudicated"
     if entry.state == "unknown[stale-authority]":
-        return f"- {entry.subject}: unknown — declared authority is stale; refresh it"
+        return f"- {entry.subject}: unknown: declared authority is stale; refresh it"
     return f"- {entry.subject}: no authority declared"
 
 
-def render_selection(
-    selection: ContextSelection,
-    verdicts: Sequence[tuple[str, Valuation]] = (),
-) -> str:
-    """Human-plane render of the broker's answer: derived cards + honest coverage."""
+def render_broker_answer(answer: BrokerAnswer) -> str:
+    """The one render every transport uses: a signal-led plain-prose report of the broker's
+    answer. Decision-enabling; gaps carry their reason and how to turn them on. Deterministic,
+    never via an LLM, and prints: it never blocks."""
 
-    grouped: OrderedDict[str, list[ContextCard]] = OrderedDict()
-    for card in sort_contract_cards(selection.cards):
-        grouped.setdefault(card.section, []).append(card)
-
-    lines = ["Working context"]
-    if not grouped:
-        lines.extend(["", "No working context for this task."])
-    else:
-        for section, section_cards in grouped.items():
-            lines.extend(["", section])
-            for card in section_cards:
-                lines.append(f"- {card.text}")
-                lines.append(f"  Why this matters: {card.why_this_matters}")
-                lines.append(f"  Source: {card.source_display}")
-
-    lines.extend(["", "Coverage"])
-    coverage = selection.coverage
-    if not coverage.entries:
-        lines.append("- no sources were checked")
-    for entry in coverage.entries:
-        lines.append(f"- {entry.source_family}: {entry.status}")
-    complete = bool(selection.closure) and all(
-        entry.status == "complete" for entry in selection.closure
-    )
-    if complete:
-        lines.append("Coverage complete across checked sources.")
-    else:
-        lines.append(
-            "Absence of a card is not an all-clear; "
-            "treat unobserved or stale sources as Unknown."
-        )
-
-    if selection.authority:
-        lines.extend(["", "Authority"])
-        lines.extend(_authority_line(entry) for entry in selection.authority)
-
-    for label, verdict in verdicts:
-        lines.extend(["", _verdict_line(label, verdict)])
-
+    assessment = assess(answer)
+    lines = [_HEADLINE[assessment.kind]]
+    lines.extend(_finding_bullets(assessment))
+    coverage = _coverage_line(assessment)
+    if coverage:
+        lines.append(coverage)
+    not_checked = _not_checked_line(assessment)
+    if not_checked:
+        lines.append(not_checked)
+    lines.extend(_authority_block(answer.selection))
     return "\n".join(lines) + "\n"
 
 
-def render_broker_answer(answer: BrokerAnswer) -> str:
-    """Human-plane render of the broker's complete answer (selection + verdicts). The one
-    call every transport uses to turn a ``BrokerAnswer`` into terminal text."""
+def _finding_bullets(assessment: WorkStartAssessment) -> list[str]:
+    if assessment.kind == "heads_up":
+        bullets: list[str] = []
+        for state in assessment.checks:
+            if state.status == "found":
+                bullets.extend(f"  • {_finding_text(state, card)}" for card in state.cards)
+        return bullets
+    if assessment.kind == "cant_verify":
+        return _cant_verify_bullets(assessment)
+    return []
 
-    return render_selection(answer.selection, answer.verdicts)
+
+def _finding_text(state: CheckState, card: ContextCard) -> str:
+    action = _FINDING_ACTION.get(state.check, "")
+    pr = _gh_hint(card.source_display)
+    base = f"{card.text}: {action}" if action else card.text
+    return f"{base}{pr}"
 
 
-def _verdict_line(label: str, verdict: Valuation) -> str:
-    """One labeled human verdict line."""
+def _gh_hint(source_display: str) -> str:
+    marker = source_display.rfind("#")
+    if marker == -1:
+        return ""
+    digits = ""
+    for ch in source_display[marker + 1:]:
+        if ch.isdigit():
+            digits += ch
+        else:
+            break
+    return f" (gh pr view {digits})" if digits else ""
 
-    if verdict.value == "false":
-        return f"{label}: NOT CLEAR — a conflicting open item exists (see above)."
-    if verdict.value == "true":
-        return f"{label}: clear — coverage complete, nothing conflicting."
-    return (
-        f"{label}: UNKNOWN — coverage incomplete ({verdict.reason}); "
-        "absence is not an all-clear."
+
+def _cant_verify_bullets(assessment: WorkStartAssessment) -> list[str]:
+    status = {s.check: s.status for s in assessment.checks}
+    conflict = status.get("conflict") == "unreachable"
+    gate = status.get("gate") == "unreachable"
+    fix = (
+        "teamctx couldn't reach GitHub. Either it has no access yet (run `teamctx install-hook` "
+        "to connect it) or it's a temporary connection issue."
     )
+    if conflict and gate:
+        return [f"  • Open PRs and failing checks: {fix} Until it's back you won't see colliding "
+                "PRs or red CI on your files."]
+    if conflict:
+        return [f"  • Open PRs: {fix} Until it's back you won't see colliding PRs on your files."]
+    if gate:
+        return [f"  • Failing checks: {fix} Until it's back you won't see red CI on your files."]
+    return []
+
+
+def _coverage_line(assessment: WorkStartAssessment) -> str:
+    clear = [_CLEAR_PHRASE[s.check] for s in assessment.checks if s.status == "clear"]
+    if not clear:
+        return ""
+    label = "Checked: " if assessment.kind == "ready" else "Also checked: "
+    return "  " + label + "; ".join(clear) + "."
+
+
+def _not_checked_line(assessment: WorkStartAssessment) -> str:
+    gaps = [_NOT_CHECKED_PHRASE[s.check] for s in assessment.checks if s.status == "not_configured"]
+    if not gaps:
+        return ""
+    return "  Not checked: " + "; ".join(gaps) + "."
+
+
+def _authority_block(selection: ContextSelection) -> list[str]:
+    if not selection.authority:
+        return []
+    lines = ["", "Authority"]
+    lines.extend(_authority_line(entry) for entry in selection.authority)
+    return lines
 
 
 def render_contract_why(document: CoreContractDocument, card_id: str) -> str:
