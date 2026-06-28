@@ -29,7 +29,7 @@ def test_issue_probe_surfaces_criteria_changed_card(monkeypatch) -> None:
     result = CliRunner().invoke(
         main,
         [
-            "issue-probe", "--repo", "teamctx/teamctx",
+            "dev", "issue-probe", "--repo", "teamctx/teamctx",
             "--issue", "#42", "--since", "2026-06-24T00:00:00Z",
             "--path", "src/teamctx/cli.py",
         ],
@@ -46,7 +46,7 @@ def test_issue_probe_without_token_degrades_honestly(monkeypatch) -> None:
     result = CliRunner().invoke(
         main,
         [
-            "issue-probe", "--repo", "teamctx/teamctx",
+            "dev", "issue-probe", "--repo", "teamctx/teamctx",
             "--issue", "#42", "--since", "2026-06-24T00:00:00Z",
             "--path", "src/teamctx/cli.py",
         ],
@@ -73,7 +73,7 @@ def test_issue_probe_no_changes_shows_clear(monkeypatch) -> None:
     result = CliRunner().invoke(
         main,
         [
-            "issue-probe", "--repo", "teamctx/teamctx",
+            "dev", "issue-probe", "--repo", "teamctx/teamctx",
             "--issue", "#42", "--since", "2026-06-24T00:00:00Z",
             "--path", "src/teamctx/cli.py",
         ],
