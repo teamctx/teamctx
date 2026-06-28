@@ -66,3 +66,20 @@ def test_clear_important_with_only_policy_gaps_is_ready() -> None:
 def test_checks_are_ordered_conflict_criteria_docs_gate() -> None:
     a = assess(broker_answer(_request(), [], [_fresh_status("git_hosting")]))
     assert [c.check for c in a.checks] == ["conflict", "criteria", "docs", "gate"]
+
+
+def test_conflicting_evidence_is_a_finding() -> None:
+    from teamctx.assessment import _status_for
+    from teamctx.core.evaluate import Valuation
+
+    assert _status_for(Valuation("unknown", "conflicting-evidence")) == "found"
+
+
+def test_unreachable_non_important_check_stays_ready() -> None:
+    # git_hosting fresh -> conflict clear; docs unavailable -> docs unreachable but NOT important,
+    # so the kind stays ready (only conflict/gate unreachable triggers cant_verify).
+    a = assess(
+        broker_answer(_request(), [], [_fresh_status("git_hosting"), _unavailable_status("docs")])
+    )
+    assert a.kind == "ready"
+    assert next(c for c in a.checks if c.check == "docs").status == "unreachable"

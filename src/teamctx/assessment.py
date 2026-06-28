@@ -17,6 +17,8 @@ from teamctx.core.evaluate import Valuation
 CheckId = Literal["conflict", "criteria", "docs", "gate"]
 CheckStatus = Literal["clear", "found", "unreachable", "not_configured"]
 
+# Verdict labels are CARD_KINDS[*].verdict_label in core/select.py — keep in sync; a mismatch
+# makes verdicts.get(label) miss and the check fall to not_configured (caught by the render tests).
 _LABELS: tuple[tuple[str, CheckId], ...] = (
     ("Conflict check", "conflict"),
     ("Criteria check", "criteria"),
@@ -48,6 +50,8 @@ def _status_for(valuation: Valuation) -> CheckStatus:
         return "clear"
     if valuation.value == "false":
         return "found"
+    if valuation.reason == "conflicting-evidence":
+        return "found"  # connectors fired and disagree — a finding, not a config gap
     if valuation.reason == "incomplete[stale-dep]":
         return "unreachable"
     return "not_configured"
