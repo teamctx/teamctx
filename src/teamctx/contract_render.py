@@ -5,7 +5,13 @@ from __future__ import annotations
 from collections import OrderedDict
 from collections.abc import Iterable
 
-from teamctx.assessment import CheckState, WorkStartAssessment, assess
+from teamctx.assessment import (
+    IMPORTANT_CHECKS,
+    CheckId,
+    CheckState,
+    WorkStartAssessment,
+    assess,
+)
 from teamctx.core.authority import AuthorityEntry
 from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import (
@@ -30,25 +36,25 @@ _HEADLINE = {
     "heads_up": "Before you start, here is what to handle first:",
     "cant_verify": "Heads up: I couldn't check the important things:",
 }
-_CLEAR_PHRASE = {
+_CLEAR_PHRASE: dict[CheckId, str] = {
     "conflict": "no open PRs touch your files",
     "gate": "CI is green",
     "docs": "the docs you rely on are current",
     "criteria": "the linked issue's criteria are unchanged",
 }
-_NOT_CHECKED_PHRASE = {
+_NOT_CHECKED_PHRASE: dict[CheckId, str] = {
     "criteria": "spec changes (no issue is linked to this branch; link one to enable)",
     "docs": "docs (no docs root is configured; set work_start.docs_root to enable)",
     "gate": "failing checks (couldn't determine your branch)",
     "conflict": "open PRs (couldn't determine the repository)",
 }
-_UNREACHABLE_PHRASE = {
+_UNREACHABLE_PHRASE: dict[CheckId, str] = {
     "conflict": "open PRs (couldn't reach GitHub)",
     "gate": "failing checks (couldn't reach GitHub)",
     "criteria": "spec changes (couldn't reach GitHub)",
     "docs": "the docs you rely on (couldn't read the docs folder)",
 }
-_FINDING_ACTION = {
+_FINDING_ACTION: dict[CheckId, str] = {
     "conflict": "look at it before you edit so you don't undo each other's work",
     "criteria": "re-check the criteria before you rely on them",
     "docs": "rely on the current one instead",
@@ -146,6 +152,9 @@ def _gh_hint(source_display: str) -> str:
 
 
 def _cant_verify_bullets(assessment: WorkStartAssessment) -> list[str]:
+    # Emits the bespoke combined bullet for the important checks (IMPORTANT_CHECKS = conflict,
+    # gate). If that set ever grows, extend this so every important check still gets a bullet,
+    # otherwise _couldnt_check_line will suppress it (in_bullets) and it would surface nowhere.
     status = {s.check: s.status for s in assessment.checks}
     conflict = status.get("conflict") == "unreachable"
     gate = status.get("gate") == "unreachable"
@@ -181,7 +190,7 @@ def _couldnt_check_line(assessment: WorkStartAssessment) -> str:
         _UNREACHABLE_PHRASE[s.check]
         for s in assessment.checks
         if s.status == "unreachable"
-        and not (in_bullets and s.check in ("conflict", "gate"))
+        and not (in_bullets and s.check in IMPORTANT_CHECKS)
     ]
     if not gaps:
         return ""

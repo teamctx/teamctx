@@ -100,6 +100,29 @@ def test_heads_up_still_surfaces_unreachable_important_check() -> None:
     _no_jargon(text)
 
 
+def test_heads_up_uses_also_checked_label_for_remaining_clear_checks() -> None:
+    # found conflict -> heads_up; gate clear -> the clear summary uses "Also checked:" not "Checked"
+    text = render_broker_answer(
+        broker_answer(
+            _request(), [_collision_signal()], [_fresh("git_hosting"), _fresh("ci_deploy")]
+        )
+    )
+    assert text.startswith("Before you start, here is what to handle first:")
+    assert "Also checked: CI is green" in text
+    _no_jargon(text)
+
+
+def test_cant_verify_gate_only_bullet() -> None:
+    # gate alone unreachable (conflict clear) -> cant_verify with the gate-only bullet, not combined
+    text = render_broker_answer(
+        broker_answer(_request(), [], [_fresh("git_hosting"), _unavailable("ci_deploy")])
+    )
+    assert text.startswith("Heads up: I couldn't check the important things:")
+    assert "Failing checks:" in text
+    assert "Open PRs and failing checks:" not in text
+    _no_jargon(text)
+
+
 def test_authority_section_surfaces_a_conflict() -> None:
     decls = [
         AuthorityDecl(subject="rounding-cap", source="ticket", priority=10, value="5", fresh=True),

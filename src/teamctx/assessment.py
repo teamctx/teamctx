@@ -28,7 +28,7 @@ _LABELS: tuple[tuple[str, CheckId], ...] = (
 _REASON_PREFIX: dict[str, CheckId] = {
     "collision": "conflict", "criteria": "criteria", "doc": "docs", "gate": "gate",
 }
-_IMPORTANT: frozenset[CheckId] = frozenset({"conflict", "gate"})
+IMPORTANT_CHECKS: frozenset[CheckId] = frozenset({"conflict", "gate"})
 
 
 @dataclass(frozen=True)
@@ -82,7 +82,7 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     kind: Literal["ready", "heads_up", "cant_verify"]
     if any(s.status == "found" for s in states):
         kind = "heads_up"
-    elif any(s.status == "unreachable" and s.check in _IMPORTANT for s in states):
+    elif any(s.status == "unreachable" and s.check in IMPORTANT_CHECKS for s in states):
         kind = "cant_verify"
     else:
         kind = "ready"
