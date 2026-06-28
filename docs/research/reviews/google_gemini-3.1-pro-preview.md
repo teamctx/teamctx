@@ -9,7 +9,7 @@
 It is not a moat; it is an optimization for a temporary constraint (token cost/limits). 
 
 *   **The Steelman against you:** Context windows are hitting 1M+ tokens, and inference costs are plummeting. Within 18 months, the default behavior won't be "carefully fetch 4 deterministic context cards." It will be "dump the entire Jira epic, the last 10 merged PRs, and the Confluence space into the prompt and let the LLM sort it out." 
-*   **Semantic vs. Lexical:** A deterministic engine says "Acceptance Criteria changed." An LLM says "Acceptance Criteria changed, *and it directly contradicts the logic you just wrote in `auth.ts`*." Your broker leaves the hardest part—synthesizing the *meaning* of the change—to the downstream agent, which might miss it without the full text.
+*   **Semantic vs. Lexical:** A deterministic engine says "Acceptance Criteria changed." An LLM says "Acceptance Criteria changed, *and it directly contradicts the logic you just wrote in `auth.ts`*." Your broker leaves the hardest part, synthesizing the *meaning* of the change, to the downstream agent, which might miss it without the full text.
 *   **Brittleness:** Deterministic systems break when APIs or human workflows change. LLMs are fuzzy but highly resilient to messy, unstructured human data. 
 
 ### 3) WEAKEST WEDGE: Safety boundary

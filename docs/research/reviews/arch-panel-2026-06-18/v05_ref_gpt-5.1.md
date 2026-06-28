@@ -13,7 +13,7 @@ Additionally, the “temporary” state is described informally (“supersedes s
 Recommendation: explicitly scope the evaluation of `A(s)` to T7-eligible extractions, and give a precise priority lattice (temporary vs priority, staleness) to make `A(s)` a total, deterministic function of `Δ` and `E`.
 
 
-§B (Guarded semantics extension — typed Unknown)
+§B (Guarded semantics extension, typed Unknown)
 
 Strongest objection: the claim that reporting `A(s)` in κ does not affect T2′/T6 is only partially argued and misses a realistic leakage mode.
 

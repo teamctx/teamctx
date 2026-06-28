@@ -36,8 +36,9 @@ def test_issue_probe_surfaces_criteria_changed_card(monkeypatch) -> None:
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
-    assert "Criteria check: NOT CLEAR" in result.output
+    assert "Before you start, here is what to handle first:" in result.output
     assert "Issue #42" in result.output
+    assert "re-check the criteria before you rely on them" in result.output
 
 
 def test_issue_probe_without_token_degrades_honestly(monkeypatch) -> None:
@@ -52,7 +53,12 @@ def test_issue_probe_without_token_degrades_honestly(monkeypatch) -> None:
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
-    assert "Criteria check: UNKNOWN" in result.output
+    # no token => issue_tracker unavailable => criteria unreachable (not an important check),
+    # so kind stays "ready". But honest-UNKNOWN must not be dropped: the gap is surfaced on the
+    # "Couldn't check:" line, not silently hidden behind the clear headline.
+    assert "Looks clear to start." in result.output
+    assert "Couldn't check: spec changes" in result.output
+    assert "Not checked:" in result.output
 
 
 def test_issue_probe_no_changes_shows_clear(monkeypatch) -> None:
@@ -74,5 +80,7 @@ def test_issue_probe_no_changes_shows_clear(monkeypatch) -> None:
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
-    assert "Criteria check:" in result.output
-    assert "NOT CLEAR" not in result.output
+    # criteria clear: appears in the "Checked:" coverage line, not as a "NOT CLEAR" finding
+    assert "Looks clear to start." in result.output
+    assert "the linked issue's criteria are unchanged" in result.output
+    assert "Before you start" not in result.output

@@ -1,8 +1,8 @@
 """teamctx MCP server: expose the work-start broker as an MCP tool.
 
 A thin transport over the same use case the CLI runs (``render_work_start``). An agent calls
-the ``work_start`` tool before touching a repo and receives the broker's answer — derived
-cards, honest coverage, and one verdict per check — as text it can read and factor into its
+the ``work_start`` tool before touching a repo and receives the broker's answer: derived
+cards, honest coverage, and one verdict per check, as text it can read and factor into its
 plan. The GitHub token is read from the server environment (``GITHUB_TOKEN``), never passed
 through a tool call, so credentials stay server-side.
 """
@@ -27,7 +27,7 @@ _WORK_START_DESCRIPTION = (
     "pull requests that touch your paths (collisions), failing required CI gates, changed "
     "acceptance criteria on linked issues, and superseded docs you rely on. Returns cards + "
     "an honest coverage report + one verdict per check (clear / NOT CLEAR / UNKNOWN). It "
-    "informs; it does not block — read it and factor it into your plan. A source the inputs "
+    "informs; it does not block. Read it and factor it into your plan. A source the inputs "
     "cannot reach is reported UNKNOWN, never a false all-clear. Repo, branch, and docs root "
     "are auto-detected from the working tree and .teamctx/config.json; pass them only to override."
 )

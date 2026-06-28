@@ -33,18 +33,16 @@ def test_work_start_with_no_token_degrades_honestly(monkeypatch, tmp_path: Path)
     )
 
     assert result.exit_code == 0  # prints, never blocks
-    assert "Working context" in result.output
-    assert "Coverage" in result.output
-    # no token => source unavailable => coverage incomplete => honest warning
-    assert "not an all-clear" in result.output
-    # the engine's verdict is surfaced: no token => unknown, never a false "clear".
-    assert "Conflict check: UNKNOWN" in result.output
+    # no token => conflict check unreachable => cant_verify headline
+    assert "Heads up: I couldn't check the important things:" in result.output
+    assert "couldn't reach GitHub" in result.output
+    assert "teamctx install-hook" in result.output
 
 
 def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path) -> None:
     """Unified work-start runs every connector the inputs allow and reports one verdict per
     check. With a branch + issue + docs-root supplied (and the fetchers stubbed), all four
-    verdict lines appear — collision, gate, criteria, docs — in a single answer."""
+    verdict lines appear (collision, gate, criteria, docs) in a single answer."""
 
     monkeypatch.chdir(tmp_path)
     import teamctx.connectors.github as gh
@@ -75,11 +73,12 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
-    # all four checks reported, each clear since every source was checked and found nothing
-    assert "Conflict check: clear" in result.output
-    assert "Gate check: clear" in result.output
-    assert "Criteria check: clear" in result.output
-    assert "Docs check: clear" in result.output
+    # all four checks clear: they appear in the "Checked:" coverage line
+    assert "Looks clear to start." in result.output
+    assert "no open PRs touch your files" in result.output
+    assert "CI is green" in result.output
+    assert "the linked issue's criteria are unchanged" in result.output
+    assert "the docs you rely on are current" in result.output
 
 
 def _init_repo_with_origin(root: Path, url: str, branch: str) -> None:
@@ -102,8 +101,9 @@ def test_work_start_resolves_repo_from_git_without_flag(monkeypatch, tmp_path: P
          "--token-env", "TEAMCTX_DEFINITELY_UNSET_TOKEN"],
     )
     assert result.exit_code == 0, result.output
-    assert "Working context" in result.output
-    assert "Conflict check: UNKNOWN" in result.output  # repo resolved; no token => honest
+    # repo resolved + no token => both conflict and gate unreachable => cant_verify
+    assert "Heads up: I couldn't check the important things:" in result.output
+    assert "teamctx install-hook" in result.output
 
 
 def test_work_start_errors_when_repo_unresolvable(monkeypatch, tmp_path: Path) -> None:

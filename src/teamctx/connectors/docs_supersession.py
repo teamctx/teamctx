@@ -1,7 +1,7 @@
 """Docs supersession normalization.
 
 The docs connector reads markdown frontmatter; this module turns declared supersession
-facts into Core Contract V0 objects. It does no file I/O and renders no cards directly —
+facts into Core Contract V0 objects. It does no file I/O and renders no cards directly;
 work-start DERIVES doc-superseded cards from the signals emitted here.
 """
 

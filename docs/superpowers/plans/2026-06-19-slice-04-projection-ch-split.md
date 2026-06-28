@@ -1,18 +1,18 @@
-# Slice 4 — Projection Boundary + C/H Split + δ Implementation Plan
+# Slice 4: Projection Boundary + C/H Split + δ Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development or executing-plans. Checkbox steps.
 
 **Goal:** Lock the last two build-once seams. (a) **C/H split:** a structurally separate, untrusted hint layer `H` on the broker answer (empty today, but the seam exists so it's never retrofitted). (b) **Projection boundary:** selection runs only over the consumer-visible projection (Theorem 5), and the declassification dial `δ` lives on the certificate (default `none`) so the certificate can controlled-declassify rather than be starved.
 
-**Architecture:** `project_visible_signals` is the explicit Δ_P projection (cards derive only from it). `Hint` + `ContextSelection.hints` is the separate `H`. `Coverage` gains `delta: Delta`. δ=count/identity are deferred — there are no invisible-target dangling references to declassify until a later slice introduces reference-target tracking; the field + `none` semantics are what we lock now.
+**Architecture:** `project_visible_signals` is the explicit Δ_P projection (cards derive only from it). `Hint` + `ContextSelection.hints` is the separate `H`. `Coverage` gains `delta: Delta`. δ=count/identity are deferred, there are no invisible-target dangling references to declassify until a later slice introduces reference-target tracking; the field + `none` semantics are what we lock now.
 
 **Tech Stack:** Python 3.12, frozen dataclasses + Literal, pytest, ruff, mypy --strict. All in `core/` (purity-globbed).
 
 ---
 
 ## File structure
-- **Modify `src/teamctx/core/select.py`** — add `Hint`, `Delta`, `project_visible_signals`; `derive_claims` projects first; `Coverage` gains `delta`; `build_coverage` takes `delta`; `ContextSelection` gains `hints`; `select_context` sets `hints=()`.
-- **Modify `tests/test_select.py`** — projection (T5) + C/H + δ tests.
+- **Modify `src/teamctx/core/select.py`**: add `Hint`, `Delta`, `project_visible_signals`; `derive_claims` projects first; `Coverage` gains `delta`; `build_coverage` takes `delta`; `ContextSelection` gains `hints`; `select_context` sets `hints=()`.
+- **Modify `tests/test_select.py`**: projection (T5) + C/H + δ tests.
 
 ---
 
@@ -64,7 +64,7 @@ def test_coverage_carries_a_delta_dial_defaulting_to_none() -> None:
     assert build_coverage([]).delta == "none"
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_select.py -v` — expect FAIL (`Hint`/`project_visible_signals` import; `Coverage` has no `delta`; `ContextSelection` has no `hints`).
+- [ ] **Step 2: Run** `pytest tests/test_select.py -v`, expect FAIL (`Hint`/`project_visible_signals` import; `Coverage` has no `delta`; `ContextSelection` has no `hints`).
 
 - [ ] **Step 3: Implement** in `src/teamctx/core/select.py`.
 
@@ -78,7 +78,7 @@ class Hint:
     """An untrusted, uncertified best-effort guess (the H layer).
 
     H is **outside the privacy contract**: a hint must be projected to the consumer-visible
-    set before it is ever surfaced to a human, and it carries NO certificate weight — it
+    set before it is ever surfaced to a human, and it carries NO certificate weight, it
     never enters the certified card set C. No hint producers exist yet; the layer is kept
     structurally separate so certified and uncertified context never share a channel.
     """
@@ -165,10 +165,10 @@ Update `select_context` to set `hints=()`:
     )
 ```
 
-- [ ] **Step 4: Full gate.** First `grep -rn "ContextSelection(" src tests` — only `select_context` should construct it; if a test constructs it directly, add `hints=()`. Then:
-  - `pytest` — all pass (existing `test_hidden_collision_signal_derives_no_claim` still passes; new tests green; `tests/test_render_selection.py` + `tests/test_work_start_cli.py` unaffected — `hints` is additive, `cards`/`coverage`/`closure` unchanged).
-  - `ruff check src tests` — clean.
-  - `mypy src` — Success.
+- [ ] **Step 4: Full gate.** First `grep -rn "ContextSelection(" src tests`, only `select_context` should construct it; if a test constructs it directly, add `hints=()`. Then:
+  - `pytest`, all pass (existing `test_hidden_collision_signal_derives_no_claim` still passes; new tests green; `tests/test_render_selection.py` + `tests/test_work_start_cli.py` unaffected, `hints` is additive, `cards`/`coverage`/`closure` unchanged).
+  - `ruff check src tests`, clean.
+  - `mypy src`, Success.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -182,7 +182,7 @@ git commit -m "feat: lock projection boundary (Delta_P) + C/H split + delta dial
 - [ ] `pytest && ruff check src tests && mypy src` green.
 - [ ] Purity guard: `pytest tests/test_core_contracts.py::test_core_package_has_no_file_or_runtime_side_effect_imports -q`.
 
-**Definition of done:** selection derives only from `project_visible_signals` (P-visible) — a P-invisible signal can't change the observable (T5 test); `ContextSelection.hints` is a separate, empty, untrusted layer; `Coverage.delta` carries the dial at `none`; gate green.
+**Definition of done:** selection derives only from `project_visible_signals` (P-visible), a P-invisible signal can't change the observable (T5 test); `ContextSelection.hints` is a separate, empty, untrusted layer; `Coverage.delta` carries the dial at `none`; gate green.
 
 ---
 

@@ -1,8 +1,8 @@
-# Slice 6 — `criteria-changed` Card Kind + Multi-Verdict Rendering
+# Slice 6: `criteria-changed` Card Kind + Multi-Verdict Rendering
 
 > REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Checkbox steps.
 
-**Goal:** Add the second card kind — **criteria-changed** (a linked issue's acceptance criteria changed) — by registration on the slice-5 engine, and light up the multi-kind path: `work-start` now shows one verdict line **per registered kind**. Fixture/in-test signals prove it (the live issue-tracker connector is a separate layer).
+**Goal:** Add the second card kind, **criteria-changed** (a linked issue's acceptance criteria changed), by registration on the slice-5 engine, and light up the multi-kind path: `work-start` now shows one verdict line **per registered kind**. Fixture/in-test signals prove it (the live issue-tracker connector is a separate layer).
 
 **Architecture:** Register `criteria_changed` as a `CardKind` (predicate `issue_criteria_changed` refutes universal `no_criteria_changed_for_issues`, over the request's `linked_issues`, deps = `issue_tracker`). Give `CardKind` a `verdict_label`. The CLI computes a verdict per kind via `evaluate(kind.query(request), ...)` and `render_selection` renders one labeled line per verdict.
 
@@ -11,11 +11,11 @@
 ---
 
 ## File structure
-- `src/teamctx/core/contracts.py` — add `"criteria_changed"` to `SignalType`.
-- `src/teamctx/core/prop.py` — register predicates + refutes-pair.
-- `src/teamctx/core/select.py` — `criteria_changed_query`, `_derive_criteria_changed_claim`, `render_criteria_changed_claim`, deps entry, `CardKind.verdict_label`, `CARD_KINDS` entry.
-- `src/teamctx/contract_render.py` — `render_selection` renders a labeled verdict line per verdict (multi).
-- `src/teamctx/cli.py` — compute a verdict per kind, pass to render.
+- `src/teamctx/core/contracts.py`, add `"criteria_changed"` to `SignalType`.
+- `src/teamctx/core/prop.py`, register predicates + refutes-pair.
+- `src/teamctx/core/select.py`, `criteria_changed_query`, `_derive_criteria_changed_claim`, `render_criteria_changed_claim`, deps entry, `CardKind.verdict_label`, `CARD_KINDS` entry.
+- `src/teamctx/contract_render.py`, `render_selection` renders a labeled verdict line per verdict (multi).
+- `src/teamctx/cli.py`, compute a verdict per kind, pass to render.
 - Tests: `tests/test_select.py`, `tests/test_render_selection.py`, `tests/test_work_start_cli.py`.
 
 ---
@@ -30,7 +30,7 @@
 
 **Files:** `contracts.py`, `prop.py`, `select.py`, `tests/test_select.py`.
 
-- [ ] **Step 1: Failing tests.** In `tests/test_select.py`, add to imports: `from teamctx.core.contracts import PolicyDecision, SourceSignal` (SourceSignal may already be imported — merge). Add to the `teamctx.core.select` import group: `criteria_changed_query`. Add helper + tests:
+- [ ] **Step 1: Failing tests.** In `tests/test_select.py`, add to imports: `from teamctx.core.contracts import PolicyDecision, SourceSignal` (SourceSignal may already be imported, merge). Add to the `teamctx.core.select` import group: `criteria_changed_query`. Add helper + tests:
 ```python
 def _criteria_signal(issue: str, repo: str = "auth-service") -> SourceSignal:
     return SourceSignal(
@@ -85,7 +85,7 @@ def test_select_context_now_has_two_closure_entries() -> None:
     assert props == {"no_pr_conflicts_with_paths", "no_criteria_changed_for_issues"}
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_select.py -v` — FAIL (`criteria_changed` not a valid SignalType / `criteria_changed_query` missing).
+- [ ] **Step 2: Run** `pytest tests/test_select.py -v`, FAIL (`criteria_changed` not a valid SignalType / `criteria_changed_query` missing).
 
 - [ ] **Step 3: Implement.**
 
@@ -146,7 +146,7 @@ def render_criteria_changed_claim(claim_card: ClaimCard) -> ContextCard:
     )
 ```
 - In `DEPS_REGISTRY` add `"no_criteria_changed_for_issues": frozenset({"issue_tracker"})`.
-- Add `verdict_label: str` to `CardKind` (after `signal_type`/`card_predicate`, before the callables, or at the end — pick one and keep all entries consistent).
+- Add `verdict_label: str` to `CardKind` (after `signal_type`/`card_predicate`, before the callables, or at the end, pick one and keep all entries consistent).
 - Update the collision `CARD_KINDS` entry to include `verdict_label="Conflict check"`, and add the criteria entry:
 ```python
     CardKind(
@@ -196,11 +196,11 @@ def test_render_without_verdicts_is_unchanged() -> None:
     )
     assert "check:" not in render_selection(selection)
 ```
-(Delete the prior single-`Valuation` verdict tests that no longer match the signature: `test_render_appends_not_clear_verdict_for_a_false_valuation`, `..._clear_..._true_...`, `..._unknown_..._with_reason`, `test_render_without_a_verdict_is_unchanged`. Keep `test_render_shows_complete_coverage_when_mandated_source_is_fresh` and `test_render_shows_collision_card_and_honest_incomplete_coverage` — they don't pass verdicts.)
+(Delete the prior single-`Valuation` verdict tests that no longer match the signature: `test_render_appends_not_clear_verdict_for_a_false_valuation`, `..._clear_..._true_...`, `..._unknown_..._with_reason`, `test_render_without_a_verdict_is_unchanged`. Keep `test_render_shows_complete_coverage_when_mandated_source_is_fresh` and `test_render_shows_collision_card_and_honest_incomplete_coverage`, they don't pass verdicts.)
 
-`tests/test_work_start_cli.py` — the no-token assertion `"Conflict check: UNKNOWN"` stays valid (collision verdict). It's now joined by a "Criteria check: UNKNOWN" line; the existing substring assert still passes.
+`tests/test_work_start_cli.py`, the no-token assertion `"Conflict check: UNKNOWN"` stays valid (collision verdict). It's now joined by a "Criteria check: UNKNOWN" line; the existing substring assert still passes.
 
-- [ ] **Step 2: Run** `pytest tests/test_render_selection.py tests/test_work_start_cli.py -v` — FAIL (`render_selection` signature).
+- [ ] **Step 2: Run** `pytest tests/test_render_selection.py tests/test_work_start_cli.py -v`, FAIL (`render_selection` signature).
 
 - [ ] **Step 3: Implement.**
 
@@ -224,10 +224,10 @@ def _verdict_line(label: str, verdict: Valuation) -> str:
     """One labeled human verdict line."""
 
     if verdict.value == "false":
-        return f"{label}: NOT CLEAR — a conflicting open item exists (see above)."
+        return f"{label}: NOT CLEAR, a conflicting open item exists (see above)."
     if verdict.value == "true":
-        return f"{label}: clear — coverage complete, nothing conflicting."
-    return f"{label}: UNKNOWN — coverage incomplete ({verdict.reason}); absence is not an all-clear."
+        return f"{label}: clear, coverage complete, nothing conflicting."
+    return f"{label}: UNKNOWN, coverage incomplete ({verdict.reason}); absence is not an all-clear."
 ```
 
 In `src/teamctx/cli.py`: import `CARD_KINDS` from `teamctx.core.select` (add to the existing import). In `work_start_command`, replace the single-verdict computation with:
@@ -241,12 +241,12 @@ In `src/teamctx/cli.py`: import `CARD_KINDS` from `teamctx.core.select` (add to 
     )
     click.echo(render_selection(selection, verdicts), nl=False)
 ```
-NOTE: use the SAME request object `select_context` was called with. In `work_start_command` that is `document.request_context`. So pass `kind.query(document.request_context)`. Remove the now-unused single `no_conflict_query`/`evaluate` single call (keep the imports of `evaluate`; `no_conflict_query` may become unused in cli.py — if so, remove it from the cli import to keep ruff clean).
+NOTE: use the SAME request object `select_context` was called with. In `work_start_command` that is `document.request_context`. So pass `kind.query(document.request_context)`. Remove the now-unused single `no_conflict_query`/`evaluate` single call (keep the imports of `evaluate`; `no_conflict_query` may become unused in cli.py, if so, remove it from the cli import to keep ruff clean).
 
 - [ ] **Step 4: Full gate.**
-- `pytest` — all pass. The live/integration tests: `test_open_pr_touching_requested_path...` reads selection fields, unaffected. `test_render_shows_*` unaffected (no verdicts passed).
-- `ruff check src tests` — clean (watch for now-unused `no_conflict_query` import in cli.py).
-- `mypy src` — Success.
+- `pytest`, all pass. The live/integration tests: `test_open_pr_touching_requested_path...` reads selection fields, unaffected. `test_render_shows_*` unaffected (no verdicts passed).
+- `ruff check src tests`, clean (watch for now-unused `no_conflict_query` import in cli.py).
+- `mypy src`, Success.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -259,9 +259,9 @@ git commit -m "feat: multi-verdict work-start output (one labeled verdict per ca
 ## Task 3: Verify
 - [ ] `pytest && ruff check src tests && mypy src` green.
 - [ ] Purity guard passes.
-- [ ] Live smoke: `GITHUB_TOKEN=$(gh auth token) PYTHONPATH=src python -m teamctx.cli work-start --github-repo ostinato-forge/project-foundry --path docs/foundry-v2-build-plan.md` — now shows TWO verdict lines: `Conflict check: NOT CLEAR` (PR #14) and `Criteria check: UNKNOWN — coverage incomplete (incomplete[policy-gap])` (no issue-tracker source observed). The collision card + coverage are unchanged.
+- [ ] Live smoke: `GITHUB_TOKEN=$(gh auth token) PYTHONPATH=src python -m teamctx.cli work-start --github-repo ostinato-forge/project-foundry --path docs/foundry-v2-build-plan.md`, now shows TWO verdict lines: `Conflict check: NOT CLEAR` (PR #14) and `Criteria check: UNKNOWN, coverage incomplete (incomplete[policy-gap])` (no issue-tracker source observed). The collision card + coverage are unchanged.
 
 **Definition of done:** criteria-changed is a registered kind deriving from a linked-issue signal; `work-start` shows one labeled verdict per registered kind; collision behavior unchanged; gate green.
 
 ## Notes for next slice
-Slice 7 adds `doc-superseded` (predicate `doc_superseded` over a doc path in `request.paths`, deps `docs`) and `missed-gate` (predicate `gate_failed` over covered paths, deps `ci_deploy`) — pure registrations (SignalType + predicates + refutes-pair + query + derive + render + deps + CARD_KINDS entry + verdict_label), plus in-test signals. Multi-verdict already handles them.
+Slice 7 adds `doc-superseded` (predicate `doc_superseded` over a doc path in `request.paths`, deps `docs`) and `missed-gate` (predicate `gate_failed` over covered paths, deps `ci_deploy`), pure registrations (SignalType + predicates + refutes-pair + query + derive + render + deps + CARD_KINDS entry + verdict_label), plus in-test signals. Multi-verdict already handles them.

@@ -1,7 +1,7 @@
 """Issue criteria-changed normalization.
 
 Turns issue-movement facts into Core Contract V0 objects. No file/network I/O and no card
-rendering — work-start DERIVES criteria-changed cards from the signals emitted here.
+rendering; work-start DERIVES criteria-changed cards from the signals emitted here.
 """
 
 from __future__ import annotations

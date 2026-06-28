@@ -492,7 +492,7 @@ _HOOK_ENTRY = {"matcher": _HOOK_MATCHER, "hooks": [{"type": "command", "command"
 _CLAUDE_MD_SNIPPET = (
     "## Team context (teamctx)\n"
     "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
-    "into your plan — it surfaces open PRs touching your files, failing checks, changed specs, and "
+    "into your plan. It surfaces open PRs touching your files, failing checks, changed specs, and "
     "superseded docs. Tell your human collaborator anything relevant in plain terms so they can "
     "decide.\n"
 )
@@ -521,13 +521,13 @@ def install_hook_command(print_only: bool, settings_path: Path) -> None:
         hooks = settings.get("hooks")
         if "hooks" in settings and not isinstance(hooks, dict):
             raise click.ClickException(
-                f"{settings_path}: its 'hooks' value isn't a JSON object — "
-                "fix or remove that key and re-run."
+                f"{settings_path}: its 'hooks' value isn't a JSON object. "
+                "Fix or remove that key and re-run."
             )
         pre = (hooks or {}).get("PreToolUse")
         if pre is not None and not isinstance(pre, list):
             raise click.ClickException(
-                f"{settings_path}: 'hooks.PreToolUse' isn't a list — fix or remove it and re-run."
+                f"{settings_path}: 'hooks.PreToolUse' isn't a list. Fix or remove it and re-run."
             )
         settings.setdefault("hooks", {}).setdefault("PreToolUse", []).append(
             copy.deepcopy(_HOOK_ENTRY)

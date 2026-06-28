@@ -25,4 +25,4 @@
 
 **FRACTION:** your honest estimate of the share of real‑world HIGH‑VALUE work‑start context events in each class, as S=45% L=35% D=20% (sum 100).  
 
-**BIGGEST_MISS:** the inability of a structural‑only broker to surface *semantic, unlinked knowledge* such as “files that habitually change together” or “tribal conventions”—i.e., the learned/co‑change patterns that drive most surprising breakages.
+**BIGGEST_MISS:** the inability of a structural‑only broker to surface *semantic, unlinked knowledge* such as “files that habitually change together” or “tribal conventions”, i.e., the learned/co‑change patterns that drive most surprising breakages.

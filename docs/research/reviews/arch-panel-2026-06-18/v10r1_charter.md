@@ -1,4 +1,4 @@
-You are refereeing a REVISION of a formal-protocol paper (teamctx — a deterministic,
+You are refereeing a REVISION of a formal-protocol paper (teamctx, a deterministic,
 no-LLM, read-only context broker for AI coding agents). The prior version (accepted)
 established: observable soundness; a three-valued guarded semantics where the broker
 emits only ⟨C, κ⟩ (certified card set + coverage certificate) and NEVER a valuation;
@@ -9,7 +9,7 @@ feature-mediated injection-resistant selection; authority as a declared record
 
 A senior reviewer raised five fixes; the revised sections are below. The headline fix
 (#1): observable soundness previously depended on the consumer "verifying deps_G(ρ) is
-complete," with the rigor hiding in the word **conservative** — so deps_G/completeness
+complete," with the rigor hiding in the word **conservative**: so deps_G/completeness
 was promoted to an EXPLICIT certificate object (`complete?`) plus a named obligation O1.
 
 === REVISED §5 (guarded semantics & observable soundness) ===
@@ -20,7 +20,7 @@ its correctness is the named obligation:
   Discharged PER CONNECTOR by its declared reference schema; a connector able to emit a
   reference class deps_G does not model MUST declare it, else complete? returns
   incomplete[unmodeled-ref].
-Completeness checker — a TOTAL function complete?:(Prop,κ)→{complete}∪{incomplete[r]}:
+Completeness checker, a TOTAL function complete?:(Prop,κ)→{complete}∪{incomplete[r]}:
   complete                  every σ∈deps_G(ρ) in κ with E(source σ)=fresh, and deps_G(ρ) closed
   incomplete[dangling]      a typed ref reachable from ρ has an unobserved target (E∈{missing,unreachable,partial})
   incomplete[stale-dep]     some σ∈deps_G(ρ) present but E≠fresh
@@ -42,7 +42,7 @@ incomplete[dangling], forcing Unknown[unobserved].
 κ = per-source evidence states; per-§8 authority states; a per-subject dependency-closure
 status; and a content-addressed snapshot reference (signed digest + retrievable snapshot
 id). T1 (verifiable replay): the digest BINDS inputs; given the retrievable snapshot a
-verifier can re-derive ⟨C,κ⟩ and confirm the binding — the digest alone verifies, it does
+verifier can re-derive ⟨C,κ⟩ and confirm the binding, the digest alone verifies, it does
 not reconstitute an unavailable snapshot. H (hint layer) is OUTSIDE the privacy contract;
 if surfaced to a human it is first projected to Δ_P.
 
@@ -52,7 +52,7 @@ steady-state; stale/⊥ temporary is not maximal). Freshness source-indexed E(so
   conflicted  if ≥2 α∈M(s) fresh, φ_f≠⊥, values differ under f's typed equality
   resolved    if the unique α∈M(s) is fresh and φ_f≠⊥
   missing     if applies_P(s)=∅
-  Unknown[unobserved]  otherwise — esp. when the priority-maximal authority is stale or
+  Unknown[unobserved]  otherwise, esp. when the priority-maximal authority is stale or
               φ_f=⊥; a stale higher-priority authority is NEVER silently overridden by a
               fresh lower-priority one; its staleness surfaces.
 Example: policy page declared authoritative over the ticket; policy page stale + ticket
@@ -71,14 +71,14 @@ authority{rounding-cap:unknown}; closure{ρ1:incomplete[dangling], ρ2:incomplet
 delta:none.
 
 === YOUR REVIEW ===
-PART 1 — Did the five fixes close cleanly? Especially #1: is the soundness rigor now
+PART 1, Did the five fixes close cleanly? Especially #1: is the soundness rigor now
 genuinely carried by O1 + the total `complete?` checker, or did it just relocate the
 hand-wave from "conservative" into "discharged per connector by its declared schema"?
-PART 2 — Hunt for bugs the fix may have INTRODUCED:
+PART 2, Hunt for bugs the fix may have INTRODUCED:
   (a) Is `complete?` actually TOTAL/decidable? The incomplete[unbounded] case ("deps_G not
-      finitely enumerable") — is deciding that itself decidable, or circular?
+      finitely enumerable"), is deciding that itself decidable, or circular?
   (b) **κ now exposes per-subject closure status. Does `incomplete[dangling]` leak the
-      existence of an INVISIBLE-target dangling reference — reopening T5/T6 / bypassing the
+      existence of an INVISIBLE-target dangling reference, reopening T5/T6 / bypassing the
       δ dial?** (The dial was precisely for invisible-target dangling refs.) Check hard.
   (c) Appendix A: does emitting a collision card (a witness ⇒ True for "a conflict exists")
       while reporting "no further conflicts = Unknown" type-check against the valuation, or

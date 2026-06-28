@@ -11,7 +11,7 @@ index 3cadcb4..6c940c9 100644
 -- Run unit tests.
 -- Confirm token rotation rollout owner.
 -- Check dashboards after deploy.
-+> **WARNING — checklist may be incomplete.**
++> **WARNING, checklist may be incomplete.**
 +> The Confluence Release Checklist source was last exported 2026-06-12 and is flagged stale.
 +> The Confluence body is not retrievable in this context.
 +> Verify the current Confluence page before signing off on this release; there may be steps

@@ -143,7 +143,7 @@ The broker must therefore expose a **lightweight coordination primitive** (think
 - **Prevents rework** beyond the “card” level, turning the safety boundary into an *action* boundary.  
 - **Provides a concrete metric** for GTM (“hours of merge‑conflict avoidance”) that resonates with platform teams.  
 
-Without such a protocol, the broker remains a passive observer, and the most valuable use‑case—*preventing agents from stepping on each other*—cannot be realized.
+Without such a protocol, the broker remains a passive observer, and the most valuable use‑case, *preventing agents from stepping on each other*, cannot be realized.
 
 ---
 
@@ -158,4 +158,4 @@ Without such a protocol, the broker remains a passive observer, and the most val
 | Defer **Ambara** until after the core broker demonstrates ROI; keep the graph “policy‑only”. | Product leadership | Post‑MVP |
 | Pilot on a **single repo + CI pipeline**; capture concrete rework‑hours saved to fuel GTM. | GTM lead | 8‑10 weeks |
 
-If the event‑store + lease primitive are delivered, the product becomes *indispensable* for both solo developers (zero‑config daemon) and large enterprises (mandatory CI gate). All other pieces—smart edge ranking, Ambara, broader connector matrix—are secondary extensions that can be layered on once the core deterministic contract is proven in the field.
+If the event‑store + lease primitive are delivered, the product becomes *indispensable* for both solo developers (zero‑config daemon) and large enterprises (mandatory CI gate). All other pieces, smart edge ranking, Ambara, broader connector matrix, are secondary extensions that can be layered on once the core deterministic contract is proven in the field.

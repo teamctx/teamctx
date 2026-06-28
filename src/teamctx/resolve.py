@@ -4,7 +4,7 @@ Both transports (the CLI and the MCP tool) call ``resolve_work_start_inputs`` be
 the broker, so they resolve identically. Precedence per field is
 ``explicit > .teamctx/config.json > git-detection > honest-absent``. Branch is never read from
 config (it is volatile). A repository that cannot be resolved from any source raises
-``WorkStartResolutionError`` — there is nothing to check, so that is a setup error, not a
+``WorkStartResolutionError``: there is nothing to check, so that is a setup error, not a
 coverage gap.
 """
 

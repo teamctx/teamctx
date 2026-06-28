@@ -17,4 +17,4 @@
 17 | Policy: "if I'm working after 9pm, warn me not to push directly to main" (solo dev personal rule) | D | Human-declared behavioral config, stored as durable policy
 18 | Architecture decision record `docs/adr/0003-use-grpc.md` was edited since branch, and your branch references it | S | Linked document changed-since-branch state
 FRACTION: S=35% L=50% D=15%
-BIGGEST_MISS: Tribal knowledge and semantic co-relevance across artifacts (e.g., unlinked RFCs, historical co-change patterns, informal team discussions) — because they lack explicit structural edges and cannot be captured by a deterministic graph traversal.
+BIGGEST_MISS: Tribal knowledge and semantic co-relevance across artifacts (e.g., unlinked RFCs, historical co-change patterns, informal team discussions), because they lack explicit structural edges and cannot be captured by a deterministic graph traversal.

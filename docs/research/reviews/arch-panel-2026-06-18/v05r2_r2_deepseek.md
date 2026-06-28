@@ -1,4 +1,4 @@
-**PART 1 — Closure confirmation (six issues)**  
+**PART 1, Closure confirmation (six issues)**  
 
 1. **A (banned extraction for authority)** – Fixed. Authority now exclusively uses a pinned, typed, partial extractor `φ_f` (§A); `⊥` never creates conflicts. The old open‑ended extraction path is closed.  
 2. **B (leaked invisible‑declaration existence)** – Fixed. The consumer‑visible projection `Δ_P` (§A, A7) ensures `A(s)` depends only on sources the consumer can already read. The argument that divergence over visible sources adds zero additional information is sound; the earlier leak is patched.  
@@ -11,7 +11,7 @@
 
 ---
 
-**PART 2 — New‑contradiction hunt**  
+**PART 2, New‑contradiction hunt**  
 
 **(a) Consumer‑relative authority, determinism, and replayability**  
 `A(s)` is computed over the consumer‑visible projection `Δ_P`. This makes authority consumer‑relative, but that does **not** break determinism/replayability: the broker’s output remains a deterministic function of the full state and the requesting consumer’s identity (which is already required for authorization). Replay can fix the projection as part of the replay context. Two consumers seeing different `A(s)` leaks nothing about invisible sources to the consumer who cannot see them; the projection ensures the certificate reveals no information beyond what the consumer already knows from their own readable sources. No contradiction.  

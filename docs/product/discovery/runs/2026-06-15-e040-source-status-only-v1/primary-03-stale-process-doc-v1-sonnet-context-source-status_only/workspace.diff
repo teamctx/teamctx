@@ -12,7 +12,7 @@ index 3cadcb4..f8d1bca 100644
 -- Run unit tests.
 -- Confirm token rotation rollout owner.
 -- Check dashboards after deploy.
-+> **WARNING — stale source:** The Confluence Release Checklist has not been
++> **WARNING, stale source:** The Confluence Release Checklist has not been
 +> re-exported since 2026-06-12. Steps may have been added or changed since then.
 +> Verify against Confluence before signing off on this release.
 +
@@ -35,5 +35,5 @@ index 3cadcb4..f8d1bca 100644
 +
 +## Gap notice
 +
-+Steps above are derived from local files only. The Confluence source is stale —
++Steps above are derived from local files only. The Confluence source is stale,
 +cross-check that page before closing this checklist.

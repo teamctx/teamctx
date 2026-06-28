@@ -4,7 +4,7 @@ Tests Gemini's claim that an honest coverage certificate forces an N+1 I/O storm
 that adds seconds to every request.
 
 This is a SIMULATION with MODELED per-call latency distributions (lognormal,
-fit to rough public p50/p95 for these cloud APIs) — not a benchmark against live
+fit to rough public p50/p95 for these cloud APIs), not a benchmark against live
 APIs (no creds, no network egress in sandbox). The exact ms are only as good as
 the inputs; the QUALITATIVE comparison across architectures is the robust result.
 
@@ -58,7 +58,7 @@ def run():
 
     # Staleness cost of C: with a background refresh every R seconds, the
     # coverage certificate reports an age uniformly in [0, R]. Show the trade.
-    print("\nC's honesty trade — staleness reported vs. refresh interval:")
+    print("\nC's honesty trade: staleness reported vs. refresh interval:")
     print(f"{'refresh interval':>18} {'typical age shown':>20} {'worst age':>12}")
     for R in (15, 30, 60, 300):
         print(f"{R:>15}s {R/2:>18.0f}s {R:>11}s")

@@ -48,7 +48,7 @@ Is “no-LLM deterministic” a moat, or does LLM-native context kill it?
 3) WEAKEST WEDGE: safety boundary vs. painkiller
 - **“Safety boundary” is a vitamin for most teams today:**
   - Most orgs don’t yet have *live* horror stories from prompt-injection supply chains in their internal dev tools. Those will come, but “maybe injection” is still abstract vs. “we just lost 3 sprints of work.”  
-  - Security/CTO will want to say “no” to risky agents, but their behavior is: stall, add approvals, and wait for incumbents to offer controls — not adopt a specialized broker.
+  - Security/CTO will want to say “no” to risky agents, but their behavior is: stall, add approvals, and wait for incumbents to offer controls, not adopt a specialized broker.
 
 - **Who actually pays first, and for what:**
   - Short-term real buyer is whoever owns *AI agent rollout* inside engineering (often Eng Platform / DevEx / “AI enablement” team), **not** security first.  
@@ -108,9 +108,9 @@ a) **Solo builder**
   - Example:  
     - `teamctx` is just a small local daemon / binary you point at your GitHub + Jira once.  
     - Every time you run your coding agent, it prints:  
-      - “PR #123 already modifies foo/bar.py — open? [y/N]”  
-      - “Issue ABC-42 acceptance criteria changed 2 days ago — show diff? [y/N]”  
-      - “Doc ‘Deployment process’ updated since branch created — view snippet? [y/N]”  
+      - “PR #123 already modifies foo/bar.py, open? [y/N]”  
+      - “Issue ABC-42 acceptance criteria changed 2 days ago, show diff? [y/N]”  
+      - “Doc ‘Deployment process’ updated since branch created, view snippet? [y/N]”  
   - No dashboards. No separate login. It’s just a thin layer that makes the *agent CLI* feel smarter and more aware of “what’s going on around this change.”
 
 - **If you miss this:**

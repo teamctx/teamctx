@@ -1,8 +1,8 @@
-# Slice 9b — Structured `why` (#11) + Severity Decomposition (#6)
+# Slice 9b: Structured `why` (#11) + Severity Decomposition (#6)
 
 > REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Checkbox steps.
 
-**Goal:** Make cards machine-auditable and conformance-comparable. (#11) Each card carries a machine-readable `reason_code` alongside its prose. (#6) Each card carries a **severity decomposition** (`value`, `kind_base`, `magnitude_norm`, `scope_mult`) computed deterministically, with a **conformance golden** so any conforming broker produces identical numbers. Severity *calibration* (the default constants) stays deferred — this locks the structure + determinism, not the tuned values.
+**Goal:** Make cards machine-auditable and conformance-comparable. (#11) Each card carries a machine-readable `reason_code` alongside its prose. (#6) Each card carries a **severity decomposition** (`value`, `kind_base`, `magnitude_norm`, `scope_mult`) computed deterministically, with a **conformance golden** so any conforming broker produces identical numbers. Severity *calibration* (the default constants) stays deferred, this locks the structure + determinism, not the tuned values.
 
 **Architecture:** A `Severity` model on the card; `core/severity.py` computes `severity = clamp01(kind_base × (1 + α·magnitude_norm) × scope_mult)` per card predicate (pure). `reason_code` + `severity` are **optional** fields on `ContextCard` (defaults), so the legacy connector path and fixtures are unaffected; the four `render_*_claim` functions populate them.
 
@@ -11,11 +11,11 @@
 ---
 
 ## File structure
-- `src/teamctx/core/contracts.py` — `Severity` model; `ContextCard` gains `reason_code: str = ""`, `severity: Severity | None = None`.
-- `src/teamctx/core/severity.py` (new, pure) — `KIND_BASE`, `ALPHA`, `compute_severity(card_predicate, claim) -> Severity`.
-- `src/teamctx/core/select.py` — the four render fns set `reason_code` + `severity`.
-- `tests/test_severity.py` — conformance golden.
-- `tests/test_select.py` — render fns populate reason_code/severity.
+- `src/teamctx/core/contracts.py`, `Severity` model; `ContextCard` gains `reason_code: str = ""`, `severity: Severity | None = None`.
+- `src/teamctx/core/severity.py` (new, pure), `KIND_BASE`, `ALPHA`, `compute_severity(card_predicate, claim) -> Severity`.
+- `src/teamctx/core/select.py`, the four render fns set `reason_code` + `severity`.
+- `tests/test_severity.py`, conformance golden.
+- `tests/test_select.py`, render fns populate reason_code/severity.
 
 ---
 
@@ -82,7 +82,7 @@ def test_unregistered_predicate_severity_raises() -> None:
         compute_severity("nope", _claim("pr_conflicts_with_path", ("a.py",)))
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_severity.py -v` — FAIL (module missing).
+- [ ] **Step 2: Run** `pytest tests/test_severity.py -v`, FAIL (module missing).
 
 - [ ] **Step 3: Implement.**
 
@@ -110,7 +110,7 @@ Create `src/teamctx/core/severity.py`:
 
 severity = clamp01(kind_base × (1 + ALPHA·magnitude_norm) × scope_mult). The decomposition
 is retained on the card for audit and conformance: any conforming broker computes identical
-numbers for identical inputs. The constants are placeholder defaults — calibration needs
+numbers for identical inputs. The constants are placeholder defaults, calibration needs
 deployment telemetry (out of scope here). Pure: no I/O.
 """
 
@@ -147,7 +147,7 @@ def compute_severity(card_predicate: str, claim: Prop) -> Severity:
     )
 ```
 
-- [ ] **Step 4:** `pytest tests/test_severity.py -v` PASS; `ruff check src tests`; `mypy src` clean; purity guard passes (covers `severity.py` — only imports contracts/prop, no I/O).
+- [ ] **Step 4:** `pytest tests/test_severity.py -v` PASS; `ruff check src tests`; `mypy src` clean; purity guard passes (covers `severity.py`, only imports contracts/prop, no I/O).
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -174,7 +174,7 @@ def test_collision_card_has_reason_code_and_severity() -> None:
     assert card.severity.kind_base == 0.8
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_select.py -v` — FAIL (reason_code empty / severity None).
+- [ ] **Step 2: Run** `pytest tests/test_select.py -v`, FAIL (reason_code empty / severity None).
 
 - [ ] **Step 3: Implement** in `src/teamctx/core/select.py`. Import: `from teamctx.core.severity import compute_severity`. In each `render_*_claim`, add `reason_code=...` and `severity=compute_severity(claim.predicate, claim)` to the `ContextCard(...)` construction:
   - `render_collision_claim`: `reason_code="collision.same_path"`
@@ -183,7 +183,7 @@ def test_collision_card_has_reason_code_and_severity() -> None:
   - `render_missed_gate_claim`: `reason_code="gate.failed"`
   Each adds (alongside the existing fields): `reason_code="<the code>"`, `severity=compute_severity(claim.predicate, claim)`.
 
-- [ ] **Step 4: Full gate.** `pytest` — all pass (the byte-identical-era collision tests assert specific fields like text/refs/reason; reason_code/severity are NEW additive fields, so those assertions still hold; the live integration/render tests don't assert reason_code/severity). `ruff check src tests`; `mypy src`. If any existing test asserted the FULL set of card fields via equality (unlikely — they assert individual fields), generalize; report it.
+- [ ] **Step 4: Full gate.** `pytest`, all pass (the byte-identical-era collision tests assert specific fields like text/refs/reason; reason_code/severity are NEW additive fields, so those assertions still hold; the live integration/render tests don't assert reason_code/severity). `ruff check src tests`; `mypy src`. If any existing test asserted the FULL set of card fields via equality (unlikely, they assert individual fields), generalize; report it.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -195,9 +195,9 @@ git commit -m "feat: cards carry a structured reason_code + severity decompositi
 
 ## Task 3: Verify
 - [ ] `pytest && ruff check src tests && mypy src` green; purity guard passes.
-- [ ] Optional live smoke: `work-start` output is unchanged in PROSE (reason_code/severity are structured fields, not rendered text — the human plane still shows the same lines). They're available on the card objects for machine/audit use.
+- [ ] Optional live smoke: `work-start` output is unchanged in PROSE (reason_code/severity are structured fields, not rendered text, the human plane still shows the same lines). They're available on the card objects for machine/audit use.
 
 **Definition of done:** `compute_severity` is deterministic with a conformance golden; cards carry `reason_code` (machine-readable) + `severity` decomposition; legacy/fixture card construction unaffected (optional fields); gate green. This + 9a completes the engine's explainability/replay finish-line. **The thesis-complete engine milestone is done.**
 
 ## Notes
-The render layer still shows prose; a later slice could derive the prose `reason` FROM `reason_code`+params (fully structured why) and add the dogfood's "to see the change, open <source>" legibility. Severity is not yet used for ranking/Route — that's a product-surface concern, deferred.
+The render layer still shows prose; a later slice could derive the prose `reason` FROM `reason_code`+params (fully structured why) and add the dogfood's "to see the change, open <source>" legibility. Severity is not yet used for ranking/Route, that's a product-surface concern, deferred.

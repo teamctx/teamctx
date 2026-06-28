@@ -1,4 +1,4 @@
-# Foundation Hardening — one model, valid evidence engine, clean seams
+# Foundation Hardening: one model, valid evidence engine, clean seams
 
 *Started 2026-06-25. This is the ONE plan in flight (supersedes CURPLAN3/MCP until done).
 Each section below is a self-contained chunk: if context compacts, any single chunk is
@@ -15,7 +15,7 @@ or scope against "excellent" during this phase. *After* the foundation is rock-s
 constraint hats go back on.
 
 **What "excellent" means here (the bar, and the anti-rat-hole guardrail):** the foundation
-**fully embodies the product's own thesis** — *one model, an evidence engine that tests the
+**fully embodies the product's own thesis**: *one model, an evidence engine that tests the
 real engine, clean build-once seams, credibility true by construction.* It does **not** mean
 infinite polish. The thesis is the bar, not abstract code-beauty. If a change doesn't make
 the foundation more truly embody the thesis, it's out of scope for this phase.
@@ -29,25 +29,25 @@ never outrun proof.
 ## 1. The north star (target end-state)
 
 **One model.** The `core/contracts.py` Pydantic model is the only model. The prototype model
-(`core/models.py`, `core/cards.py`) is deleted. Every consumer — connectors, CLI, MCP, and
-the evidence engine — speaks the contracts model.
+(`core/models.py`, `core/cards.py`) is deleted. Every consumer, connectors, CLI, MCP, and
+the evidence engine, speaks the contracts model.
 
 **One broker entry point.** A single `broker_answer(request, signals, statuses, declarations)
 → BrokerAnswer{selection, verdicts}` in core. The verdict loop leaves `cli.py`. CLI, MCP, and
 eval all call this one function. A `compose()` merges N connector documents into one input.
 
 **Target file topology** under `src/teamctx/`:
-- `core/` — thesis engine ONLY: `contracts.py`, `prop.py`, `evaluate.py`, `snapshot.py`,
+- `core/`, thesis engine ONLY: `contracts.py`, `prop.py`, `evaluate.py`, `snapshot.py`,
   `authority.py`, `severity.py`, `coverage.py` (extracted), `kinds.py` (the 4 CardKinds,
   self-contained), `broker.py` (compose + select + broker_answer). No `models.py`, no
   `cards.py`, no `fixtures.py`.
-- `connectors/` — each connector + `_contract.py` (shared policy/status/unavailable/slug
+- `connectors/`, each connector + `_contract.py` (shared policy/status/unavailable/slug
   helpers, used by all).
-- `eval/` (new) — the evidence engine, rebuilt on the real engine: scenarios in the
+- `eval/` (new), the evidence engine, rebuilt on the real engine: scenarios in the
   contracts model, the "context" variant rendered from REAL derived cards, plus the kept A/B
   campaign machinery.
-- `cli.py` — commands on the real model; eval commands delegate to `eval/`.
-- `contract_render.py`, `contract_documents.py`, `project_config.py` — unchanged role.
+- `cli.py`, commands on the real model; eval commands delegate to `eval/`.
+- `contract_render.py`, `contract_documents.py`, `project_config.py`, unchanged role.
 
 ---
 
@@ -68,9 +68,9 @@ eval all call this one function. A `compose()` merges N connector documents into
 | `claude_quality.py` | **MOVE to `eval/`** | run-artifact quality assessment; largely model-agnostic |
 
 **CLI commands:** `context` / `why` / `open-source` already have `--contract` (real-model)
-branches — **drop the `--fixture` branch, keep the command.** `use` and `benchmark-prompt`
-are prototype-only — **delete** (session affordance covered by `SessionContextUse` if revived).
-`benchmark-export` / `claude-agent-benchmark` / `claude-agent-assess` — **delegate to `eval/`**.
+branches, **drop the `--fixture` branch, keep the command.** `use` and `benchmark-prompt`
+are prototype-only, **delete** (session affordance covered by `SessionContextUse` if revived).
+`benchmark-export` / `claude-agent-benchmark` / `claude-agent-assess`, **delegate to `eval/`**.
 
 ---
 
@@ -78,15 +78,15 @@ are prototype-only — **delete** (session affordance covered by `SessionContext
 
 Edgar's rule: advisors advise me; I decide what we value. My ruling on the referee pass:
 
-- **VALUED — kept.** It elevated the dual-model problem from my too-soft "relocate + flag"
+- **VALUED, kept.** It elevated the dual-model problem from my too-soft "relocate + flag"
   to "fix the model before building MCP." That correction is right and reshaped this plan.
-- **OVERRIDDEN — its severity framing.** It claimed "the thesis is unproven / no evidence the
+- **OVERRIDDEN, its severity framing.** It claimed "the thesis is unproven / no evidence the
   engine works." Overstated. Soundness IS tested against the real engine (212 tests, fail-
   closed validators, purity, the `evaluate` under-approximation). Usefulness HAS live dogfood
   evidence against the real engine (collision, red-CI, criteria-changed). The accurate
   statement: the **repeatable/automated** usefulness eval is disconnected. We act on the
   sharpened priority, not the overstated severity.
-- **REJECTED — its tactical suggestion.** "MCP concatenates JSON as a temp hack to avoid
+- **REJECTED, its tactical suggestion.** "MCP concatenates JSON as a temp hack to avoid
   polluting core." Against the mandate (excellent, not temp hacks) and against build-once: the
   compose seam goes in core, built right. Its own reasoning (don't pollute core) argues for
   this, not for the hack.
@@ -96,12 +96,12 @@ claim and its tactic. Recorded so we don't re-litigate.
 
 ---
 
-## Status (2026-06-25) — COMPLETE
+## Status (2026-06-25): COMPLETE
 
 All five phases shipped on branch `foundation-hardening`, green at each step:
 - **Phase 1 ✓** broker entry point + compose seam (`core/broker.py`), verdict loop out of cli.
 - **Phase 2 ✓** unified `work-start` runs all connectors (`runner.py`); live-dogfooded.
-- **Phase 3 ✓** one model — prototype + prototype-coupled campaign deleted (~1450 lines);
+- **Phase 3 ✓** one model, prototype + prototype-coupled campaign deleted (~1450 lines);
   evidence engine rebuilt on the real broker (`eval/`, option B). `grep` confirms no
   prototype imports remain.
 - **Phase 4 ✓** tests linted in CI + `py.typed`; shared connector helpers (`connectors/_contract.py`);
@@ -109,13 +109,13 @@ All five phases shipped on branch `foundation-hardening`, green at each step:
 - **Phase 5 ✓** shipped example scenario (`examples/eval-scenarios/`) runs against the real
   engine; full conformance gate green (180 tests, ruff src+tests, mypy strict, purity, one-model).
 
-**Decision on §5.3 (E4/E5 harness) — deferred to normal mode (my call, flag for override).**
+**Decision on §5.3 (E4/E5 harness), deferred to normal mode (my call, flag for override).**
 The E4/E5 numbers (false-`Unknown` rate; consumer false-clear rate) need a labelled
-conformance *corpus* to measure against — and building that corpus is the research campaign
+conformance *corpus* to measure against, and building that corpus is the research campaign
 that §6 explicitly puts OUT of the foundation. Wiring a measurement harness with no corpus to
 feed it would be premature scaffolding (the very thing we just deleted). E4/E5 stays the
 documented protocol-v1.2 obligation, to be built in normal mode when the corpus exists. The
-foundation requirement — the evidence engine is VALID and RUNNABLE against the live engine —
+foundation requirement (the evidence engine is VALID and RUNNABLE against the live engine)
 is met without it.
 
 ## 4. The phases (build-once order; green at every step)
@@ -125,7 +125,7 @@ Discipline that holds even with constraints off: **the tree stays green at each 
 cost concern. Each phase names whether it is **behavior-preserving** (golden output unchanged)
 or **behavior-changing** (new golden).
 
-### Phase 1 — The broker entry point + compose seam *(behavior-preserving)*
+### Phase 1: The broker entry point + compose seam *(behavior-preserving)*
 Build the seam everything hangs on, first, because the new `work-start` AND the rebuilt eval
 both consume it.
 - `compose(documents) → merged (signals, statuses, open_targets, guidance)`.
@@ -135,7 +135,7 @@ both consume it.
 - **Done-gate:** one broker entry point; cli probes delegate to it; all golden outputs
   unchanged; green.
 
-### Phase 2 — Unified `work-start` *(behavior-changing: new golden)*
+### Phase 2: Unified `work-start` *(behavior-changing: new golden)*
 Make the flagship command real: run all connectors, not just collisions.
 - A connector-runner: given config (repo, token, paths, issues, since), run every applicable
   connector, return their documents.
@@ -144,7 +144,7 @@ Make the flagship command real: run all connectors, not just collisions.
 - **Done-gate:** `work-start` surfaces all four kinds and honest coverage in one call;
   verdicts reflect real cross-source coverage; green; dogfooded once on this repo.
 
-### Phase 3 — One model (kill the prototype) *(behavior-changing where prototype CLI dies)*
+### Phase 3: One model (kill the prototype) *(behavior-changing where prototype CLI dies)*
 Now that the real broker entry point exists, re-point eval at it and delete the prototype.
 - Create `eval/`; move `benchmark.py`, `claude_benchmark.py`, `claude_quality.py` in.
 - Replace `Fixture(expected_cards)` with an eval **Scenario** in the contracts model
@@ -156,37 +156,37 @@ Now that the real broker entry point exists, re-point eval at it and delete the 
 - **Done-gate:** `grep core.models|core.cards` returns nothing; the prototype model classes do
   not exist; eval consumes the real engine; green.
 
-### Phase 4 — Engine internal excellence *(behavior-preserving)*
+### Phase 4: Engine internal excellence *(behavior-preserving)*
 Within-core cleanup now that one model reigns.
 - Extract connector boilerplate → `connectors/_contract.py` (`metadata_only_policy`,
   `source_status`, `unavailable_document`, `slug`).
 - De-duplicate the four `render_*_claim` functions into a shared skeleton + per-kind text,
   **byte-identical preserving** (golden-guarded). Do NOT over-consolidate the `derive_*`
-  functions — the matching IS the relevance logic; explicit is safer.
+  functions, the matching IS the relevance logic; explicit is safer.
 - Optional, held loosely: split `select.py` into `kinds.py` (the 4 kinds) + `broker.py`
   (engine mechanics) if it improves comprehension. Tighten loose types (`CardKind.signal_type`
   → `SignalType`).
 - **Done-gate:** duplication removed; core reads clean; all golden outputs unchanged; green.
 
-### Phase 5 — Validate the foundation
-Prove it's rock-solid, then stop (the full research campaign is NOT foundation — see §6).
+### Phase 5: Validate the foundation
+Prove it's rock-solid, then stop (the full research campaign is NOT foundation, see §6).
 - Run the rebuilt eval **end-to-end on ≥1 real scenario** against the real engine; produce
   real run artifacts. This proves the wiring is valid (not the statistical study).
 - Full conformance green: tests, ruff, mypy strict, purity, golden/replay.
 - Wire (not necessarily run-at-scale) the **E4/E5** measurement harness on the contracts model
-  (false-`Unknown` rate; consumer false-clear rate — the open obligation from protocol v1.2).
+  (false-`Unknown` rate; consumer false-clear rate, the open obligation from protocol v1.2).
 - **Done-gate:** the eval demonstrably tests the REAL engine end-to-end; foundation green and
   conformant; we'd stand behind it unconditionally.
 
 ---
 
 ## 5. Invariants (must hold throughout every phase)
-1. **Green at each step** — tests + ruff + mypy strict + core purity test.
-2. **Never false-clear** — `evaluate` stays a sound under-approximation; absence ≠ all-clear.
-3. **Observable preserved unless deliberately changed** — golden tests guard byte-output;
+1. **Green at each step**: tests + ruff + mypy strict + core purity test.
+2. **Never false-clear**: `evaluate` stays a sound under-approximation; absence ≠ all-clear.
+3. **Observable preserved unless deliberately changed**: golden tests guard byte-output;
    behavior-changing phases (2, parts of 3) get new goldens on purpose.
-4. **Existence-privacy holds** — the digest binds only the P-visible projection.
-5. **One model** — after Phase 3, no code imports a non-contracts model type.
+4. **Existence-privacy holds**: the digest binds only the P-visible projection.
+5. **One model**: after Phase 3, no code imports a non-contracts model type.
 
 ## 6. Explicit scope boundary (so "no matter what" doesn't become a research study)
 **IN (foundation, now):** one model; eval wired to the real engine and proven to run
@@ -194,4 +194,4 @@ end-to-end; clean seams; soundness conformance green.
 **OUT (later, normal-constraint mode):** the full benchmark *campaign* / statistical
 usefulness result; E4/E5 numbers measured across a corpus; severity-constant calibration; MCP;
 breadth (Jira/Confluence/GitLab/L-tier). The foundation requires the evidence engine to be
-VALID and RUNNABLE — not to have RUN the whole study.
+VALID and RUNNABLE, not to have RUN the whole study.

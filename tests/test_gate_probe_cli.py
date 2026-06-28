@@ -20,8 +20,9 @@ def test_gate_probe_surfaces_missed_gate_card_and_verdict(monkeypatch) -> None:
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
-    assert "Gate check: NOT CLEAR" in result.output
+    assert "Before you start, here is what to handle first:" in result.output
     assert "pytest" in result.output
+    assert "fix it or wait for a green build" in result.output
 
 
 def test_gate_probe_without_token_degrades_honestly(monkeypatch) -> None:
@@ -33,4 +34,7 @@ def test_gate_probe_without_token_degrades_honestly(monkeypatch) -> None:
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
-    assert "Gate check: UNKNOWN" in result.output  # absence is not an all-clear
+    # no token => gate unreachable (important check) => cant_verify
+    assert "Heads up: I couldn't check the important things:" in result.output
+    assert "couldn't reach GitHub" in result.output
+    assert "teamctx install-hook" in result.output

@@ -26,7 +26,7 @@ Claim: “If `S|_P = S′|_P` then `g(S,q,P) = g(S′,q,P)`.” Proof: `π_P` is
 Issues:
 
 - Given your definition `g = render ∘ rank ∘ rules ∘ π_P`, the theorem is literally by algebraic substitution: if `π_P(S) = π_P(S')`, downstream behavior is identical. So internally, as a property of the *function* as defined, it’s fine.
-- However, the important security claim you derive — “output reveals no information about artifacts `P` cannot see — including their existence” — is much stronger and currently false as stated because you systematically ignore side channels:
+- However, the important security claim you derive, “output reveals no information about artifacts `P` cannot see, including their existence”, is much stronger and currently false as stated because you systematically ignore side channels:
   - `κ(q)` encodes `Req(q)`. If `Req(q)` is computed using global knowledge of sources or graph structure including hidden artifacts, `κ` may leak that “some other source exists that you don’t have rights for.” You hint at this in §8.6 (“`κ` must be permission‑scoped”) but you don’t spell out conditions under which it holds.
   - Timing and cardinality side channels are not modeled. You acknowledge them but still label the corollary as noninterference *tout court*. This is at best termination‑insensitive noninterference on the *value* channel, with uncontrolled timing and resource side channels.
 - There is no threat model addressing colluding principals: `Adv₂` is a single principal, but two principals `P1` and `P2` with different `S|_P` and shared view of `κ` + timing could infer information about hidden artifacts by differencing responses. Classic noninterference definitions (Goguen–Meseguer 1982, Sabelfeld–Myers 2003) make this explicit and you do not.
@@ -59,7 +59,7 @@ Claim: every card has a witness artifact; no claim without source witness.
 
 Here again, “soundness” is almost tautological because you define `rules` as operating over artifacts in `R_k(q) ∩ S|_P` and nothing else. But there are two hidden caveats:
 
-- You implicitly treat the *card contents* as fully determined from the witness artifact(s). But `reason`, `severity`, and `agent_instruction` are broker-invented values. For example, the card kind `doc_superseded` asserts “doc D is superseded by doc D'” — that’s a semantic claim that could be wrong even with both docs present. You’re really proving “no card is produced without at least one visible artifact in `provenance`,” not that the card’s natural‑language claim is logically entailed by those artifacts.
+- You implicitly treat the *card contents* as fully determined from the witness artifact(s). But `reason`, `severity`, and `agent_instruction` are broker-invented values. For example, the card kind `doc_superseded` asserts “doc D is superseded by doc D'”, that’s a semantic claim that could be wrong even with both docs present. You’re really proving “no card is produced without at least one visible artifact in `provenance`,” not that the card’s natural‑language claim is logically entailed by those artifacts.
 - This is not “soundness” in the IFC/noninterference sense; it’s closer to a provenance property: “no ex nihilo cards.” You should call it what it is; otherwise the name invites misinterpretation.
 
 The theorem holds under your abstract model, but its meaning is weaker than you suggest.
@@ -108,11 +108,11 @@ Your T2 is a classic *data‑level* noninterference with respect to a projection
 
 - It only covers the explicit functional outputs `C` and `κ` as a function of `S|_P`, ignoring:
   - timing / size / error codes as side channels;
-  - declassification in `κ`—which may leak counts of sources or their types;
+  - declassification in `κ`, which may leak counts of sources or their types;
   - interaction patterns: e.g., a principal probes multiple queries `q1, q2, …` and infers structure of `S\S|_P` from whether certain card kinds ever appear.
 - In IFC terms, you have a simple security lattice where everything visible to `P` is low, everything else is high, and you prove “low outputs depend only on low inputs” modulo side channels. That’s exactly access control enforcement; noninterference is strictly stronger and also needs to account for covert channels. You acknowledge side channels but still market T2 as “permission noninterference.”
 
-Strongest objection: you claim “`B`'s output reveals no information about artifacts `P` cannot see — including their existence.” This is false under:
+Strongest objection: you claim “`B`'s output reveals no information about artifacts `P` cannot see, including their existence.” This is false under:
 
 - Membership cardinals: if `κ` or `coverage_ratio` depend on `|Req(q)|`, and `Req(q)` includes sources for which `P` has no ACLs, you already leak “there exists at least one additional source.”
 - Performance variance: the time to compute `R_k(q)` over `G` can vary depending on edges involving hidden artifacts (even if you don’t emit those nodes). This is standard termination‑ and timing‑sensitive leakage.
@@ -150,7 +150,7 @@ Specific prior work or systems that already embody large parts of this:
   - Many service meshes and API gateways record both request attributes and authorization decisions in tamper‑evident logs and propagate version/timestamp metadata to consumers. Your `CtxResponse` + signature is exactly that pattern.
 - **Information‑flow control systems.** The “permission noninterference” statement is standard IFC over a permission lattice; this is textbook Goguen–Meseguer/Sabelfeld–Myers. There’s nothing novel in the noninterference formalism itself.
 - **Bounded staleness and coverage.** PBS (Bailis et al. 2012) is close to your `Δ(q)` rationale: explicitly model the staleness of reads under weak consistency. Systems like Spanner publish bounds via TrueTime; even simple web caches propagate `Age`, `ETag`, sometimes `X‑Cache` etc., which are informal coverage certificates.
-- **LLM‑adjacent context brokers.** The paper carefully avoids citing any concrete “tools” or “agents” frameworks, but the design—deterministic graph walk over repositories, permission‑scoped queries, structured cards—is extremely close to:
+- **LLM‑adjacent context brokers.** The paper carefully avoids citing any concrete “tools” or “agents” frameworks, but the design, deterministic graph walk over repositories, permission‑scoped queries, structured cards, is extremely close to:
   - GitHub’s “code scanning” / “rule engines” which produce structured alerts with provenance;
   - various commercial “AI code review assistants” that consult CI status, issues, PRs and annotate code with structured findings;  
   - Mechanisms like the Model Context Protocol (MCP) plus per‑resource ACLs, combined with deterministic retrievers (e.g., RAFT‑style verifiable retrieval).
@@ -163,7 +163,7 @@ Net: the work is an application/synthesis of known ideas (reference monitor + IF
 
 7. Killer objection and most important fix
 
-**Killer objection:** The core claimed breakthrough — that “determinism + typed channels + permission‑indexed inputs jointly yield reproducible audit, noninterference privacy, and injection‑resistance” and specifically the “No‑Silent‑Omission” / coverage certificate — is not actually established as a **security** result; it is either definitional (you bake the property into `κ`’s definition) or it shifts the burden to the consuming agent without any enforcement. In adversarial or partially observed settings (stale events, misconfigured `Req(q)` or `G`), the broker can still silently omit behavior‑changing context while `κ` remains “honest” relative to its own incomplete view. The supposed dissolution of the absence‑as‑clearance fallacy is thus illusory: the fallacy is simply relabeled, and the actual agent still has all the same failure modes unless you also prove something about its use of `κ`.
+**Killer objection:** The core claimed breakthrough, that “determinism + typed channels + permission‑indexed inputs jointly yield reproducible audit, noninterference privacy, and injection‑resistance” and specifically the “No‑Silent‑Omission” / coverage certificate, is not actually established as a **security** result; it is either definitional (you bake the property into `κ`’s definition) or it shifts the burden to the consuming agent without any enforcement. In adversarial or partially observed settings (stale events, misconfigured `Req(q)` or `G`), the broker can still silently omit behavior‑changing context while `κ` remains “honest” relative to its own incomplete view. The supposed dissolution of the absence‑as‑clearance fallacy is thus illusory: the fallacy is simply relabeled, and the actual agent still has all the same failure modes unless you also prove something about its use of `κ`.
 
 **Most important fix:**  
 Narrow and harden the claims:
@@ -182,4 +182,4 @@ Narrow and harden the claims:
 
 **Verdict:** Reject.
 
-**Real contribution in one sentence:** The paper gives a coherent engineering design for a deterministic, auditable context‑broker for LLM coding agents that packages together standard ideas—reference monitoring, IFC‑style projection, provenance, and bounded‑staleness metadata—into a structured “cards + coverage certificate” interface, but it does not actually *prove* the strong security and “no‑silent‑omission” claims it makes and substantially overstates both novelty and formal guarantees.
+**Real contribution in one sentence:** The paper gives a coherent engineering design for a deterministic, auditable context‑broker for LLM coding agents that packages together standard ideas, reference monitoring, IFC‑style projection, provenance, and bounded‑staleness metadata, into a structured “cards + coverage certificate” interface, but it does not actually *prove* the strong security and “no‑silent‑omission” claims it makes and substantially overstates both novelty and formal guarantees.

@@ -30,9 +30,9 @@ def test_work_start_tool_is_directly_callable_and_degrades_without_token(
     monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     output = work_start(repo="acme/widgets", paths=["src/app/core.py"])
-    assert "Working context" in output
-    # no token => source unavailable => Unknown, never a false clear
-    assert "Conflict check: UNKNOWN" in output
+    # no token => conflict unreachable => cant_verify; never a false clear
+    assert "Heads up: I couldn't check the important things:" in output
+    assert "couldn't reach GitHub" in output
 
 
 def test_work_start_tool_surfaces_a_collision(monkeypatch, tmp_path) -> None:
@@ -59,8 +59,9 @@ def test_work_start_tool_surfaces_a_collision(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("GITHUB_TOKEN", "t")
 
     output = work_start(repo="acme/widgets", paths=["src/app/core.py"])
-    assert "Conflict check: NOT CLEAR" in output
+    assert "Before you start, here is what to handle first:" in output
     assert "PR #7" in output
+    assert "look at it before you edit" in output
 
 
 def test_list_tools_exposes_work_start() -> None:
@@ -79,8 +80,9 @@ def test_call_tool_runs_the_broker_over_mcp(monkeypatch, tmp_path) -> None:
         mcp.call_tool("work_start", {"repo": "acme/widgets", "paths": ["src/app/core.py"]})
     )
     text = _content_text(result)
-    assert "Working context" in text
-    assert "Conflict check: UNKNOWN" in text
+    # no token => conflict unreachable => cant_verify
+    assert "Heads up: I couldn't check the important things:" in text
+    assert "couldn't reach GitHub" in text
 
 
 def test_work_start_resolves_repo_from_root(monkeypatch, tmp_path) -> None:
@@ -142,5 +144,6 @@ def test_work_start_docs_scanned_from_project_root_not_cwd(monkeypatch, tmp_path
 
     out = work_start(paths=["docs/old.md"])
 
-    assert "Docs check: NOT CLEAR" in out
+    assert "Before you start, here is what to handle first:" in out
     assert "docs/new.md" in out  # names the superseding doc
+    assert "rely on the current one instead" in out

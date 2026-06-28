@@ -22,7 +22,7 @@ Pros:
 - Lower cognitive load: “install broker; optional: install memory” is concrete.
 
 Cons:
-- All trust arguments hinge on *you* being honest and careful — “protocol paper” helps but is still de facto “trust the vendor.”
+- All trust arguments hinge on *you* being honest and careful, “protocol paper” helps but is still de facto “trust the vendor.”
 - Ecosystem lock-in: agents integrate to *your* CLI/MCP server, not a widely accepted spec.
 - Regulated buyers will eventually ask: “What *exactly* is this thing doing? Is there a standard?”
 
@@ -83,7 +83,7 @@ My proposed *normative baseline* (the “secure-by-default, extend-by-explicit-c
 
 - **Memory layer must run as an *external connector* with its own identity and credentials:**
   - Own process, own config, own git remote.
-  - Broker sees it exactly like “GitHub” or “Confluence” — a read-only source authenticated with a separate token or socket.
+  - Broker sees it exactly like “GitHub” or “Confluence”, a read-only source authenticated with a separate token or socket.
   - This gives you a **credential boundary**: disabling memory is as simple as not configuring the connector (or providing no credentials).
 
 - **Package/code boundary for high-assurance environments:**
@@ -104,7 +104,7 @@ Concretely:
 
 - **Security-conscious / enterprise:**
   - Two possible patterns:
-    - (a) Broker-only container image (SBOM shows no memory layer) — no way to accidentally bring memory in.
+    - (a) Broker-only container image (SBOM shows no memory layer), no way to accidentally bring memory in.
     - (b) Broker container + memory-layer container, separately managed, connected via network/IPC with read-only protocol from broker’s perspective.
   - Memory layer deployed only where allowed; some orgs may never deploy it.
 
@@ -123,7 +123,7 @@ Key: *do not* rely purely on config flags inside a single binary. For trust and 
 
 3. **Does “durable-as-a-read-source” actually hold?**
 
-If done strictly, yes — but there are two important potential leaks.
+If done strictly, yes, but there are two important potential leaks.
 
 **Correctly done:**
 
@@ -141,7 +141,7 @@ Under that condition:
   but not inside broker or memory-layer *because of the broker*.
 
 - “No poisonable accumulated state” (within the broker):  
-  It does not learn long-lived, mutable “beliefs.” If a durable source is poisoned, it’s just like a poisoned Git repo or Confluence page — an external input, not internal accumulation. You can rollback or snapshot those sources and deterministically re-derive broker output.
+  It does not learn long-lived, mutable “beliefs.” If a durable source is poisoned, it’s just like a poisoned Git repo or Confluence page, an external input, not internal accumulation. You can rollback or snapshot those sources and deterministically re-derive broker output.
 
 - “Full re-derivability”:  
   Given:
@@ -182,7 +182,7 @@ The collapse happens when the stateless/durable split is only *logical* or *conf
    Failure:  
    - From an auditor’s POV, the capability exists inside the same artifact; “off by config” is weak assurance.
    - A bug or misconfig can silently turn it on.
-   - “It can’t track — it can’t” becomes “it can track, but you asked us nicely not to.”
+   - “It can’t track, it can’t” becomes “it can track, but you asked us nicely not to.”
 
    **Design rule:**  
    - The broker artifact (binary/container/package) **MUST NOT** contain any code paths that can perform durable writes or track query history.

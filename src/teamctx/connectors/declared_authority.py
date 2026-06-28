@@ -1,6 +1,6 @@
 """Load declared authority from a .teamctx file.
 
-This is the I/O edge for governance declarations — it lives OUTSIDE the pure core. The file
+This is the I/O edge for governance declarations. It lives OUTSIDE the pure core. The file
 is treated as the consumer's visible declaration set (Delta_P): a consumer only reads
 declarations it has access to, so authority over invisible sources never enters here. Real
 source freshness is observed upstream; the thin loader takes a declared ``fresh`` flag.

@@ -1,6 +1,6 @@
-**Round 2 review — teamctx (deterministic, read‑only context broker)**
+**Round 2 review, teamctx (deterministic, read‑only context broker)**
 
-**Part 1 — Fix evaluation**  
+**Part 1, Fix evaluation**  
 All five Round‑1 issues are **closed cleanly**, not merely papered over.
 
 | Fix | Verdict | Rationale |
@@ -13,7 +13,7 @@ All five Round‑1 issues are **closed cleanly**, not merely papered over.
 
 All fixes are robust; no regressions in the stated mechanisms.
 
-**Part 2 — Hunt for new contradictions introduced by the fixes**  
+**Part 2, Hunt for new contradictions introduced by the fixes**  
 
 **(a) Contradictory cards (`ρ` and `¬ρ` both witnessed)**  
 **New issue found.** The current text says “a card witnessing π establishes π AND refutes ¬π”, but it does **not** prevent the co‑existence of a card witnessing `ρ` and another witnessing `¬ρ` in `C`. Under the valuation rule, `⟦ρ⟧` would then be both `True` and `False`, breaking soundness (Theorem 2).  

@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire the first live `doc-superseded` connector — a declared-frontmatter docs probe — so that when an agent relies on a doc that has been marked superseded, work-start surfaces a card naming the **current** doc and a refuted "Docs check" verdict. Then dogfood it on the real model-citizens repo.
+**Goal:** Wire the first live `doc-superseded` connector, a declared-frontmatter docs probe, so that when an agent relies on a doc that has been marked superseded, work-start surfaces a card naming the **current** doc and a refuted "Docs check" verdict. Then dogfood it on the real model-citizens repo.
 
-**Architecture:** Mirror the live collision connector's two-module split. A pure **normalizer** (`connectors/docs_supersession.py`, the docs analog of `connectors/forge_review.py`) turns declared supersession facts into Core Contract V0 `SourceSignal`s (`signal_type="doc_superseded"`, `source_family="docs"`, scope `{repo, doc, superseded_by}`) plus a `docs` source status. A thin **I/O connector** (`connectors/docs.py`, the analog of `connectors/github.py`) discovers `*.md` under a root, parses minimal frontmatter, and returns a `CoreContractDocument`. The engine **already** models `doc_superseded` end-to-end (predicate in `core/prop.py`, deps `no_superseded_docs → {"docs"}`, `_derive_doc_superseded_claim`, `render_doc_superseded_claim`, the "Docs check" `CardKind`) — so no engine *semantics* change. One evidence-backed render fix lands here: `render_doc_superseded_claim` currently says *that* a doc was superseded but never names *what* replaces it ("THAT not WHAT" legibility gap); it learns to name the superseding doc from `signal.scope["superseded_by"]`, with a fallback that preserves byte-for-byte output when that key is absent (so existing tests are unaffected). A new `docs-probe` CLI command shares work-start's selection+verdict render via an extracted `_work_start_view` helper.
+**Architecture:** Mirror the live collision connector's two-module split. A pure **normalizer** (`connectors/docs_supersession.py`, the docs analog of `connectors/forge_review.py`) turns declared supersession facts into Core Contract V0 `SourceSignal`s (`signal_type="doc_superseded"`, `source_family="docs"`, scope `{repo, doc, superseded_by}`) plus a `docs` source status. A thin **I/O connector** (`connectors/docs.py`, the analog of `connectors/github.py`) discovers `*.md` under a root, parses minimal frontmatter, and returns a `CoreContractDocument`. The engine **already** models `doc_superseded` end-to-end (predicate in `core/prop.py`, deps `no_superseded_docs → {"docs"}`, `_derive_doc_superseded_claim`, `render_doc_superseded_claim`, the "Docs check" `CardKind`), so no engine *semantics* change. One evidence-backed render fix lands here: `render_doc_superseded_claim` currently says *that* a doc was superseded but never names *what* replaces it ("THAT not WHAT" legibility gap); it learns to name the superseding doc from `signal.scope["superseded_by"]`, with a fallback that preserves byte-for-byte output when that key is absent (so existing tests are unaffected). A new `docs-probe` CLI command shares work-start's selection+verdict render via an extracted `_work_start_view` helper.
 
-**Tech Stack:** Python 3.12, pydantic v2, click, pytest, ruff, mypy --strict. I/O uses stdlib `pathlib` only; frontmatter is parsed by a small hand-rolled reader (no PyYAML — matching `connectors/github.py`'s stdlib-only ethos and keeping parsing deterministic).
+**Tech Stack:** Python 3.12, pydantic v2, click, pytest, ruff, mypy --strict. I/O uses stdlib `pathlib` only; frontmatter is parsed by a small hand-rolled reader (no PyYAML, matching `connectors/github.py`'s stdlib-only ethos and keeping parsing deterministic).
 
 **Path contract (correctness-critical):** All paths are **repo-root-relative POSIX strings**. `_derive_doc_superseded_claim` fires only when `signal.scope["doc"]` is exactly a string in `request.paths` and `signal.scope["repo"] == request.repo`. The probe must therefore run from the repo root so that discovered paths (e.g. `docs/superpowers/specs/x.md`) match the `--path` the caller passes, and frontmatter `superseded_by:` must also be a repo-root-relative POSIX path so the card can name something openable.
 
@@ -14,13 +14,13 @@
 
 ## File structure
 
-- `src/teamctx/connectors/docs_supersession.py` (new, pure normalizer) — `SupersededDoc` dataclass; `normalize_superseded_docs(...) -> CoreContractDocument`; `unavailable_docs_document(...)`; private `_docs_source_status`, `_policy_metadata_only`, `_slug`.
-- `src/teamctx/connectors/docs.py` (new, I/O edge) — `run_docs_supersession_probe(...)`; `parse_superseded_docs(...)`; `parse_frontmatter(text)`; `default_doc_reader(root)`; `DocReader` type; `DocsProbeError`.
-- `src/teamctx/core/select.py` (modify) — `render_doc_superseded_claim` names the superseding doc.
-- `src/teamctx/cli.py` (modify) — extract `_work_start_view(document)`; add `docs-probe` command; import the probe.
-- `tests/test_docs_supersession.py` (new) — normalizer + frontmatter parse + probe with an in-memory reader.
-- `tests/test_select.py` (modify) — render names the superseding doc; fallback preserved.
-- `tests/test_docs_probe_cli.py` (new) — `docs-probe` end-to-end via `CliRunner` over a temp docs tree.
+- `src/teamctx/connectors/docs_supersession.py` (new, pure normalizer), `SupersededDoc` dataclass; `normalize_superseded_docs(...) -> CoreContractDocument`; `unavailable_docs_document(...)`; private `_docs_source_status`, `_policy_metadata_only`, `_slug`.
+- `src/teamctx/connectors/docs.py` (new, I/O edge), `run_docs_supersession_probe(...)`; `parse_superseded_docs(...)`; `parse_frontmatter(text)`; `default_doc_reader(root)`; `DocReader` type; `DocsProbeError`.
+- `src/teamctx/core/select.py` (modify), `render_doc_superseded_claim` names the superseding doc.
+- `src/teamctx/cli.py` (modify), extract `_work_start_view(document)`; add `docs-probe` command; import the probe.
+- `tests/test_docs_supersession.py` (new), normalizer + frontmatter parse + probe with an in-memory reader.
+- `tests/test_select.py` (modify), render names the superseding doc; fallback preserved.
+- `tests/test_docs_probe_cli.py` (new), `docs-probe` end-to-end via `CliRunner` over a temp docs tree.
 
 Each task is self-contained: a focused failing test, a minimal implementation, green, commit.
 
@@ -189,7 +189,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'teamctx.connectors.do
 """Docs supersession normalization.
 
 The docs connector reads markdown frontmatter; this module turns declared supersession
-facts into Core Contract V0 objects. It does no file I/O and renders no cards directly —
+facts into Core Contract V0 objects. It does no file I/O and renders no cards directly;
 work-start DERIVES doc-superseded cards from the signals emitted here.
 """
 
@@ -486,7 +486,7 @@ git commit -m "feat: docs supersession probe (discover + parse + normalize)"
 
 ---
 
-## Task 4: Render fix — name the superseding doc ("THAT not WHAT")
+## Task 4: Render fix: name the superseding doc ("THAT not WHAT")
 
 **Files:**
 - Modify: `src/teamctx/core/select.py` (`render_doc_superseded_claim`, lines ~226-249)
@@ -521,7 +521,7 @@ def test_doc_superseded_card_falls_back_without_superseding_doc() -> None:
     assert card.why_this_matters == "the doc docs/old.md was superseded; verify it is current before relying."
 ```
 
-> Helper note: if `tests/test_select.py` has no `_request_with_paths`, add a tiny local builder that returns a `RequestContext` with the given `repo`/`paths` (mirror the existing `RequestContext(...)` construction already used in that file). Keep the existing `test_doc_superseded_derives_for_a_relied_on_doc` untouched — it has no `superseded_by` and must still pass via the fallback.
+> Helper note: if `tests/test_select.py` has no `_request_with_paths`, add a tiny local builder that returns a `RequestContext` with the given `repo`/`paths` (mirror the existing `RequestContext(...)` construction already used in that file). Keep the existing `test_doc_superseded_derives_for_a_relied_on_doc` untouched, it has no `superseded_by` and must still pass via the fallback.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -643,7 +643,7 @@ def test_docs_probe_with_no_supersession_is_clean(tmp_path: Path) -> None:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_docs_probe_cli.py -v`
-Expected: FAIL — `No such command 'docs-probe'`.
+Expected: FAIL, `No such command 'docs-probe'`.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -749,7 +749,7 @@ git commit -am "chore: doc-superseded connector lint/type fixups"
 
 ---
 
-## Task 7: Dogfood on model-citizens (no teamctx code — this is the verdict)
+## Task 7: Dogfood on model-citizens (no teamctx code: this is the verdict)
 
 > This is the point of the whole vertical: a card must change a real decision, or we learn the declaration cost outweighs the catch. Performed in `/home/eparenti/agents/repos/model-citizens`, not in teamctx.
 
@@ -772,20 +772,20 @@ teamctx docs-probe \
 ```
 Expected: a "Verify before relying" card naming the current doc, and a refuted **Docs check** verdict.
 
-- [ ] **Step 3: Record the verdict (the finding, not a checkbox).** In `.remember/teamctx.md`, write down: (a) did the card change what you/the agent read or did? (b) was declaring `superseded_by` worth the friction, or too costly? (c) any "THAT not WHAT" residue (does the card make the *next action* obvious, or just name the file?). These findings pull the next connector decision — they are not a formality.
+- [ ] **Step 3: Record the verdict (the finding, not a checkbox).** In `.remember/teamctx.md`, write down: (a) did the card change what you/the agent read or did? (b) was declaring `superseded_by` worth the friction, or too costly? (c) any "THAT not WHAT" residue (does the card make the *next action* obvious, or just name the file?). These findings pull the next connector decision, they are not a formality.
 
 ---
 
 ## Self-review (run after the plan is written, before execution)
 
 - **Spec coverage:** connector (Tasks 1-3) ✓; legibility fix (Task 4) ✓; live entry point + verdict (Task 5) ✓; green-CI handoff (Task 6) ✓; real dogfood (Task 7) ✓. The status-doc + branch are Task 0 ✓.
-- **Engine untouched (by design):** no change to `prop.py`, `evaluate.py`, deps/predicate registries — the only `core/` edit is the `render_doc_superseded_claim` text, guarded by the core purity test (no I/O/time/randomness added) and a fallback that preserves existing output.
+- **Engine untouched (by design):** no change to `prop.py`, `evaluate.py`, deps/predicate registries, the only `core/` edit is the `render_doc_superseded_claim` text, guarded by the core purity test (no I/O/time/randomness added) and a fallback that preserves existing output.
 - **Type consistency:** signal scope keys `repo`/`doc`/`superseded_by` match `_derive_doc_superseded_claim` (`select.py:195-205`); `SupersededDoc` fields match their use in `parse_superseded_docs` and `normalize_superseded_docs`; `DocReader` returns `(str, str)` pairs consumed identically by `parse_superseded_docs` and produced by `default_doc_reader`.
 - **Path contract:** discovered paths and `--path` are both repo-root-relative POSIX; the probe must run from the repo root (documented in Task 3 / Task 7).
 
 ## Deferred (dogfood-pulled, explicitly out of this slice)
 
-- Merging the docs document into `work-start` alongside the GitHub fetch (a multi-connector merge layer) — not needed; `docs-probe` runs the full verdict pipeline on its own.
-- `DocsSourceConfig` in `project_config.py` + a `refresh`-style docs source — `--root` on the probe is enough to dogfood.
-- Path-overlap *filtering refinements* / openable doc bodies (`source_open_target_id` plumbing for docs) — only if the dogfood shows the text-only legibility is insufficient.
-- The `criteria-changed` and `missed-gate` live connectors — pulled when a real session needs them (see `docs/engineering/connector-status.md`).
+- Merging the docs document into `work-start` alongside the GitHub fetch (a multi-connector merge layer), not needed; `docs-probe` runs the full verdict pipeline on its own.
+- `DocsSourceConfig` in `project_config.py` + a `refresh`-style docs source, `--root` on the probe is enough to dogfood.
+- Path-overlap *filtering refinements* / openable doc bodies (`source_open_target_id` plumbing for docs), only if the dogfood shows the text-only legibility is insufficient.
+- The `criteria-changed` and `missed-gate` live connectors, pulled when a real session needs them (see `docs/engineering/connector-status.md`).

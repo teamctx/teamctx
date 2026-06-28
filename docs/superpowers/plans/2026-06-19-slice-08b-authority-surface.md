@@ -1,21 +1,21 @@
-# Slice 8b — Thin Authority: `.teamctx` Loader + CLI + Render
+# Slice 8b: Thin Authority: `.teamctx` Loader + CLI + Render
 
 > REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Checkbox steps.
 
-**Goal:** Make authority usable end to end. Load governance declarations from a `.teamctx/authority.json` file (I/O, outside core), pass them to the broker, and render an **Authority** section in `work-start` (resolved value / **CONFLICTED — not adjudicated** / stale-authority).
+**Goal:** Make authority usable end to end. Load governance declarations from a `.teamctx/authority.json` file (I/O, outside core), pass them to the broker, and render an **Authority** section in `work-start` (resolved value / **CONFLICTED, not adjudicated** / stale-authority).
 
-**Architecture:** `connectors/declared_authority.py` reads the file → `AuthorityDecl`s (the file is the consumer's Δ_P declaration set — you only read declarations you have access to). The CLI loads `.teamctx/authority.json` from cwd and passes them to `select_context`. `render_selection` renders `selection.authority` (already on the answer from 8a) as an Authority section.
+**Architecture:** `connectors/declared_authority.py` reads the file → `AuthorityDecl`s (the file is the consumer's Δ_P declaration set, you only read declarations you have access to). The CLI loads `.teamctx/authority.json` from cwd and passes them to `select_context`. `render_selection` renders `selection.authority` (already on the answer from 8a) as an Authority section.
 
-**Tech Stack:** Python 3.12, click, pathlib/json (in the connector — NOT core), pytest, ruff, mypy --strict.
+**Tech Stack:** Python 3.12, click, pathlib/json (in the connector, NOT core), pytest, ruff, mypy --strict.
 
 ---
 
 ## File structure
-- **Create `src/teamctx/connectors/declared_authority.py`** — `load_declared_authority(path) -> list[AuthorityDecl]` (I/O).
-- **Modify `src/teamctx/contract_render.py`** — render an Authority section from `selection.authority`.
-- **Modify `src/teamctx/cli.py`** — `work-start` loads `.teamctx/authority.json` + passes declarations.
-- **Create `tests/test_declared_authority.py`** — loader tests.
-- **Modify `tests/test_render_selection.py`** — Authority section render test.
+- **Create `src/teamctx/connectors/declared_authority.py`**: `load_declared_authority(path) -> list[AuthorityDecl]` (I/O).
+- **Modify `src/teamctx/contract_render.py`**: render an Authority section from `selection.authority`.
+- **Modify `src/teamctx/cli.py`**: `work-start` loads `.teamctx/authority.json` + passes declarations.
+- **Create `tests/test_declared_authority.py`**: loader tests.
+- **Modify `tests/test_render_selection.py`**: Authority section render test.
 
 ---
 
@@ -74,13 +74,13 @@ def test_loads_declarations_from_json(tmp_path: Path) -> None:
     ]
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_declared_authority.py -v` — FAIL (module missing).
+- [ ] **Step 2: Run** `pytest tests/test_declared_authority.py -v`, FAIL (module missing).
 
 - [ ] **Step 3: Implement.** Create `src/teamctx/connectors/declared_authority.py`:
 ```python
 """Load declared authority from a .teamctx file.
 
-This is the I/O edge for governance declarations — it lives OUTSIDE the pure core. The file
+This is the I/O edge for governance declarations, it lives OUTSIDE the pure core. The file
 is treated as the consumer's visible declaration set (Delta_P): a consumer only reads
 declarations it has access to, so authority over invisible sources never enters here. Real
 source freshness is observed upstream; the thin loader takes a declared ``fresh`` flag.
@@ -113,7 +113,7 @@ def load_declared_authority(path: Path) -> list[AuthorityDecl]:
     ]
 ```
 
-- [ ] **Step 4:** `pytest tests/test_declared_authority.py -v` PASS; `ruff check src tests`; `mypy src` clean. (Purity guard unaffected — this is a connector, not `core/`.)
+- [ ] **Step 4:** `pytest tests/test_declared_authority.py -v` PASS; `ruff check src tests`; `mypy src` clean. (Purity guard unaffected, this is a connector, not `core/`.)
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -155,7 +155,7 @@ def test_render_has_no_authority_section_without_declarations() -> None:
     assert "Authority" not in render_selection(selection)
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_render_selection.py -v` — FAIL (no Authority section).
+- [ ] **Step 2: Run** `pytest tests/test_render_selection.py -v`, FAIL (no Authority section).
 
 - [ ] **Step 3: Implement.**
 
@@ -165,12 +165,12 @@ def _authority_line(entry: AuthorityEntry) -> str:
     if entry.state == "resolved":
         return f"- {entry.subject}: resolved (value {entry.value})"
     if entry.state == "conflicted":
-        return f"- {entry.subject}: CONFLICTED — declared sources disagree; not adjudicated"
+        return f"- {entry.subject}: CONFLICTED, declared sources disagree; not adjudicated"
     if entry.state == "unknown[stale-authority]":
-        return f"- {entry.subject}: unknown — declared authority is stale; refresh it"
+        return f"- {entry.subject}: unknown, declared authority is stale; refresh it"
     return f"- {entry.subject}: no authority declared"
 ```
-In `render_selection`, after the Coverage block and BEFORE the verdict loop (or after — pick a consistent order; put Authority after Coverage, before verdicts), insert:
+In `render_selection`, after the Coverage block and BEFORE the verdict loop (or after, pick a consistent order; put Authority after Coverage, before verdicts), insert:
 ```python
     if selection.authority:
         lines.extend(["", "Authority"])
@@ -189,7 +189,7 @@ In `src/teamctx/cli.py`: add `from teamctx.connectors.declared_authority import 
 ```
 (`Path` is already imported in cli.py.)
 
-- [ ] **Step 4: Full gate.** `pytest` (existing render tests without declarations still pass — Authority section only appears when `selection.authority` is non-empty; CLI tests: the no-token test doesn't create a `.teamctx/authority.json`, so declarations=[] and no Authority section — unchanged). `ruff check src tests`; `mypy src`.
+- [ ] **Step 4: Full gate.** `pytest` (existing render tests without declarations still pass, Authority section only appears when `selection.authority` is non-empty; CLI tests: the no-token test doesn't create a `.teamctx/authority.json`, so declarations=[] and no Authority section, unchanged). `ruff check src tests`; `mypy src`.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -201,7 +201,7 @@ git commit -m "feat: surface an Authority section in work-start (load .teamctx, 
 
 ## Task 3: Verify
 - [ ] `pytest && ruff check src tests && mypy src` green; purity guard passes.
-- [ ] Optional manual: create `.teamctx/authority.json` with two divergent fresh priority-10 decls for a subject, run `work-start` — the Authority section shows `CONFLICTED — declared sources disagree; not adjudicated`.
+- [ ] Optional manual: create `.teamctx/authority.json` with two divergent fresh priority-10 decls for a subject, run `work-start`, the Authority section shows `CONFLICTED, declared sources disagree; not adjudicated`.
 
 **Definition of done:** `work-start` loads `.teamctx/authority.json` and renders an Authority section that surfaces conflict without adjudicating and flags stale authority; absent file → no section, no behavior change; gate green. Thin authority (slice 8) is complete end to end.
 

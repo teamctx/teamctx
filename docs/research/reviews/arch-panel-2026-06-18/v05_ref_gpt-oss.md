@@ -58,7 +58,7 @@ The addendum introduces **new circular dependencies** (authority ↔ extraction)
 
 **Major‑Revision**  
 
-The contribution is promising—authority records and vector classification are natural extensions—but the current manuscript contains several formal defects that prevent acceptance in its present form. To reach a publishable state the authors must:
+The contribution is promising, authority records and vector classification are natural extensions, but the current manuscript contains several formal defects that prevent acceptance in its present form. To reach a publishable state the authors must:
 
 1. **Redefine `conflicted`** so that its detection does not rely on inadmissible extraction, or explicitly tie it to T7.2 with a formal proof of admissibility.  
 2. **Provide a leakage analysis** for the categorical `A(s)` emitted in `κ`, either showing that the mutual‑information bound still holds or redesigning `κ` to hide conflict information.  

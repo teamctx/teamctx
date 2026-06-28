@@ -2,7 +2,7 @@
 
 A scenario is the input to one A/B trial: a task, the request context, and the source
 signals/statuses the REAL engine derives cards from. Optional workspace files describe the
-disposable repo the agent works in. There is no hand-authored ``expected_cards`` — the cards
+disposable repo the agent works in. There is no hand-authored ``expected_cards``; the cards
 come from ``broker_answer``, so the eval tests the live engine.
 """
 

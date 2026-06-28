@@ -1,6 +1,6 @@
 """``teamctx-hook``: the Claude Code PreToolUse reflex.
 
-On the first Edit/Write/MultiEdit of a session it grounds the agent — runs work_start for the
+On the first Edit/Write/MultiEdit of a session it grounds the agent: runs work_start for the
 in-flight change and injects a short signal (ready / heads up / can't verify) as
 ``additionalContext``. It NEVER blocks an edit and never crashes the session: any error returns
 quietly (exit 0) with nothing surfaced. Kept import-light so the per-edit no-op path stays cheap.
@@ -21,7 +21,7 @@ _EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 def main() -> None:
     # Suppress BaseException, not just Exception: SystemExit/KeyboardInterrupt would otherwise
     # escape, exit non-zero, and let Claude Code block the edit. This is a short-lived hook
-    # subprocess, so swallowing them and exiting 0 is correct — a hook must never crash the session.
+    # subprocess, so swallowing them and exiting 0 is correct: a hook must never crash the session.
     with contextlib.suppress(BaseException):  # fail-safe: stay silent, allow the edit
         _run()
 
@@ -38,7 +38,7 @@ def _run() -> None:
     session_id = event.get("session_id")
     if not file_path or not cwd or not session_id:
         return
-    if _already_grounded(session_id):  # once per session — cheap no-op path ends here
+    if _already_grounded(session_id):  # once per session; cheap no-op path ends here
         return
     # mark before grounding: on error we stay silent rather than retry every edit
     _mark_grounded(session_id)
@@ -111,7 +111,7 @@ def _git_toplevel(root: Path) -> Path | None:
 
 def _repo_relative(root: Path, file_path: str) -> str:
     """Normalize the edited file to a repo-root-relative POSIX path so it matches the broker's
-    paths (PR changed files, gate files, docs — all repo-relative). Claude Code passes an
+    paths (PR changed files, gate files, docs, all repo-relative). Claude Code passes an
     absolute file_path; without this the triggering file never matches and we'd report a false
     all-clear on the very file being edited."""
 

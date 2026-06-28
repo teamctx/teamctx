@@ -2,7 +2,7 @@
 """Deterministic cross-artifact disagreement detector + scorer.
 A REASONABLE approximation of teamctx's typed-field extractor (φ) + phantom filter,
 written to GENERAL rules (not tuned to the corpus), run once. It is NOT the eventual
-production φ — this probes the inherent difficulty / achievable precision.
+production φ; this probes the inherent difficulty / achievable precision.
 
 Per item, output one of: disagree | agree | unknown.
   unknown = "I can't certify a comparison" (would fall to the L hint tier, not a card).
@@ -112,7 +112,7 @@ print("=== Disagreement detection (positive class = 'disagree') ===")
 score(rows, "ALL")
 score([r for r in rows if r[0].get("field_type")=="structured"], "structured only")
 score([r for r in rows if r[0].get("field_type")=="freetext"], "freetext only")
-print("\n=== False positives (CRIED WOLF — the trust-killers) ===")
+print("\n=== False positives (CRIED WOLF, the trust-killers) ===")
 for it,p,t in rows:
     if p=="disagree" and t!="disagree":
         print(f"  [{it.get('id')}/{it['_src']}] field={it['field']} trap={it.get('trap')} truth={t} -> said DISAGREE")

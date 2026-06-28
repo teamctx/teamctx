@@ -1,4 +1,4 @@
-D1 — ML at the edge vs pure deterministic rules
+D1, ML at the edge vs pure deterministic rules
 -----------------------------------------------
 
 I’m siding with **(b) NO ML in the core** for v1 and the near term.
@@ -18,7 +18,7 @@ So: **v1 is 100% deterministic, programmable relevance. No ML in the control pla
 
 ---
 
-D2 — Ambara: kill or defer?
+D2, Ambara: kill or defer?
 
 Ambara as originally pitched (“our own cross-tool knowledge graph / warehouse”) should be **killed, not deferred**.
 
@@ -37,7 +37,7 @@ So: **Ambara as a named project and product concept is dead. Only keep the minim
 
 ---
 
-D3 — Is prevented-rework enough, or is policy-block the only real wedge?
+D3, Is prevented-rework enough, or is policy-block the only real wedge?
 
 Prevented rework is *nice*, but not budget-creating.
 
@@ -90,7 +90,7 @@ You need to **reframe** the invariants:
 
 If you try to cling to strict “read-only/cannot act,” you are building a passive index that others will route around.
 
-2) Passive evidence-broker vs active policy-gateway — which is v1?
+2) Passive evidence-broker vs active policy-gateway, which is v1?
 
 v1 must be the **active policy-gateway**.
 
@@ -104,7 +104,7 @@ So:
 - v1 = **minimal, deterministic PDP/PEP for AI-driven writes**, with just enough “context card” functionality to prove that decisions are grounded in correct identity+permissions.
 - The passive cards-only product by itself is not a company. It’s an open-source sidecar at best.
 
-3) Single point of failure and surveillance substrate — reconcile or refute?
+3) Single point of failure and surveillance substrate, reconcile or refute?
 
 You *are* a single point of failure in the decision path. Pretending otherwise is dishonest.
 
@@ -148,7 +148,7 @@ Forced decisions
 
 ### 90-day v1 scope (one paragraph)
 
-v1 is an **active AI policy-gateway for code changes**, not a passive context broker. In 90 days, you ship: (1) a deterministic PDP/PEP that sits between AI coding agents (via MCP) and GitHub, enforcing **per-user, impersonated, repo/branch/path-level policies**; (2) **GitHub** and **Jira** as the only connectors: identity-resolution maps “who is this human behind this agent call?” and “which Jira ticket authorizes this change?”; (3) policy as code in a `.teamctx.(yaml|rego)` file committed to the org’s infra repo, defining blast-radius rules and ticket-label gates; (4) MCP server that tools like Claude/Codeium/Devin/etc. call for both read-context (cards) and write-authorization (can I edit these files? can I open this PR?); (5) a **GitHub App integration into CI** that adds a required “AI Policy Check” status on PRs, deny/allow based on policy and linked Jira issue, but **no direct writes to repos** (only block/annotate via checks). No Confluence, no GitLab, no Ambara, no ML, no fancy analytics — just policy-coded read scoping + deterministic write gating for AI-generated code.
+v1 is an **active AI policy-gateway for code changes**, not a passive context broker. In 90 days, you ship: (1) a deterministic PDP/PEP that sits between AI coding agents (via MCP) and GitHub, enforcing **per-user, impersonated, repo/branch/path-level policies**; (2) **GitHub** and **Jira** as the only connectors: identity-resolution maps “who is this human behind this agent call?” and “which Jira ticket authorizes this change?”; (3) policy as code in a `.teamctx.(yaml|rego)` file committed to the org’s infra repo, defining blast-radius rules and ticket-label gates; (4) MCP server that tools like Claude/Codeium/Devin/etc. call for both read-context (cards) and write-authorization (can I edit these files? can I open this PR?); (5) a **GitHub App integration into CI** that adds a required “AI Policy Check” status on PRs, deny/allow based on policy and linked Jira issue, but **no direct writes to repos** (only block/annotate via checks). No Confluence, no GitLab, no Ambara, no ML, no fancy analytics, just policy-coded read scoping + deterministic write gating for AI-generated code.
 
 ### First design-partner profile
 

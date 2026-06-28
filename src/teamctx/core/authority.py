@@ -2,7 +2,7 @@
 
 Authority answers *what should be true* (declared), never *what is observed*. The broker
 **surfaces conflict and refuses to adjudicate**, and **never lets a fresh lower-priority
-source override a stale higher-priority one** — silently falling through to the fresh lower
+source override a stale higher-priority one**. Silently falling through to the fresh lower
 source would be exactly the absence-implies-safety failure the model forbids.
 
 Declarations are assumed already projected to the consumer-visible set (Delta_P): the loader

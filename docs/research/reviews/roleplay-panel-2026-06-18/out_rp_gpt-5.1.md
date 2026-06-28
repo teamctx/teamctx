@@ -1,4 +1,4 @@
-ROLE 1 — CPO / Head of Product
+ROLE 1, CPO / Head of Product
 --------------------------------
 
 **The ONE product bet most likely to be WRONG**
@@ -59,7 +59,7 @@ Claims (2) privacy and (4) cross-agent portability are enablers and comfort blan
 
 - **Authority/“mandates as high-priority cards” concept**:
   - For v1, just emit **facts**: “There is a process doc linked to this Jira issue with last-modified X.”
-  - Skip the notion of “this card is a mandate from authority” — that’s culturally fraught and will over-rotate stakeholders into debating governance metaphysics instead of validating broker usefulness.
+  - Skip the notion of “this card is a mandate from authority”, that’s culturally fraught and will over-rotate stakeholders into debating governance metaphysics instead of validating broker usefulness.
 
 - **Complex deployment-mode differentiation**:
   - Solo vs enterprise as **config flags** is fine, but don’t ship UX built around them. Just have:
@@ -85,10 +85,10 @@ I would champion this if within **one quarter** I could show:
    - Low noise: cards are rare but high-signal.
    - No “every action spawns three cards” UX death.
 
-If it can become **the one small, trusted pane of “what changed that should alter my plan”** — and devs agree — I’d champion it as foundational infrastructure for any AI-assisted engineering org.
+If it can become **the one small, trusted pane of “what changed that should alter my plan”**: and devs agree, I’d champion it as foundational infrastructure for any AI-assisted engineering org.
 
 
-ROLE 2 — Head of Engineering / Platform
+ROLE 2, Head of Engineering / Platform
 ---------------------------------------
 
 **Would your teams actually run it? The operational objection that matters most**
@@ -106,7 +106,7 @@ The killer objection isn’t CPU or uptime; it’s **operational complexity arou
 
 ---
 
-**“My devs route around it / feel surveilled” risk — real or managed?**
+**“My devs route around it / feel surveilled” risk, real or managed?**
 
 - **Surveillance fear**:
   - The product’s invariants (artifact-only, no sentiment, no DMs, no presence) help a lot.
@@ -123,9 +123,9 @@ Net: surveillance risk is manageable; **“useless overlay that we learn to igno
 
 ---
 
-**Trust: the single failure that makes engineers stop reading the surface — is the design's answer enough?**
+**Trust: the single failure that makes engineers stop reading the surface, is the design's answer enough?**
 
-The unforgivable failure is: **a card that confidently asserts a state that’s no longer true** — especially **stale shown as fresh**.
+The unforgivable failure is: **a card that confidently asserts a state that’s no longer true**: especially **stale shown as fresh**.
 
 Example:  
 - Card: “No other open PR touches this file”  
@@ -149,7 +149,7 @@ Because **nobody feels a before/after difference**, and the pilot becomes just a
 
 - Cards appear, but:
   - They’re mostly reiterating what’s visible in GitHub/Jira anyway.
-  - They don’t trigger *different* decisions — just mild awareness.
+  - They don’t trigger *different* decisions, just mild awareness.
 - The agents already work “well enough,” so devs don’t attribute any friction reduction to teamctx.
 - Platform/infra folks get pulled back to more urgent fires; nobody owns tuning the signals or refining what cards matter.
 
@@ -160,14 +160,14 @@ Week 4: Nobody’s actively championing; devs are neutral-to-apathetic; it just 
 Stall reason: **insufficiently sharp, visible wins in concrete incidents**; product defaults are too generic, and no one has the time to customize without immediate payoff.
 
 
-ROLE 3 — Exec Sponsor (Adoption / Trust / Impact)
+ROLE 3, Exec Sponsor (Adoption / Trust / Impact)
 --------------------------------------------------
 
-**Impact thesis in one line — and does it clear the bar to sponsor?**
+**Impact thesis in one line, and does it clear the bar to sponsor?**
 
 “teamctx reduces AI-assisted rework and coordination failures by making the ‘current contract with reality’ explicit and reliable at the moment of work.”
 
-Yes, that clears my bar to sponsor **a modest, focused pilot** — because rework and coordination failures are already expensive and politically sensitive, and AI is amplifying them.
+Yes, that clears my bar to sponsor **a modest, focused pilot**: because rework and coordination failures are already expensive and politically sensitive, and AI is amplifying them.
 
 ---
 
@@ -211,7 +211,7 @@ Then, in the room with security/CTO:
 So: “safety boundary” is an enabling **second-order story**, not the banner I’d lead with if the goal is genuine adoption and behavior change.
 
 
-OUT OF CHARACTER — the single most important thing this vision is NOT seeing
+OUT OF CHARACTER, the single most important thing this vision is NOT seeing
 -----------------------------------------------------------------------------
 
 The vision underestimates how **organizational semantics and curation** will dominate value, not the mechanics of brokering. The hardest part won’t be deterministic syncing across Git/Jira/Confluence; it’ll be: deciding *which* changes truly “should change what people/agents do,” expressing that in stable, team-understandable rules, and keeping that configuration aligned with evolving process and architecture. Without opinionated defaults, tools for collaboratively tuning signals, and a clear owner for the “context taxonomy,” teamctx risks becoming either trivial (generic, low-signal cards) or overloaded (everyone stuffing their requirements into the stream). The product is currently over-optimized for technical safety and under-optimized for the governance and social work of defining and evolving “meaningful context.”

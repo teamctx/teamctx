@@ -1,26 +1,26 @@
-# CP1 — Missed-Gate Vertical (teamctx CI + check-runs connector) Implementation Plan
+# CP1: Missed-Gate Vertical (teamctx CI + check-runs connector) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** Light up teamctx's **second live source on a repo we actually build** — itself. Add CI (GitHub Actions) so check-runs exist, then a `missed-gate` connector that surfaces "a required gate is failing on the files you're about to change," dogfooded on teamctx.
+**Goal:** Light up teamctx's **second live source on a repo we actually build**: itself. Add CI (GitHub Actions) so check-runs exist, then a `missed-gate` connector that surfaces "a required gate is failing on the files you're about to change," dogfooded on teamctx.
 
-**Architecture:** Mirror the collision connector's two-module split (`github.py` I/O + `forge_review.py` normalizer). Slice A is config: a GitHub Actions workflow running the existing gates (ruff/mypy/pytest), which produces check-runs. Slice B adds a **pure normalizer** (`gate_status.py`) emitting `missed_gate` signals (scope `{repo, files}`, family `ci_deploy`) and a thin **I/O probe** (`github_checks.py`) that fetches failing check-runs via the *existing* `github.py` `get_json`/auth, plus a `gate-probe` CLI command sharing `_work_start_view`. The engine is **unchanged** — the `gate_failed` kind (derive, render, "Gate check" verdict, deps_G `ci_deploy`) already exists. Slice C is the dogfood.
+**Architecture:** Mirror the collision connector's two-module split (`github.py` I/O + `forge_review.py` normalizer). Slice A is config: a GitHub Actions workflow running the existing gates (ruff/mypy/pytest), which produces check-runs. Slice B adds a **pure normalizer** (`gate_status.py`) emitting `missed_gate` signals (scope `{repo, files}`, family `ci_deploy`) and a thin **I/O probe** (`github_checks.py`) that fetches failing check-runs via the *existing* `github.py` `get_json`/auth, plus a `gate-probe` CLI command sharing `_work_start_view`. The engine is **unchanged**: the `gate_failed` kind (derive, render, "Gate check" verdict, deps_G `ci_deploy`) already exists. Slice C is the dogfood.
 
 **Tech Stack:** Python 3.12, click, pydantic, pytest/ruff/mypy; GitHub Actions YAML; stdlib `urllib` (reused from `github.py`). No new deps.
 
-**Spike resolved (the `files` question):** GitHub check-runs don't report per-file coverage, and teamctx's gates are whole-repo. So v1 scopes a failing gate to `request.paths` — "the whole-repo gate is red and you're about to change code under it." The engine derive intersects `scope["files"]` with `request.paths`; setting `files = request.paths` means it fires whenever CI is red and you're touching code. Refinement (scope to branch-changed files via local `git diff`) is **deferred** until the dogfood shows the coarse version is too noisy.
+**Spike resolved (the `files` question):** GitHub check-runs don't report per-file coverage, and teamctx's gates are whole-repo. So v1 scopes a failing gate to `request.paths`, "the whole-repo gate is red and you're about to change code under it." The engine derive intersects `scope["files"]` with `request.paths`; setting `files = request.paths` means it fires whenever CI is red and you're touching code. Refinement (scope to branch-changed files via local `git diff`) is **deferred** until the dogfood shows the coarse version is too noisy.
 
-**Prerequisite (Slice C):** real check-runs require the workflow **pushed** to `origin` (teamctx is already a GitHub repo we push `main` to). Slices A–B build + test locally with fixtures; Slice C needs a push to activate Actions — that's Edgar's go.
+**Prerequisite (Slice C):** real check-runs require the workflow **pushed** to `origin` (teamctx is already a GitHub repo we push `main` to). Slices A–B build + test locally with fixtures; Slice C needs a push to activate Actions, that's Edgar's go.
 
 ---
 
 ## File structure
-- `.github/workflows/ci.yml` (new) — CI: ruff/mypy/pytest on push + PR.
-- `src/teamctx/connectors/gate_status.py` (new, pure normalizer) — `FailingGate` + `normalize_failing_gates` + `unavailable_gates_document` + private helpers.
-- `src/teamctx/connectors/github_checks.py` (new, I/O edge) — `run_github_checks_probe` + `fetch_failing_check_runs` + `FAILING_CONCLUSIONS`; reuses `github.py` (`get_json`, auth, `split_repo`, `GitHubProbeError`, `github_error_message`, `GITHUB_API_ROOT`, `HttpOpener`, `DEFAULT_OPENER`).
-- `src/teamctx/cli.py` (modify) — add `gate-probe` command; reuse `_work_start_view`.
-- `tests/test_gate_status.py` (new) — normalizer + probe (injected opener).
-- `tests/test_gate_probe_cli.py` (new) — CLI end-to-end with injected opener.
+- `.github/workflows/ci.yml` (new), CI: ruff/mypy/pytest on push + PR.
+- `src/teamctx/connectors/gate_status.py` (new, pure normalizer), `FailingGate` + `normalize_failing_gates` + `unavailable_gates_document` + private helpers.
+- `src/teamctx/connectors/github_checks.py` (new, I/O edge), `run_github_checks_probe` + `fetch_failing_check_runs` + `FAILING_CONCLUSIONS`; reuses `github.py` (`get_json`, auth, `split_repo`, `GitHubProbeError`, `github_error_message`, `GITHUB_API_ROOT`, `HttpOpener`, `DEFAULT_OPENER`).
+- `src/teamctx/cli.py` (modify), add `gate-probe` command; reuse `_work_start_view`.
+- `tests/test_gate_status.py` (new), normalizer + probe (injected opener).
+- `tests/test_gate_probe_cli.py` (new), CLI end-to-end with injected opener.
 
 Engine files are **not** touched (the `missed_gate` kind already exists).
 
@@ -138,7 +138,7 @@ python -m pytest tests/test_gate_status.py -v
 """CI gate-status normalization.
 
 Turns failing-gate facts into Core Contract V0 objects. No file/network I/O and no card
-rendering — work-start DERIVES missed-gate cards from the signals emitted here.
+rendering, work-start DERIVES missed-gate cards from the signals emitted here.
 """
 
 from __future__ import annotations
@@ -360,7 +360,7 @@ def test_probe_without_token_is_unavailable() -> None:
 ```bash
 python -m pytest tests/test_gate_status.py -v
 ```
-- [ ] **Step 3: Implement** (`src/teamctx/connectors/github_checks.py`) — reuse `github.py`
+- [ ] **Step 3: Implement** (`src/teamctx/connectors/github_checks.py`), reuse `github.py`
 ```python
 """Narrow GitHub check-runs probe: surface failing required gates for a ref."""
 
@@ -561,14 +561,14 @@ git commit -m "feat: gate-probe CLI command (failing-gate cards + verdict)"
 ---
 
 ## Task 5: Full gate (green-CI handoff)
-- [ ] Run `python -m pytest -q && ruff check src && mypy --strict src` — all green. Commit any fixups only if needed.
+- [ ] Run `python -m pytest -q && ruff check src && mypy --strict src`, all green. Commit any fixups only if needed.
 
 ---
 
-## Task 6 (Slice C): Dogfood on teamctx — the CP1 done-gate
+## Task 6 (Slice C): Dogfood on teamctx: the CP1 done-gate
 > No teamctx code. This is the verdict; performed by Edgar.
 
-- [ ] **Step 1: Activate CI.** Push the branch (or merge to main and push) so the `ci.yml` workflow runs on GitHub Actions. *(Requires a push to `origin` — Edgar's go.)*
+- [ ] **Step 1: Activate CI.** Push the branch (or merge to main and push) so the `ci.yml` workflow runs on GitHub Actions. *(Requires a push to `origin`, Edgar's go.)*
 - [ ] **Step 2: Make a gate red.** On a working branch, introduce a failing check (e.g., a failing test or a lint error) and let CI run red.
 - [ ] **Step 3: Probe at work-start.** From the repo, with `GITHUB_TOKEN` set:
 ```bash
@@ -584,7 +584,7 @@ Expected: a "Needs attention" missed-gate card naming the failing gate, and **Ga
 - **Engine untouched:** no edits to `core/`; the `missed_gate` kind, deps_G `ci_deploy`, derive (`scope{repo,files}∩paths`), and render already exist. Only connectors + CLI + CI.
 - **Type consistency:** `FailingGate` fields match their use in `github_checks.py` and `normalize_failing_gates`; signal `signal_type="missed_gate"` + `source_family="ci_deploy"` match `_KIND_BY_SIGNAL_TYPE` and `DEPS_REGISTRY`; scope keys `repo`/`files` match `_derive_missed_gate_claim`.
 - **Pattern match:** `gate_status.py` mirrors `forge_review.py`/`docs_supersession.py`; `github_checks.py` reuses `github.py` (`get_json`, auth, `split_repo`, error mapping); `gate-probe` mirrors `docs-probe` and shares `_work_start_view`.
-- **No bare `git checkout <sha>`** (it detached HEAD last time) — only branch operations as written.
+- **No bare `git checkout <sha>`** (it detached HEAD last time), only branch operations as written.
 
 ## Deferred (dogfood-pulled)
 - `scope["files"]` refinement to branch-changed files (v1 = request.paths).

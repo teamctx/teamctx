@@ -32,4 +32,4 @@ The two-package hybrid collapses into "one product pretending to be two" at the 
 
 **The Design Rule: Strict Dependency Inversion via Generic Registration.**
 The base broker must have absolute zero-knowledge of the memory layer. The broker must only expose a generic `ISource` interface. 
-If the memory layer is used, it must inject itself into the broker at runtime as a generic source. The CLI and file renderers must treat memory cards exactly like GitHub cards—relying purely on the typed schema of the context card, not on hardcoded source names. If you delete the memory repository from GitHub, the base broker's codebase shouldn't require a single line of code changed.
+If the memory layer is used, it must inject itself into the broker at runtime as a generic source. The CLI and file renderers must treat memory cards exactly like GitHub cards, relying purely on the typed schema of the context card, not on hardcoded source names. If you delete the memory repository from GitHub, the base broker's codebase shouldn't require a single line of code changed.

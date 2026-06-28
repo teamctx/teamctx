@@ -71,7 +71,7 @@ def unavailable_document(
     policy_reason: str,
     visibility: SourceStatusVisibility = "warning_when_relevant",
 ) -> CoreContractDocument:
-    """A document carrying only a single unhealthy source status — no signals, no clearance."""
+    """A document carrying only a single unhealthy source status (no signals, no clearance)."""
 
     return CoreContractDocument(
         schema_version="teamctx.core_contract_document.v0",

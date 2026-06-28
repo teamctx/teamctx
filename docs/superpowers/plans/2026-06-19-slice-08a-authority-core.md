@@ -1,20 +1,20 @@
-# Slice 8a — Thin Authority: Core Logic + Broker Integration
+# Slice 8a: Thin Authority: Core Logic + Broker Integration
 
 > REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Checkbox steps.
 
-**Goal:** Pillar **S2** — separate evidence from authority. Add the core authority logic: from governance **declarations**, compute a per-subject authority state — **resolved / conflicted / missing / unknown[stale-authority]** — that **refuses to adjudicate** a conflict (surfaces it, never picks) and **never lets a fresh lower-priority source override a stale higher-priority one**. Carry it on the broker answer (`κ.authority`). Pure core only — the `.teamctx` file loader + CLI/render is slice 8b.
+**Goal:** Pillar **S2**: separate evidence from authority. Add the core authority logic: from governance **declarations**, compute a per-subject authority state, **resolved / conflicted / missing / unknown[stale-authority]**: that **refuses to adjudicate** a conflict (surfaces it, never picks) and **never lets a fresh lower-priority source override a stale higher-priority one**. Carry it on the broker answer (`κ.authority`). Pure core only, the `.teamctx` file loader + CLI/render is slice 8b.
 
-**Architecture:** `core/authority.py` (pure): `AuthorityDecl` (a declaration), `assess_authority(subject, declarations) -> AuthorityEntry`. Declarations are assumed already projected to the consumer-visible set Δ_P (the loader in 8b filters by `can_read`; authority over invisible sources contributes nothing — preserves T5). `select_context` gains a `declarations` param (default `()`) and computes `ContextSelection.authority`.
+**Architecture:** `core/authority.py` (pure): `AuthorityDecl` (a declaration), `assess_authority(subject, declarations) -> AuthorityEntry`. Declarations are assumed already projected to the consumer-visible set Δ_P (the loader in 8b filters by `can_read`; authority over invisible sources contributes nothing, preserves T5). `select_context` gains a `declarations` param (default `()`) and computes `ContextSelection.authority`.
 
-**Tech Stack:** Python 3.12, frozen dataclasses, Literal, pytest, ruff, mypy --strict. `authority.py` is in `core/` (purity-globbed) — dataclasses/typing only.
+**Tech Stack:** Python 3.12, frozen dataclasses, Literal, pytest, ruff, mypy --strict. `authority.py` is in `core/` (purity-globbed), dataclasses/typing only.
 
 ---
 
 ## File structure
-- **Create `src/teamctx/core/authority.py`** — `AuthorityDecl`, `AuthorityState`, `AuthorityEntry`, `assess_authority`.
-- **Modify `src/teamctx/core/select.py`** — `ContextSelection.authority`; `select_context(declarations=())`.
-- **Create `tests/test_authority.py`** — S2 unit tests.
-- **Modify `tests/test_select.py`** — integration (authority carried on the selection).
+- **Create `src/teamctx/core/authority.py`**: `AuthorityDecl`, `AuthorityState`, `AuthorityEntry`, `assess_authority`.
+- **Modify `src/teamctx/core/select.py`**: `ContextSelection.authority`; `select_context(declarations=())`.
+- **Create `tests/test_authority.py`**: S2 unit tests.
+- **Modify `tests/test_select.py`**: integration (authority carried on the selection).
 
 ---
 
@@ -80,7 +80,7 @@ def test_only_declarations_for_the_subject_apply() -> None:
     assert assess_authority("rounding-cap", decls).state == "missing"
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_authority.py -v` — FAIL (module missing).
+- [ ] **Step 2: Run** `pytest tests/test_authority.py -v`, FAIL (module missing).
 
 - [ ] **Step 3: Implement.** Create `src/teamctx/core/authority.py`:
 ```python
@@ -88,7 +88,7 @@ def test_only_declarations_for_the_subject_apply() -> None:
 
 Authority answers *what should be true* (declared), never *what is observed*. The broker
 **surfaces conflict and refuses to adjudicate**, and **never lets a fresh lower-priority
-source override a stale higher-priority one** — silently falling through to the fresh lower
+source override a stale higher-priority one**, silently falling through to the fresh lower
 source would be exactly the absence-implies-safety failure the model forbids.
 
 Declarations are assumed already projected to the consumer-visible set (Delta_P): the loader
@@ -198,7 +198,7 @@ def test_select_context_with_no_declarations_has_empty_authority() -> None:
     assert selection.authority == ()
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_select.py -v` — FAIL (`select_context` takes no declarations / `ContextSelection` has no `authority`).
+- [ ] **Step 2: Run** `pytest tests/test_select.py -v`, FAIL (`select_context` takes no declarations / `ContextSelection` has no `authority`).
 
 - [ ] **Step 3: Implement** in `src/teamctx/core/select.py`:
 - Import: `from teamctx.core.authority import AuthorityDecl, AuthorityEntry, assess_authority`.
@@ -251,7 +251,7 @@ def select_context(
     )
 ```
 
-- [ ] **Step 4: Full gate.** `grep -rn "ContextSelection(" src tests` — only `select_context`; if a test constructs it directly, add `authority=()`. Then `pytest` (existing select/render/cli/evaluate tests pass — `authority` is additive and defaults empty), `ruff check src tests`, `mypy src`.
+- [ ] **Step 4: Full gate.** `grep -rn "ContextSelection(" src tests`, only `select_context`; if a test constructs it directly, add `authority=()`. Then `pytest` (existing select/render/cli/evaluate tests pass, `authority` is additive and defaults empty), `ruff check src tests`, `mypy src`.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -267,4 +267,4 @@ git commit -m "feat: carry per-subject authority on the broker answer (kappa.aut
 **Definition of done:** `assess_authority` resolves/conflicts/misses, refuses to pick on conflict, and never overrides a stale high-priority authority with a fresh low-priority one; `ContextSelection.authority` carries it; gate green. (S2 surfaced in the engine.)
 
 ## Notes for slice 8b
-8b adds: a `.teamctx/authority.json` loader (I/O, OUTSIDE core — e.g. `connectors/declared_authority.py`) that filters to `can_read` sources (Delta_P) and returns `AuthorityDecl`s; CLI wiring to load + pass declarations; and render lines for authority (resolved value / "CONFLICTED — sources disagree, not adjudicated" / "stale authority — refresh"). Deferred from the thin slice: temporary-override states, graduated `.teamctx`→durable, dissent cards, precision tuning.
+8b adds: a `.teamctx/authority.json` loader (I/O, OUTSIDE core, e.g. `connectors/declared_authority.py`) that filters to `can_read` sources (Delta_P) and returns `AuthorityDecl`s; CLI wiring to load + pass declarations; and render lines for authority (resolved value / "CONFLICTED, sources disagree, not adjudicated" / "stale authority, refresh"). Deferred from the thin slice: temporary-override states, graduated `.teamctx`→durable, dissent cards, precision tuning.

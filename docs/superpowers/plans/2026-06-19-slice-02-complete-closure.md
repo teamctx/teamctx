@@ -1,8 +1,8 @@
-# Slice 2 — `complete?` + `κ.closure` Implementation Plan
+# Slice 2: `complete?` + `κ.closure` Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the broker's global "all sources fresh" coverage flag with an honest **per-proposition completeness checker** (`assess_completeness`, the paper's `complete?`) plus a per-proposition **closure** carried in the broker's answer (`κ.closure`) — so coverage honesty is scoped to *the query's* dependencies, not "all sources."
+**Goal:** Replace the broker's global "all sources fresh" coverage flag with an honest **per-proposition completeness checker** (`assess_completeness`, the paper's `complete?`) plus a per-proposition **closure** carried in the broker's answer (`κ.closure`), so coverage honesty is scoped to *the query's* dependencies, not "all sources."
 
 **Architecture:** A proposition's dependency closure `deps_G` is a small trusted registry of mandated source families per predicate (collision query → `git_hosting`). `assess_completeness(prop, coverage)` reads the per-source coverage and returns `complete` or an `incomplete[reason]`. `select_context` computes this for the work-start query and carries it in `ContextSelection.closure`; the renderer drives its honest-coverage message off the closure instead of the removed `Coverage.complete`.
 
@@ -14,7 +14,7 @@
 
 - This builds on slice 1. `src/teamctx/core/prop.py` already provides `Prop`, `SubjectRef`, and (in `select.py`) `no_conflict_query(request) -> Prop` returns the universal `Prop(predicate="no_pr_conflicts_with_paths", subject=SubjectRef(repo, paths))`.
 - `src/teamctx/core/select.py` currently has: `Coverage` (frozen dataclass, fields `entries: tuple[CoverageEntry, ...]`, plus a `complete` property = "all entries fresh"), `CoverageEntry` (`source_id`, `source_family`, `status`, `last_checked_at`), `build_coverage(statuses)`, `ContextSelection` (`cards`, `coverage`), and `select_context(request, signals, statuses)`.
-- The live GitHub path emits one `SourceStatus` with `source_family="git_hosting"`, `status="fresh"` (or `unavailable` when no token). The test fixture `docs/product/discovery/fixtures/contracts/v0/core-contract-document.json` has exactly one status: `source_family="docs"`, `status="stale"` — and **no** `git_hosting` status.
+- The live GitHub path emits one `SourceStatus` with `source_family="git_hosting"`, `status="fresh"` (or `unavailable` when no token). The test fixture `docs/product/discovery/fixtures/contracts/v0/core-contract-document.json` has exactly one status: `source_family="docs"`, `status="stale"`, and **no** `git_hosting` status.
 - Because of that, the fixture's collision-query closure is `incomplete[policy-gap]` (the mandated `git_hosting` source is not observed). The live path's closure is `complete` (git_hosting fresh). Both render the **same strings** as today ("Coverage complete..." / "...not an all-clear"), so the existing render test stays green.
 - `CoverageEntry.status` is a `str` with values from `fresh|stale|unavailable|blocked|disabled`. "fresh" is the only complete-eligible value.
 - The core purity test globs `src/teamctx/core/*.py`; new code in `select.py` must not import os/pathlib/time/etc. (it won't need to).
@@ -23,9 +23,9 @@
 
 ## File structure
 
-- **Modify `src/teamctx/core/select.py`** — add `Completeness`, `ClosureEntry`, `DEPS_REGISTRY`, `deps_for`, `assess_completeness`; add `closure` to `ContextSelection`; compute closure in `select_context`; **remove** the `Coverage.complete` property.
-- **Modify `src/teamctx/contract_render.py`** — `render_selection` decides complete-vs-incomplete from `selection.closure` instead of `selection.coverage.complete`.
-- **Modify `tests/test_select.py`** — add closure-taxonomy tests; rewrite the coverage tests that asserted the removed `.complete`; update the `select_context` test.
+- **Modify `src/teamctx/core/select.py`**: add `Completeness`, `ClosureEntry`, `DEPS_REGISTRY`, `deps_for`, `assess_completeness`; add `closure` to `ContextSelection`; compute closure in `select_context`; **remove** the `Coverage.complete` property.
+- **Modify `src/teamctx/contract_render.py`**: `render_selection` decides complete-vs-incomplete from `selection.closure` instead of `selection.coverage.complete`.
+- **Modify `tests/test_select.py`**: add closure-taxonomy tests; rewrite the coverage tests that asserted the removed `.complete`; update the `select_context` test.
 
 ---
 
@@ -83,7 +83,7 @@ def test_closure_stale_dep_when_git_hosting_not_fresh() -> None:
 
 
 def test_closure_policy_gap_when_git_hosting_unobserved() -> None:
-    # the fixture has only a docs source — the mandated git_hosting source is absent.
+    # the fixture has only a docs source, the mandated git_hosting source is absent.
     coverage = build_coverage(load_document().source_statuses)
     assert assess_completeness(_collision_query(), coverage) == "incomplete[policy-gap]"
 
@@ -92,7 +92,7 @@ def test_closure_policy_gap_when_no_sources_checked() -> None:
     assert assess_completeness(_collision_query(), build_coverage([])) == "incomplete[policy-gap]"
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_select.py -v` — expect FAIL: `cannot import name 'assess_completeness'`.
+- [ ] **Step 2: Run** `pytest tests/test_select.py -v`, expect FAIL: `cannot import name 'assess_completeness'`.
 
 - [ ] **Step 3: Implement.** In `src/teamctx/core/select.py`:
 
@@ -109,7 +109,7 @@ Completeness = Literal[
 
 # deps_G: the trusted, mandated source families a proposition's truth depends on. A
 # predicate is registered here as its card kind is added. An unregistered predicate fails
-# loud — we never silently certify a query whose dependencies we have not modeled.
+# loud: we never silently certify a query whose dependencies we have not modeled.
 DEPS_REGISTRY: dict[str, frozenset[str]] = {
     "no_pr_conflicts_with_paths": frozenset({"git_hosting"}),
 }
@@ -152,7 +152,7 @@ def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
 ```
 `deps_for` and `assess_completeness` need `Prop` imported in `select.py` (slice 1 already added `from teamctx.core.prop import Prop, SubjectRef`). Confirm that import exists.
 
-- [ ] **Step 4: Run** `pytest tests/test_select.py -v` — expect PASS (new tests green; existing tests still pass — nothing removed yet).
+- [ ] **Step 4: Run** `pytest tests/test_select.py -v`, expect PASS (new tests green; existing tests still pass, nothing removed yet).
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -200,9 +200,9 @@ def test_collision_closure_is_complete_only_when_git_hosting_is_fresh() -> None:
     assert fresh == "complete"
     assert stale == "incomplete[stale-dep]"
 ```
-And update `test_select_context_returns_derived_cards_and_coverage_together`: it currently asserts `selection.coverage.complete is False`. Remove that assertion (the new `test_select_context_carries_the_collision_query_closure` covers closure); keep the card assertion, or delete this now-redundant test if its card assertion duplicates the new one. (Delete it — the new closure test asserts the same cards.)
+And update `test_select_context_returns_derived_cards_and_coverage_together`: it currently asserts `selection.coverage.complete is False`. Remove that assertion (the new `test_select_context_carries_the_collision_query_closure` covers closure); keep the card assertion, or delete this now-redundant test if its card assertion duplicates the new one. (Delete it, the new closure test asserts the same cards.)
 
-- [ ] **Step 2: Run** `pytest tests/test_select.py -v` — expect FAIL: `ClosureEntry` import error and/or `ContextSelection` has no `closure`.
+- [ ] **Step 2: Run** `pytest tests/test_select.py -v`, expect FAIL: `ClosureEntry` import error and/or `ContextSelection` has no `closure`.
 
 - [ ] **Step 3: Implement.**
 
@@ -276,12 +276,12 @@ to:
             "treat unobserved or stale sources as Unknown."
         )
 ```
-(The per-source entry listing above it is unchanged — it still iterates `coverage.entries`.)
+(The per-source entry listing above it is unchanged, it still iterates `coverage.entries`.)
 
 - [ ] **Step 4: Run the full gate.**
-- `pytest` — all pass. The pre-existing `tests/test_render_selection.py::test_render_shows_collision_card_and_honest_incomplete_coverage` must STILL pass unchanged (fixture closure is policy-gap → "not an all-clear" string present).
-- `ruff check src tests` — clean.
-- `mypy src` — Success.
+- `pytest`, all pass. The pre-existing `tests/test_render_selection.py::test_render_shows_collision_card_and_honest_incomplete_coverage` must STILL pass unchanged (fixture closure is policy-gap → "not an all-clear" string present).
+- `ruff check src tests`, clean.
+- `mypy src`, Success.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -293,8 +293,8 @@ git commit -m "feat: carry kappa.closure in the answer; render off it; drop glob
 
 ## Task 3: Verify the slice's definition of done
 
-- [ ] **Step 1:** `pytest && ruff check src tests && mypy src` — all green.
-- [ ] **Step 2:** Purity guard: `pytest tests/test_core_contracts.py::test_core_package_has_no_file_or_runtime_side_effect_imports -q` — pass.
+- [ ] **Step 1:** `pytest && ruff check src tests && mypy src`, all green.
+- [ ] **Step 2:** Purity guard: `pytest tests/test_core_contracts.py::test_core_package_has_no_file_or_runtime_side_effect_imports -q`, pass.
 - [ ] **Step 3 (optional live smoke):**
 ```bash
 GITHUB_TOKEN=$(gh auth token) PYTHONPATH=src python -m teamctx.cli work-start \

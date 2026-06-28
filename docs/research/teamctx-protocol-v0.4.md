@@ -1,17 +1,17 @@
-# teamctx Protocol — v0.4 revision addendum (applied on v0.3)
+# teamctx Protocol: v0.4 revision addendum (applied on v0.3)
 *Surgical revision closing the two convergent blockers from the round-3 (v0.3) panel, which returned unanimous **minor revision**. This addendum rewrites §5.6 and Theorem 6 and adds four clarifying sentences. All other sections of v0.3 carry over unchanged.*
 
 ---
 
 ## Response to Reviewers (round 3)
 
-- **[B1 — Gemini/DeepSeek] §5.6 epistemic contradiction + non-constructive `deps_G`.** *Fixed.* `⟦·⟧` is now explicitly **meta-theoretic** (an omniscient-oracle analysis used to prove that omissions default to `Unknown`); the broker never computes or emits it at runtime, so the `False→Unknown` shift cannot become a value-channel leak (T2′ preserved). The **consumer** computes only a sound under-approximation from `⟨C,κ⟩`. `deps_G` is given a constructive, conservative (over-approximating) definition and is named as a trusted-rule obligation.
-- **[B2 — GPT-5.1/gpt-oss] T6 δ-leakage not an info-theoretic statement.** *Fixed.* The bound is now a precise **single-shot mutual-information** statement with an explicit adversary model and out-of-scope clauses (multi-query, non-value channels).
+- **[B1, Gemini/DeepSeek] §5.6 epistemic contradiction + non-constructive `deps_G`.** *Fixed.* `⟦·⟧` is now explicitly **meta-theoretic** (an omniscient-oracle analysis used to prove that omissions default to `Unknown`); the broker never computes or emits it at runtime, so the `False→Unknown` shift cannot become a value-channel leak (T2′ preserved). The **consumer** computes only a sound under-approximation from `⟨C,κ⟩`. `deps_G` is given a constructive, conservative (over-approximating) definition and is named as a trusted-rule obligation.
+- **[B2, GPT-5.1/gpt-oss] T6 δ-leakage not an info-theoretic statement.** *Fixed.* The bound is now a precise **single-shot mutual-information** statement with an explicit adversary model and out-of-scope clauses (multi-query, non-value channels).
 - **Minor (non-blocking) asks** acknowledged with clarifying sentences (A2 sequencer instantiation; hint-layer security bound; `φ`-robustness as conditional; mechanized proof as future work).
 
 ---
 
-## §5.6 (REPLACEMENT) — Guarded semantics, as meta-theory + a sound consumer rule
+## §5.6 (REPLACEMENT): Guarded semantics, as meta-theory + a sound consumer rule
 
 **Constructive dependencies.** For a proposition `ρ` over work-state, define `deps_G(ρ) ⊆ Σ` as the sources whose state can affect `ρ`, computed as a **conservative over-approximation** from: (i) the typed references reachable from `ρ`'s subject in the *global* graph `G`, (ii) `policy_mandated` sources for `ρ`'s scope, and (iii) the query structure. `deps_G` is part of the trusted rule set; **soundness of `False` requires `deps_G` to over-approximate the true dependency set** (stated as an obligation, not assumed for free). `witness : C → 2^Prop` maps each card to the propositions it establishes (fixed per card kind).
 
@@ -24,18 +24,18 @@
 
 **Sound consumer rule (runtime, under-approximating).** A consumer holding only `Ĝ_P` and `κ` evaluates a *safe refinement* `⟦·⟧⁻`:
 - assert `True` exactly when a card witnesses `ρ`;
-- assert `False` **only if** `deps_G(ρ)` is fully present in `κ` with `status=ok` *and* the consumer can verify `deps_G(ρ)` is complete for `ρ` (typically only when `ρ`'s dependencies are all typed-referenced and policy-bounded — A1);
+- assert `False` **only if** `deps_G(ρ)` is fully present in `κ` with `status=ok` *and* the consumer can verify `deps_G(ρ)` is complete for `ρ` (typically only when `ρ`'s dependencies are all typed-referenced and policy-bounded, A1);
 - otherwise `Unknown`.
 
-**Soundness lemma.** `⟦ρ⟧⁻ = True ⇒ ⟦ρ⟧ = True`, `⟦ρ⟧⁻ = False ⇒ ⟦ρ⟧ = False`; the consumer never over-claims (it may only *under*-claim, returning `Unknown` where the oracle would say `False`). *Sketch:* `⟦·⟧⁻` strengthens the `False` precondition with a verifiable-completeness check; `True` is identical; all other cases collapse to `Unknown`. ∎ Because the relevance ceiling (T5′/A1) usually blocks the completeness check, `Unknown` is the conservative default — the intended honest behavior. The consumer obligation remains `treat Unknown ≠ False`.
+**Soundness lemma.** `⟦ρ⟧⁻ = True ⇒ ⟦ρ⟧ = True`, `⟦ρ⟧⁻ = False ⇒ ⟦ρ⟧ = False`; the consumer never over-claims (it may only *under*-claim, returning `Unknown` where the oracle would say `False`). *Sketch:* `⟦·⟧⁻` strengthens the `False` precondition with a verifiable-completeness check; `True` is identical; all other cases collapse to `Unknown`. ∎ Because the relevance ceiling (T5′/A1) usually blocks the completeness check, `Unknown` is the conservative default, the intended honest behavior. The consumer obligation remains `treat Unknown ≠ False`.
 
 ---
 
-## Theorem 6 (REPLACEMENT) — Privacy–Coverage Impossibility with single-shot leakage bound
+## Theorem 6 (REPLACEMENT): Privacy–Coverage Impossibility with single-shot leakage bound
 
 **Qualitative (unchanged).** Define **EP**: `g` invariant under changes confined to `P`-invisible artifacts; **CC**: for every globally-relevant (`rel_G`) unobserved source `σ`, `κ` reports `σ`'s existence. *If a globally-relevant `P`-invisible source can exist, EP and CC are jointly unsatisfiable.* (Proof as in v0.3: construct `S` with such a `σ`, `S′=S∖{σ}`; invisibility ⇒ `S|_P=S′|_P`; CC ⇒ outputs differ ⇒ EP fails. ∎) This is the noninterference-vs-completeness/declassification tension (Sabelfeld–Myers; Clarkson–Schneider; Jajodia–Sandhu; Motro) **specialized to agent context**; the qualitative result is not claimed as novel.
 
-**Quantitative (single-shot leakage — the precise statement, fixing B2).** *Adversary model:* a single invocation; the secret is the presence vector `X ∈ {0,1}^M` over a fixed, adversary-known candidate set of `M` potential invisible-target dangling references; the adversary has an arbitrary prior on `X`; the only observable is `δ(D(q))`; timing, cardinality-of-`C`, and cross-call correlation are **excluded** (A2 + §8 side-channel scope). Let `N = |D_inv(q)|` be the number of *present* invisible-target dangling refs, `N ≤ M`. Then the mutual information between `X` and the observable is:
+**Quantitative (single-shot leakage, the precise statement, fixing B2).** *Adversary model:* a single invocation; the secret is the presence vector `X ∈ {0,1}^M` over a fixed, adversary-known candidate set of `M` potential invisible-target dangling references; the adversary has an arbitrary prior on `X`; the only observable is `δ(D(q))`; timing, cardinality-of-`C`, and cross-call correlation are **excluded** (A2 + §8 side-channel scope). Let `N = |D_inv(q)|` be the number of *present* invisible-target dangling refs, `N ≤ M`. Then the mutual information between `X` and the observable is:
 - **`δ=none`:** the observable is independent of `X` ⇒ `I(X; obs) = 0` bits.
 - **`δ=count`:** the observable is exactly `N ∈ {0,…,M}` ⇒ `I(X; obs) ≤ H(N) ≤ log₂(M+1)` bits.
 - **`δ=identity`:** the observable is `X` restricted to present refs ⇒ `I(X; obs) ≤ M` bits.

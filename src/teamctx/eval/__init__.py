@@ -2,7 +2,7 @@
 
 A deconfounded A/B: for each scenario, a *baseline* prompt (task only) and a *context*
 prompt (the same task plus the REAL work-start answer from ``broker_answer``). Whether
-teamctx context changes an agent's behavior is measured against the live engine — not a
+teamctx context changes an agent's behavior is measured against the live engine, not a
 prototype stand-in. Scenarios are expressed in the contracts model, so there is one model
 end to end.
 """

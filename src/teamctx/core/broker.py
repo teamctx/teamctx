@@ -2,8 +2,8 @@
 
 This module sits at the top of the core import DAG. ``select_context`` lives in
 ``select`` and ``evaluate`` imports ``select``; the broker needs both, so it must sit
-above them — which is exactly why the unified answer cannot live in ``select`` (that would
-cycle). Every consumer — CLI, MCP, and the evidence engine — calls ``broker_answer`` so the
+above them, which is exactly why the unified answer cannot live in ``select`` (that would
+cycle). Every consumer (CLI, MCP, and the evidence engine) calls ``broker_answer`` so the
 verdict logic exists in one place, not re-implemented per transport.
 
 Pure: composition + evaluation only, no I/O (the core purity test guards it).
@@ -31,7 +31,7 @@ from teamctx.core.select import CARD_KINDS, ContextSelection, select_context
 class ComposedSources:
     """The merged source material from one or more connector documents. Connectors that
     answer the same request each emit a ``CoreContractDocument``; composing them is just the
-    union of their signals/statuses/targets/guidance — the broker then selects over the whole."""
+    union of their signals/statuses/targets/guidance; the broker then selects over the whole."""
 
     signals: tuple[SourceSignal, ...]
     statuses: tuple[SourceStatus, ...]
@@ -77,7 +77,7 @@ def broker_answer(
     declarations: Iterable[AuthorityDecl] = (),
 ) -> BrokerAnswer:
     """The one broker entry point. Derives the selection, then evaluates each card kind's
-    universal against the certified claims under the coverage closure — so every consumer
+    universal against the certified claims under the coverage closure, so every consumer
     gets identical cards AND identical verdicts from one code path."""
 
     selection = select_context(request, signals, statuses, declarations)

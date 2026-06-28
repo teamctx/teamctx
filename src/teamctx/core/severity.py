@@ -2,7 +2,7 @@
 
 severity = clamp01(kind_base × (1 + ALPHA·magnitude_norm) × scope_mult). The decomposition
 is retained on the card for audit and conformance: any conforming broker computes identical
-numbers for identical inputs. The constants are placeholder defaults — calibration needs
+numbers for identical inputs. The constants are placeholder defaults; calibration needs
 deployment telemetry (out of scope here). Pure: no I/O.
 """
 
