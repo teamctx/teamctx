@@ -46,6 +46,7 @@ def normalize_failing_gates(
     observed_at: str,
     expires_at: str = "next_refresh",
     source_id: str = "github_check_runs",
+    coverage_truncated: bool = False,
 ) -> CoreContractDocument:
     source_signals: list[SourceSignal] = []
     for index, gate in enumerate(gates):
@@ -73,14 +74,21 @@ def normalize_failing_gates(
                 policy=metadata_only_policy(_POLICY_REASON),
             )
         )
+    _status: SourceStatusValue = "stale" if coverage_truncated else "fresh"
+    _safe_msg = (
+        "Checked the first 100 check runs for this ref; there are more, "
+        "so this is not a complete check."
+        if coverage_truncated
+        else "CI check-run status refreshed."
+    )
     source_statuses = [
         source_status(
             source_id=source_id,
             source_family=_SOURCE_FAMILY,
             scope={"repo": request_context.repo},
-            status="fresh",
+            status=_status,
             observed_at=observed_at,
-            safe_user_message="CI check-run status refreshed.",
+            safe_user_message=_safe_msg,
             visibility="silent",
             policy_reason=_POLICY_REASON,
         )

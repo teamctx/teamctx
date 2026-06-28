@@ -1,6 +1,7 @@
 from click.testing import CliRunner
 
 from teamctx.cli import main
+from teamctx.connectors.github_checks import CheckRunsFetch
 
 
 def test_gate_probe_surfaces_missed_gate_card_and_verdict(monkeypatch) -> None:
@@ -8,7 +9,7 @@ def test_gate_probe_surfaces_missed_gate_card_and_verdict(monkeypatch) -> None:
     import teamctx.connectors.github_checks as gc
 
     def fake_fetch(*, repo, ref, token, opener=None):  # type: ignore[no-untyped-def]
-        return [("pytest", "https://gh/run/1")]
+        return CheckRunsFetch(failing=[("pytest", "https://gh/run/1")], truncated=False)
 
     monkeypatch.setattr(gc, "fetch_failing_check_runs", fake_fetch)
     monkeypatch.setenv("GITHUB_TOKEN", "t")

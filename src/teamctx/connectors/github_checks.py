@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from urllib.parse import quote
 
 from teamctx.connectors.gate_status import (
@@ -23,6 +24,19 @@ from teamctx.core.contracts import CoreContractDocument, RequestContext
 FAILING_CONCLUSIONS = frozenset({"failure", "timed_out", "action_required"})
 
 
+@dataclass(frozen=True)
+class CheckRunsFetch:
+    """Result of fetching check-runs from the GitHub API.
+
+    ``failing`` is the list of (name, url) pairs for completed failing check-runs.
+    ``truncated`` is True when the response indicates more check-runs exist than we fetched,
+    meaning we cannot assert all gates pass from an empty failing list alone.
+    """
+
+    failing: list[tuple[str, str]]
+    truncated: bool
+
+
 def run_github_checks_probe(
     *,
     repo: str,
@@ -40,7 +54,7 @@ def run_github_checks_probe(
             safe_user_message="CI status is unavailable because no token is configured.",
         )
     try:
-        failing = fetch_failing_check_runs(repo=repo, ref=ref, token=token, opener=opener)
+        fetch = fetch_failing_check_runs(repo=repo, ref=ref, token=token, opener=opener)
     except GitHubProbeError as exc:
         return unavailable_gates_document(
             request_context,
@@ -50,21 +64,44 @@ def run_github_checks_probe(
         )
     gates = [
         FailingGate(repo=repo, gate_name=name, url=url, files=tuple(request_context.paths))
-        for name, url in failing
+        for name, url in fetch.failing
     ]
-    return normalize_failing_gates(request_context, gates, observed_at=observed_at)
+    return normalize_failing_gates(
+        request_context,
+        gates,
+        observed_at=observed_at,
+        coverage_truncated=fetch.truncated,
+    )
 
 
 def fetch_failing_check_runs(
     *, repo: str, ref: str, token: str, opener: HttpOpener = DEFAULT_OPENER
-) -> list[tuple[str, str]]:
+) -> CheckRunsFetch:
     owner, name = split_repo(repo)
     url = (
         f"{GITHUB_API_ROOT}/repos/{quote(owner)}/{quote(name)}"
         f"/commits/{quote(ref)}/check-runs?per_page=100"
     )
     payload = get_json(url, token=token, opener=opener)
-    return parse_failing_check_runs(payload)
+    failing = parse_failing_check_runs(payload)
+    truncated = _detect_truncation(payload)
+    return CheckRunsFetch(failing=failing, truncated=truncated)
+
+
+def _detect_truncation(payload: object) -> bool:
+    """True when the response indicates more check-runs exist than we received.
+
+    Uses total_count vs len(check_runs) when total_count is an int (exact detection).
+    Falls back to len(check_runs) >= 100 when total_count is absent (conservative).
+    """
+    if not isinstance(payload, dict):
+        return False
+    runs = payload.get("check_runs")
+    page_size = len(runs) if isinstance(runs, list) else 0
+    total_count = payload.get("total_count")
+    if isinstance(total_count, int):
+        return total_count > page_size
+    return page_size >= 100
 
 
 def parse_failing_check_runs(payload: object) -> list[tuple[str, str]]:
