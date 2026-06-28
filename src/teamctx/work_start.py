@@ -12,10 +12,28 @@ from pathlib import Path
 
 from teamctx.connectors.declared_authority import load_declared_authority
 from teamctx.contract_render import render_broker_answer
-from teamctx.core.broker import broker_answer_from_documents
+from teamctx.core.broker import BrokerAnswer, broker_answer_from_documents
 from teamctx.runner import WorkStartInputs, run_work_start_connectors
 
 DEFAULT_AUTHORITY_PATH = Path(".teamctx/authority.json")
+
+
+def work_start_answer(
+    inputs: WorkStartInputs,
+    *,
+    observed_at: str,
+    authority_path: Path = DEFAULT_AUTHORITY_PATH,
+    project_root: Path = Path("."),
+) -> BrokerAnswer:
+    """Run every applicable connector, compose, and evaluate — returning the structured
+    broker answer (cards + honest coverage + one verdict per check). Transports render it;
+    the hook maps it to a signal."""
+
+    request_context, documents = run_work_start_connectors(
+        inputs, observed_at=observed_at, project_root=project_root
+    )
+    declarations = load_declared_authority(authority_path)
+    return broker_answer_from_documents(request_context, documents, declarations)
 
 
 def render_work_start(
@@ -25,12 +43,9 @@ def render_work_start(
     authority_path: Path = DEFAULT_AUTHORITY_PATH,
     project_root: Path = Path("."),
 ) -> str:
-    """Run every applicable connector, compose, evaluate, and render the work-start answer
-    (cards + honest coverage + one verdict per check) as terminal text."""
+    """Render the work-start answer (cards + honest coverage + one verdict per check) as text."""
 
-    request_context, documents = run_work_start_connectors(
-        inputs, observed_at=observed_at, project_root=project_root
+    answer = work_start_answer(
+        inputs, observed_at=observed_at, authority_path=authority_path, project_root=project_root
     )
-    declarations = load_declared_authority(authority_path)
-    answer = broker_answer_from_documents(request_context, documents, declarations)
     return render_broker_answer(answer)
