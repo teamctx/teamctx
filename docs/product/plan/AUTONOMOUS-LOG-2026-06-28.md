@@ -75,6 +75,22 @@ syntax (`pr:7` / `path:` / `issue:#`) and confirmation to keep why/open-source a
 ### Slice E (README): deferred until after C-judge (so it reflects the final command set).
 
 ### Adversarial false-clear hunt: focused re-run in flight
-The broad core pass hung (killed it). A focused re-run is hunting the same bug class as the GitHub
-pagination fix across the other connectors (issue_criteria, docs_supersession, gate_status,
-declared_authority) + `assess_completeness`. Will triage and fix any real false-clear before surfacing.
+The broad core pass hung (killed it); the focused re-run also stalled, so I ran the hunt MYSELF by
+tracing the connectors' GitHub list-fetches. **Result: found and fixed one real false clear.**
+- **github_checks (gates): FALSE CLEAR, FIXED (merged `c9e3e0c`).** It read only the first 100
+  check-runs and marked the gate status fresh, so a failing check beyond page 100 on a busy ref read
+  as "CI green". Fixed with the PR-pagination pattern (truncation via `total_count` -> non-fresh ->
+  UNKNOWN). Codex review: APPROVE.
+- **github_issues: SAFE.** It detects a criteria change via the issue's `updated_at` (a single field,
+  not paginated); events pagination only affects the change-KIND label, never whether a change is
+  caught. No false clear.
+- **assess_completeness (closure): correct.** It trusts the source status; the bug class was always a
+  connector lying "fresh" when truncated, not the closure. PR + gate now fixed.
+- **docs_supersession: SAFE.** `docs.py` uses `rglob("*.md")` (complete recursive enumeration, no
+  pagination), and any read error returns `unavailable` (honest UNKNOWN). Cannot report "docs current"
+  while missing a superseded doc.
+- **declared_authority: SAFE.** Local declarations, complete.
+
+**Hunt complete: 2 false clears found (PR earlier, gates now), both FIXED; the other three connectors
+and the closure are honest.** The honest-UNKNOWN guarantee now holds across every connector. This was
+the single most valuable adversarial question for the product, and it is closed.
