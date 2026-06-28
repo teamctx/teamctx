@@ -32,3 +32,30 @@ since `work-start` requires `--path`; drop the `--config` footgun because `work-
 default path) and dropped 1 (README still teaches the old flags: deferred to slice E's wholesale
 README rewrite rather than piecemeal-patching a doc that is broadly stale and about to be replaced;
 the repo is private, so no external user hits it meanwhile).
+
+### Slice C: decomposed into three
+**Call:** split slice C into (C-surface) move the diagnostic commands under a `dev` namespace, (C-legacy)
+retire the refresh/context snapshot flow, and (C-judge) rebuild `why`/`open-source` on the live broker.
+**Why:** `why`/`open-source` currently depend on the snapshot, so retiring the snapshot forces a
+decision on them; the rebuild has a real design fork (how to address a finding now that the M2 prose
+render exposes no IDs), so it earns its own focused slice rather than bloating the retirement.
+
+**C-surface: DONE 2026-06-28 (merged `2054f73`, 266 tests).** Moved github-pr-probe/docs-probe/
+gate-probe/issue-probe/eval-export under `teamctx dev`; top-level is now status/init/work-start/
+install-hook/dev. Pure relocation; I verified locally and merged WITHOUT a Codex round (no behavior
+change, not worth the cost) - my arbiter call on rigor, logged here for transparency.
+
+**why/open-source design (Codex consult, gpt5.5 xhigh):** Codex recommended Option B (typed natural
+selectors like `pr:7`, `path:src/app.py`, `issue:#42`; rerun the live broker; match exactly one
+finding; no opaque handles; do NOT retire them, because the inline hint is not enough for issues/docs/
+gates and there is a policy-gated source-opening contract). I AGREE and accepted B for the eventual
+rebuild, but SPLIT the work: retire the snapshot-coupled why/open-source now, rebuild broker-backed
+next (C-judge). Plumbing note from Codex: `SourceOpenTarget`s are dropped by `BrokerAnswer` and live
+cards have `source_open_target_id=None`, so C-judge must thread open-targets through the broker answer.
+
+**C-legacy (retire snapshot flow): BUILT `0c9b1f5` (249 tests, 17 removed), in Codex review.** Deleted
+`contract_documents.py`, the refresh/context/why/open-source commands + helpers, the snapshot renderers
++ terminal label helpers in `contract_render.py`, and the legacy config (`GitHubSourceConfig`,
+`github`/`default_output`, `build_project_config`). Kept `CoreContractDocument`, `render_broker_answer`,
+`SourceOpenTarget`, the live broker. Note: `ProjectConfig` now rejects configs with `github`/
+`default_output` (a clean break, acceptable pre-release).
