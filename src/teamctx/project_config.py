@@ -59,6 +59,15 @@ def build_project_config(
     )
 
 
+def build_work_start_project_config(
+    *, repo: str, docs_root: str | None = None
+) -> ProjectConfig:
+    return ProjectConfig(
+        schema_version="teamctx.project_config.v0",
+        work_start=WorkStartConfig(repo=repo, docs_root=docs_root),
+    )
+
+
 def load_project_config(path: Path) -> ProjectConfig:
     try:
         raw = path.read_text(encoding="utf-8")
@@ -83,12 +92,19 @@ def maybe_load_project_config(path: Path) -> ProjectConfig | None:
     return load_project_config(path)
 
 
-def write_project_config(path: Path, config: ProjectConfig, *, overwrite: bool = False) -> None:
+def write_project_config(
+    path: Path,
+    config: ProjectConfig,
+    *,
+    overwrite: bool = False,
+    exclude_defaults: bool = False,
+) -> None:
     if path.exists() and not overwrite:
         raise ProjectConfigError(f"Project config already exists: {path}")
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(config.model_dump(mode="json"), indent=2) + "\n",
+        json.dumps(config.model_dump(mode="json", exclude_defaults=exclude_defaults), indent=2)
+        + "\n",
         encoding="utf-8",
     )

@@ -30,12 +30,13 @@ from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.eval.pack import export_eval_pack
 from teamctx.eval.scenario import EvalScenarioError
+from teamctx.git_context import detect_repo
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     DEFAULT_OUTPUT_PATH,
     ProjectConfig,
     ProjectConfigError,
-    build_project_config,
+    build_work_start_project_config,
     maybe_load_project_config,
     write_project_config,
 )
@@ -58,54 +59,54 @@ def status() -> None:
 
 
 @main.command("init")
-@click.option("--github-repo", required=True, help="GitHub repository in owner/name form.")
-@click.option("--token-env", default="GITHUB_TOKEN", show_default=True, help="Token env var name.")
 @click.option(
-    "--include-title/--omit-title",
-    default=False,
-    show_default=True,
-    help="Whether PR titles are allowed in normalized metadata.",
+    "--repo",
+    "repo",
+    default=None,
+    help="Repository in owner/name form. Auto-detected from the git 'origin' remote if omitted.",
 )
 @click.option(
-    "--output",
-    "output_path",
-    default=Path(DEFAULT_OUTPUT_PATH),
-    show_default=True,
-    type=click.Path(dir_okay=False, path_type=Path),
-    help="Where refresh writes the local context document.",
-)
-@click.option(
-    "--config",
-    "config_path",
-    default=DEFAULT_CONFIG_PATH,
-    show_default=True,
-    type=click.Path(dir_okay=False, path_type=Path),
-    help="Project config path.",
+    "--docs-root",
+    "docs_root",
+    default=None,
+    help="Folder of design docs to watch for supersession. Auto-detected from a 'docs' folder.",
 )
 @click.option("--force", is_flag=True, help="Overwrite an existing project config.")
-def init_command(
-    github_repo: str,
-    token_env: str,
-    include_title: bool,
-    output_path: Path,
-    config_path: Path,
-    force: bool,
-) -> None:
-    """Create a project-local TeamCtx config."""
+def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
+    """Scaffold the project-local teamctx config for work-start."""
 
-    config = build_project_config(
-        github_repo=github_repo,
-        token_env=token_env,
-        include_title=include_title,
-        default_output=str(output_path),
-    )
+    root = Path.cwd()
+    resolved_repo = repo or detect_repo(root)
+    if resolved_repo is None:
+        raise click.ClickException(
+            "Could not determine the repository: this is not a git repo with a recognizable "
+            "'origin' remote. Pass --repo owner/name."
+        )
+    resolved_docs_root = docs_root if docs_root is not None else _detect_docs_root(root)
+
+    config = build_work_start_project_config(repo=resolved_repo, docs_root=resolved_docs_root)
     try:
-        write_project_config(config_path, config, overwrite=force)
+        write_project_config(DEFAULT_CONFIG_PATH, config, overwrite=force, exclude_defaults=True)
     except ProjectConfigError as exc:
-        raise click.ClickException(str(exc)) from exc
+        raise click.ClickException(f"{exc} Pass --force to overwrite.") from exc
 
-    click.echo(f"Wrote project config at {config_path}")
-    click.echo(f"Default context output: {output_path}")
+    click.echo(f"Wrote {DEFAULT_CONFIG_PATH} for {resolved_repo}.")
+    if resolved_docs_root:
+        click.echo(f"  Docs root: {resolved_docs_root} (teamctx will flag superseded docs there).")
+    else:
+        click.echo(
+            "  Docs root: not set. If you keep design docs in a folder, add a docs_root to the "
+            "config so teamctx can flag superseded ones."
+        )
+    click.echo(
+        "  GitHub access: set GITHUB_TOKEN, or GITHUB_TOKEN_FILE with a path to a token file, so "
+        "teamctx can see open PRs and failing checks. Without it those read as 'couldn't check', "
+        "never a false all-clear."
+    )
+    click.echo(
+        "Next: run `teamctx work-start --path <file you are about to edit>` before you start "
+        "editing."
+    )
 
 
 @main.command("github-pr-probe")
@@ -687,6 +688,10 @@ def _load_contract_or_raise(path: Path) -> CoreContractDocument:
         return load_contract_document(path)
     except ContractDocumentError as exc:
         raise click.ClickException(str(exc)) from exc
+
+
+def _detect_docs_root(root: Path) -> str | None:
+    return "docs" if (root / "docs").is_dir() else None
 
 
 if __name__ == "__main__":
