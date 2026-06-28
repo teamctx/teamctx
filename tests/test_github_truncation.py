@@ -40,7 +40,7 @@ def _request(paths: list[str] = ("src/x.py",)) -> RequestContext:
     )
 
 
-def _raw_pr(number: int, *, path: str | None = None) -> dict[str, Any]:
+def _raw_pr(number: int) -> dict[str, Any]:
     """A minimal syntactically-valid GitHub PR payload."""
     return {
         "number": number,
@@ -168,6 +168,14 @@ def test_truncated_pr_list_with_visible_collision_still_emits_collision_card() -
     assert len(document.context_cards) == 1
     assert "PR #3" in document.context_cards[0].text
     assert "src/x.py" in document.context_cards[0].text
+
+    # End-to-end: a visible collision falsifies the conflict universal even under
+    # truncation. The verdict is FALSE (collision found), not UNKNOWN.
+    answer = broker_answer(request, document.source_signals, document.source_statuses)
+    conflict_verdict = dict(answer.verdicts)["Conflict check"]
+    assert conflict_verdict == Valuation("false"), (
+        f"expected FALSE (collision found), got {conflict_verdict!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
