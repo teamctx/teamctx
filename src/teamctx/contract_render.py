@@ -133,8 +133,8 @@ def _finding_bullets(assessment: WorkStartAssessment) -> list[str]:
 
 def _finding_text(state: CheckState, card: ContextCard) -> str:
     action = _FINDING_ACTION.get(state.check, "")
-    pr = _gh_hint(card.source_display)
-    base = f"{card.text}: {action}" if action else card.text
+    base = f"{card.text.rstrip('.')}: {action}" if action else card.text
+    pr = _gh_hint(card.source_display) if state.check == "conflict" else ""
     return f"{base}{pr}"
 
 

@@ -112,8 +112,9 @@ def test_context_prompt_carries_the_real_derived_card() -> None:
     scenario = _scenario()
     prompt = render_context_prompt(scenario)
     # the card text is DERIVED by the real engine, not authored into the scenario
+    # (the trailing period is stripped before the appended action, so no `.:` double punctuation)
     assert "Before you start, here is what to handle first:" in prompt
-    assert "Open PR #9 changed src/teamctx/core/select.py." in prompt
+    assert "Open PR #9 changed src/teamctx/core/select.py" in prompt
     assert "look at it before you edit" in prompt  # the real action phrase, from broker_answer
 
 

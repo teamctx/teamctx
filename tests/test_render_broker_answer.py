@@ -26,6 +26,20 @@ def _collision_signal() -> SourceSignal:
     )
 
 
+def _criteria_signal() -> SourceSignal:
+    # text ends in a period and source_display carries an ISSUE number (#42, not a PR).
+    return SourceSignal(
+        schema_version="teamctx.source_signal.v0", id="sig_issue_42",
+        signal_type="criteria_changed",
+        source_family="issue_tracker", scope={"repo": "acme/widgets", "issue": "#42"},
+        evidence_summary="Issue #42 acceptance criteria changed.",
+        source_display="github acme/widgets#42",
+        freshness="fresh", confidence="high", visibility="visible",
+        created_at="2026-06-28T00:00:00Z", observed_at="2026-06-28T00:00:00Z",
+        expires_at="next_refresh", policy=metadata_only_policy("issue metadata is evidence"),
+    )
+
+
 def _fresh(family: str) -> SourceStatus:
     return source_status(
         source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
@@ -65,7 +79,21 @@ def test_heads_up_surfaces_the_pr_with_action() -> None:
     )
     assert text.startswith("Before you start, here is what to handle first:")
     assert "PR #7" in text
-    assert "gh pr view 7" in text
+    assert "gh pr view 7" in text  # conflict findings keep the PR hint
+    _no_jargon(text)
+
+
+def test_non_conflict_finding_has_no_pr_hint_and_clean_punctuation() -> None:
+    # a criteria finding: source_display carries an ISSUE number, not a PR, so no `gh pr view`,
+    # and the action must not produce `.:` against an evidence summary that ends in a period.
+    text = render_broker_answer(
+        broker_answer(_request(issues=("#42",)), [_criteria_signal()], [_fresh("issue_tracker")])
+    )
+    assert text.startswith("Before you start, here is what to handle first:")
+    assert "Issue #42" in text
+    assert "re-check the criteria before you rely on them" in text
+    assert "gh pr view" not in text
+    assert ".:" not in text
     _no_jargon(text)
 
 
