@@ -1,8 +1,8 @@
-# Slice 3 — Consumer SDK `evaluate(ρ, C, κ)` Implementation Plan
+# Slice 3: Consumer SDK `evaluate(ρ, C, κ)` Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship the sound consumer rule — `evaluate(query, C, κ) → Valuation` — that under-approximates the three-valued semantics, turning observable soundness (Theorem 2) from prose into tested code. Expose the typed certified claims (`C`) on the broker's answer so the SDK runs against a real selection.
+**Goal:** Ship the sound consumer rule, `evaluate(query, C, κ) → Valuation`, that under-approximates the three-valued semantics, turning observable soundness (Theorem 2) from prose into tested code. Expose the typed certified claims (`C`) on the broker's answer so the SDK runs against a real selection.
 
 **Architecture:** A new pure module `core/evaluate.py` holds `Valuation` and `evaluate`. It reads only typed structure: a card's `claim` polarity (via `witnesses` from slice 1) and the per-proposition `closure` (from slice 2). The broker's `ContextSelection` gains `claim_cards` (the typed `C`) alongside the rendered cards. No CLI/render changes in this slice (the human-plane verdict line is slice 3.5), which keeps the import graph acyclic: `evaluate.py → select.py, prop.py` (one-way; `select.py` does NOT import `evaluate.py`).
 
@@ -21,10 +21,10 @@
 
 ## File structure
 
-- **Create `src/teamctx/core/evaluate.py`** — `Valuation` (frozen) + `evaluate(query, claim_cards, closure)`. The consumer rule. One responsibility.
-- **Modify `src/teamctx/core/select.py`** — add `claim_cards: tuple[ClaimCard, ...]` to `ContextSelection`; populate it in `select_context`.
-- **Create `tests/test_evaluate.py`** — unit soundness tests for `evaluate` with hand-built inputs.
-- **Modify `tests/test_select.py`** — end-to-end tests: `evaluate` against a real `select_context` output.
+- **Create `src/teamctx/core/evaluate.py`**: `Valuation` (frozen) + `evaluate(query, claim_cards, closure)`. The consumer rule. One responsibility.
+- **Modify `src/teamctx/core/select.py`**: add `claim_cards: tuple[ClaimCard, ...]` to `ContextSelection`; populate it in `select_context`.
+- **Create `tests/test_evaluate.py`**: unit soundness tests for `evaluate` with hand-built inputs.
+- **Modify `tests/test_select.py`**: end-to-end tests: `evaluate` against a real `select_context` output.
 
 ---
 
@@ -99,7 +99,7 @@ def test_universal_is_true_only_under_complete_closure_with_no_counterexample() 
 
 def test_universal_is_unknown_when_closure_incomplete_and_no_counterexample() -> None:
     query = no_conflict_query(_request(("a.py",)))
-    # absence of a refuting card NEVER licenses True — gated on completeness.
+    # absence of a refuting card NEVER licenses True, gated on completeness.
     assert evaluate(query, (), _closure("incomplete[policy-gap]")) == Valuation(
         "unknown", "incomplete[policy-gap]"
     )
@@ -114,7 +114,7 @@ def test_universal_is_unknown_when_no_closure_entry_for_the_query() -> None:
     assert evaluate(query, (), ()) == Valuation("unknown", "incomplete[policy-gap]")
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_evaluate.py -v` — expect FAIL: `No module named 'teamctx.core.evaluate'`.
+- [ ] **Step 2: Run** `pytest tests/test_evaluate.py -v`, expect FAIL: `No module named 'teamctx.core.evaluate'`.
 
 - [ ] **Step 3: Implement.** Create `src/teamctx/core/evaluate.py`:
 ```python
@@ -123,8 +123,8 @@ def test_universal_is_unknown_when_no_closure_entry_for_the_query() -> None:
 This is where observable soundness (Theorem 2) becomes code, not prose. Given a query
 ``rho``, the typed certified claims ``C`` (claim cards), and the coverage closure
 ``kappa``, ``evaluate`` under-approximates the three-valued semantics: it answers True or
-False only when justified — by a witness, or by exhaustive absence under a *complete*
-closure — and Unknown otherwise. The absence-branch gates on completeness: the absence of
+False only when justified, by a witness, or by exhaustive absence under a *complete*
+closure, and Unknown otherwise. The absence-branch gates on completeness: the absence of
 a refuting card never licenses "clear".
 
 Pure: dataclasses, typing, and internal core imports only (the core purity test guards it).
@@ -183,7 +183,7 @@ def evaluate(
     return Valuation("unknown", status)
 ```
 
-- [ ] **Step 4: Run** `pytest tests/test_evaluate.py -v` — expect PASS (4 tests).
+- [ ] **Step 4: Run** `pytest tests/test_evaluate.py -v`, expect PASS (4 tests).
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -242,7 +242,7 @@ def test_evaluate_against_a_real_selection_is_true_when_clear_and_coverage_compl
 ```
 (`_git_hosting_status` and `no_conflict_query` already exist in this file from slice 2.)
 
-- [ ] **Step 2: Run** `pytest tests/test_select.py -v` — expect FAIL: `ContextSelection` has no `claim_cards`.
+- [ ] **Step 2: Run** `pytest tests/test_select.py -v`, expect FAIL: `ContextSelection` has no `claim_cards`.
 
 - [ ] **Step 3: Implement** in `src/teamctx/core/select.py`.
 
@@ -285,9 +285,9 @@ def select_context(
 (`derive_cards` is unchanged and remains for external callers. The one-line render comprehension also appears there; that minor duplication is acceptable for now.)
 
 - [ ] **Step 4: Run the full gate.**
-- `pytest` — all pass. The pre-existing `tests/test_render_selection.py` and `tests/test_work_start_cli.py` must still pass (they read `selection.cards`/`coverage`/`closure`; the new `claim_cards` is additive). If any test constructs `ContextSelection(...)` directly, update that construction to include `claim_cards` (grep: `grep -rn "ContextSelection(" src tests`).
-- `ruff check src tests` — clean.
-- `mypy src` — Success.
+- `pytest`, all pass. The pre-existing `tests/test_render_selection.py` and `tests/test_work_start_cli.py` must still pass (they read `selection.cards`/`coverage`/`closure`; the new `claim_cards` is additive). If any test constructs `ContextSelection(...)` directly, update that construction to include `claim_cards` (grep: `grep -rn "ContextSelection(" src tests`).
+- `ruff check src tests`, clean.
+- `mypy src`, Success.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -299,8 +299,8 @@ git commit -m "feat: expose typed certified claims (C) on the broker answer"
 
 ## Task 3: Verify the slice's definition of done
 
-- [ ] **Step 1:** `pytest && ruff check src tests && mypy src` — all green.
-- [ ] **Step 2:** Purity guard covers the new module: `pytest tests/test_core_contracts.py::test_core_package_has_no_file_or_runtime_side_effect_imports -q` — pass.
+- [ ] **Step 1:** `pytest && ruff check src tests && mypy src`, all green.
+- [ ] **Step 2:** Purity guard covers the new module: `pytest tests/test_core_contracts.py::test_core_package_has_no_file_or_runtime_side_effect_imports -q`, pass.
 - [ ] **Step 3 (optional live smoke):** `work-start` output is unchanged from slice 2 (this slice adds no CLI/render change):
 ```bash
 GITHUB_TOKEN=$(gh auth token) PYTHONPATH=src python -m teamctx.cli work-start \
@@ -309,7 +309,7 @@ GITHUB_TOKEN=$(gh auth token) PYTHONPATH=src python -m teamctx.cli work-start \
 Expected: same collision card + "Coverage complete" as before.
 
 **Definition of done:**
-- `evaluate(query, C, κ)` returns `False` by counterexample (a `refutes` card) regardless of closure; `True` only when closure is `complete` and there is no counterexample; `Unknown[reason]` otherwise — the absence-branch gates on `complete`, never on mere absence of a refuting card.
+- `evaluate(query, C, κ)` returns `False` by counterexample (a `refutes` card) regardless of closure; `True` only when closure is `complete` and there is no counterexample; `Unknown[reason]` otherwise, the absence-branch gates on `complete`, never on mere absence of a refuting card.
 - `ContextSelection.claim_cards` exposes the typed `C`; `evaluate` runs against a real `select_context` output (the three end-to-end tests).
 - Full gate green; purity guard covers `evaluate.py`; `work-start` output unchanged.
 
@@ -317,4 +317,4 @@ Expected: same collision card + "Coverage complete" as before.
 
 ## Notes for the next slice (do not implement here)
 
-Slice 3.5 surfaces the verdict in `work-start`: the CLI (the consumer) computes `evaluate(no_conflict_query(request), selection.claim_cards, selection.closure)` and `render_selection` shows a one-line verdict ("clear / not clear / unknown — absence is not an all-clear"). Keep `evaluate` out of `select.py` to preserve the acyclic import graph (the CLI calls it). The verdict wording is a good thing to settle while dogfooding. `conflicting-evidence` and the existential branch of `evaluate` are implemented but not yet exercised (no `supports`-producing predicate exists until a later card kind); do not fake tests for them.
+Slice 3.5 surfaces the verdict in `work-start`: the CLI (the consumer) computes `evaluate(no_conflict_query(request), selection.claim_cards, selection.closure)` and `render_selection` shows a one-line verdict ("clear / not clear / unknown, absence is not an all-clear"). Keep `evaluate` out of `select.py` to preserve the acyclic import graph (the CLI calls it). The verdict wording is a good thing to settle while dogfooding. `conflicting-evidence` and the existential branch of `evaluate` are implemented but not yet exercised (no `supports`-producing predicate exists until a later card kind); do not fake tests for them.

@@ -11,11 +11,11 @@ index 3cadcb4..a236ba3 100644
 -- Run unit tests.
 -- Confirm token rotation rollout owner.
 -- Check dashboards after deploy.
-+> **WARNING — stale source doc**: The Confluence release checklist this was exported from was last refreshed 2026-06-12. Steps may be missing. Do not treat this checklist as complete without re-verifying against the live Confluence page.
++> **WARNING, stale source doc**: The Confluence release checklist this was exported from was last refreshed 2026-06-12. Steps may be missing. Do not treat this checklist as complete without re-verifying against the live Confluence page.
 +
-+> **WARNING — open conflict PR**: PR #482 (open, updated 11 minutes ago) modifies `src/auth/token.py` — the same file being released. Coordinate with that PR's author before merging to avoid overwriting retry-window or legacy-client compatibility changes.
++> **WARNING, open conflict PR**: PR #482 (open, updated 11 minutes ago) modifies `src/auth/token.py`, the same file being released. Coordinate with that PR's author before merging to avoid overwriting retry-window or legacy-client compatibility changes.
 +
-+> **WARNING — some linked docs inaccessible**: Certain docs linked from Jira API-482 could not be read. Verify the full release process against live Jira before proceeding.
++> **WARNING, some linked docs inaccessible**: Certain docs linked from Jira API-482 could not be read. Verify the full release process against live Jira before proceeding.
 +
 +## Pre-deploy
 +
@@ -23,7 +23,7 @@ index 3cadcb4..a236ba3 100644
 +- [ ] Confirm token rotation rollout owner.
 +- [ ] Verify `rotate_token` enforces the 30-second retry window (Jira API-482 acceptance criterion).
 +- [ ] Verify legacy clients remain compatible with the existing token format (Jira API-482 acceptance criterion).
-+- [ ] Verify retry handling does not hide permanent validation failures — only transient errors (e.g. `TimeoutError`) should be retried (Jira API-482 acceptance criterion).
++- [ ] Verify retry handling does not hide permanent validation failures, only transient errors (e.g. `TimeoutError`) should be retried (Jira API-482 acceptance criterion).
 +- [ ] Coordinate with PR #482 author to ensure `src/auth/token.py` changes are not overwritten.
 +
 +## Deploy

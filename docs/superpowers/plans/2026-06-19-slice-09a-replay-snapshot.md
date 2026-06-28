@@ -1,20 +1,20 @@
-# Slice 9a — Verifiable Replay (T1): Snapshot Digest
+# Slice 9a: Verifiable Replay (T1): Snapshot Digest
 
 > REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Checkbox steps.
 
 **Goal:** Make determinism verifiable (Theorem 1). The broker answer carries a **content-addressed snapshot digest** binding the exact inputs (request, signals, statuses, declarations), so a verifier can confirm a replay: same inputs → same digest → same ⟨C, κ⟩.
 
-**Architecture:** `core/snapshot.py` (pure — `json` + `hashlib`, both deterministic and not I/O) computes a `snapshot_digest` over the canonical serialization of the inputs. `select_context` materializes its inputs once, computes the digest, and carries it on `ContextSelection`.
+**Architecture:** `core/snapshot.py` (pure, `json` + `hashlib`, both deterministic and not I/O) computes a `snapshot_digest` over the canonical serialization of the inputs. `select_context` materializes its inputs once, computes the digest, and carries it on `ContextSelection`.
 
-**Tech Stack:** Python 3.12, `hashlib`/`json` (deterministic, allowed in core — the purity test bans only os/pathlib/time/datetime/random/secrets/subprocess/tempfile), pydantic models, frozen dataclasses, pytest, ruff, mypy --strict.
+**Tech Stack:** Python 3.12, `hashlib`/`json` (deterministic, allowed in core, the purity test bans only os/pathlib/time/datetime/random/secrets/subprocess/tempfile), pydantic models, frozen dataclasses, pytest, ruff, mypy --strict.
 
 ---
 
 ## File structure
-- **Create `src/teamctx/core/snapshot.py`** — `snapshot_digest(request, signals, statuses, declarations) -> str`.
-- **Modify `src/teamctx/core/select.py`** — materialize inputs once; `ContextSelection.snapshot_digest: str`; compute it in `select_context`.
-- **Create `tests/test_snapshot.py`** — digest determinism + sensitivity.
-- **Modify `tests/test_select.py`** — replay (two identical calls → equal selections, same digest).
+- **Create `src/teamctx/core/snapshot.py`**: `snapshot_digest(request, signals, statuses, declarations) -> str`.
+- **Modify `src/teamctx/core/select.py`**: materialize inputs once; `ContextSelection.snapshot_digest: str`; compute it in `select_context`.
+- **Create `tests/test_snapshot.py`**: digest determinism + sensitivity.
+- **Modify `tests/test_select.py`**: replay (two identical calls → equal selections, same digest).
 
 ---
 
@@ -75,7 +75,7 @@ def test_digest_is_order_independent_for_signals() -> None:
     assert a == b
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_snapshot.py -v` — FAIL (module missing).
+- [ ] **Step 2: Run** `pytest tests/test_snapshot.py -v`, FAIL (module missing).
 
 - [ ] **Step 3: Implement.** Create `src/teamctx/core/snapshot.py`:
 ```python
@@ -126,7 +126,7 @@ def snapshot_digest(
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 ```
 
-- [ ] **Step 4:** `pytest tests/test_snapshot.py -v` PASS; `ruff check src tests`; `mypy src` clean; **purity guard still passes** (run `pytest tests/test_core_contracts.py::test_core_package_has_no_file_or_runtime_side_effect_imports -q` — `json`/`hashlib` are not banned).
+- [ ] **Step 4:** `pytest tests/test_snapshot.py -v` PASS; `ruff check src tests`; `mypy src` clean; **purity guard still passes** (run `pytest tests/test_core_contracts.py::test_core_package_has_no_file_or_runtime_side_effect_imports -q`, `json`/`hashlib` are not banned).
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -156,7 +156,7 @@ def test_select_context_is_replayable_with_a_stable_digest() -> None:
     assert len(a.snapshot_digest) == 64
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_select.py -v` — FAIL (`ContextSelection` has no `snapshot_digest`).
+- [ ] **Step 2: Run** `pytest tests/test_select.py -v`, FAIL (`ContextSelection` has no `snapshot_digest`).
 
 - [ ] **Step 3: Implement** in `src/teamctx/core/select.py`:
 - Import: `from teamctx.core.snapshot import snapshot_digest`.
@@ -200,7 +200,7 @@ def select_context(
 ```
 (Keep the `ContextSelection` dataclass fields in this order: cards, claim_cards, hints, coverage, closure, authority, snapshot_digest.)
 
-- [ ] **Step 4: Full gate.** `grep -rn "ContextSelection(" src tests` (only `select_context`; add `snapshot_digest=...` only there). `pytest` — all pass (existing tests read other fields; `snapshot_digest` is additive; equality tests like the replay test now also cover the digest). `ruff check src tests`; `mypy src`.
+- [ ] **Step 4: Full gate.** `grep -rn "ContextSelection(" src tests` (only `select_context`; add `snapshot_digest=...` only there). `pytest`, all pass (existing tests read other fields; `snapshot_digest` is additive; equality tests like the replay test now also cover the digest). `ruff check src tests`; `mypy src`.
 
 - [ ] **Step 5: Commit**
 ```bash

@@ -1,8 +1,8 @@
-# Slice 7 — `doc-superseded` + `missed-gate` Card Kinds
+# Slice 7: `doc-superseded` + `missed-gate` Card Kinds
 
 > REQUIRED SUB-SKILL: superpowers:subagent-driven-development. Checkbox steps.
 
-**Goal:** Complete the structural card-kind family. Add two more kinds by registration on the multi-kind engine — **doc-superseded** (a doc you rely on was superseded) and **missed-gate** (a required CI gate failed on files you're changing). Both reuse the collision-style path-overlap machinery. In-test signals prove them.
+**Goal:** Complete the structural card-kind family. Add two more kinds by registration on the multi-kind engine, **doc-superseded** (a doc you rely on was superseded) and **missed-gate** (a required CI gate failed on files you're changing). Both reuse the collision-style path-overlap machinery. In-test signals prove them.
 
 **Architecture:** Each kind = a `SignalType` value + two predicates (`<card>` existential, `<query>` universal) + a `REFUTES_PAIRS` entry + a query constructor + a `_derive_*` + a `render_*` + a `DEPS_REGISTRY` entry + a `CARD_KINDS` entry with a `verdict_label`. After this, `CARD_KINDS` has four kinds and `select_context`/the CLI produce four labeled verdicts automatically.
 
@@ -11,10 +11,10 @@
 ---
 
 ## File structure
-- `contracts.py` — add `"doc_superseded"`, `"missed_gate"` to `SignalType`.
-- `prop.py` — register both predicate pairs in `PREDICATE_REGISTRY` + `REFUTES_PAIRS`.
-- `select.py` — query constructors, derive fns, render fns, deps entries, `CARD_KINDS` entries.
-- `tests/test_select.py` — derive (positive/negative) + four-closure test.
+- `contracts.py`, add `"doc_superseded"`, `"missed_gate"` to `SignalType`.
+- `prop.py`, register both predicate pairs in `PREDICATE_REGISTRY` + `REFUTES_PAIRS`.
+- `select.py`, query constructors, derive fns, render fns, deps entries, `CARD_KINDS` entries.
+- `tests/test_select.py`, derive (positive/negative) + four-closure test.
 
 ---
 
@@ -110,7 +110,7 @@ def test_select_context_has_four_closure_entries() -> None:
     }
 ```
 
-- [ ] **Step 2: Run** `pytest tests/test_select.py -v` — FAIL (new signal types / query fns missing).
+- [ ] **Step 2: Run** `pytest tests/test_select.py -v`, FAIL (new signal types / query fns missing).
 
 - [ ] **Step 3: Implement.**
 
@@ -118,7 +118,7 @@ def test_select_context_has_four_closure_entries() -> None:
 
 `prop.py`: `PREDICATE_REGISTRY` += `"doc_superseded": "existential"`, `"no_superseded_docs": "universal"`, `"gate_failed": "existential"`, `"all_gates_pass": "universal"`. `REFUTES_PAIRS` += `("doc_superseded", "no_superseded_docs")` and `("gate_failed", "all_gates_pass")`.
 
-`select.py` — add query constructors (near the others):
+`select.py`, add query constructors (near the others):
 ```python
 def no_superseded_docs_query(request: RequestContext) -> Prop:
     """The universal a doc-superseded card refutes: 'no doc I rely on was superseded'."""
@@ -243,7 +243,7 @@ def render_missed_gate_claim(claim_card: ClaimCard) -> ContextCard:
     ),
 ```
 
-- [ ] **Step 4: Full gate.** `pytest` (collision/criteria tests unchanged; new derive tests pass; four-closure test passes; CLI/render tests unaffected — they don't assert exact closure count). `ruff check src tests`; `mypy src`. If any existing test breaks because closure grew (e.g. one asserting a closure count), generalize it to membership (do NOT weaken collision/criteria assertions) and report it.
+- [ ] **Step 4: Full gate.** `pytest` (collision/criteria tests unchanged; new derive tests pass; four-closure test passes; CLI/render tests unaffected, they don't assert exact closure count). `ruff check src tests`; `mypy src`. If any existing test breaks because closure grew (e.g. one asserting a closure count), generalize it to membership (do NOT weaken collision/criteria assertions) and report it.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -256,7 +256,7 @@ git commit -m "feat: doc-superseded + missed-gate card kinds (structural family 
 ## Task 2: Verify
 - [ ] `pytest && ruff check src tests && mypy src` green.
 - [ ] Purity guard passes.
-- [ ] Live smoke (optional): `work-start` against project-foundry now shows four verdict lines (Conflict NOT CLEAR; Criteria/Docs/Gate UNKNOWN — their families unobserved).
+- [ ] Live smoke (optional): `work-start` against project-foundry now shows four verdict lines (Conflict NOT CLEAR; Criteria/Docs/Gate UNKNOWN, their families unobserved).
 
 **Definition of done:** four registered card kinds (collision, criteria-changed, doc-superseded, missed-gate); each derives from its signal with correct refutes-pair + deps; four labeled verdicts; gate green. The structural card-kind family is complete.
 

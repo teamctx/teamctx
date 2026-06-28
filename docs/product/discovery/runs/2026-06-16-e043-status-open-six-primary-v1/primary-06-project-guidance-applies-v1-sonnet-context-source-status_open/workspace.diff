@@ -9,7 +9,7 @@ index 49c8881..f136cad 100644
 +import time
 +
 +# Retry window in seconds: keep retrying retryable errors for up to this long.
-+# Legacy clients are unaffected — rotate_token signature is unchanged.
++# Legacy clients are unaffected, rotate_token signature is unchanged.
 +RETRY_WINDOW_SECONDS: float = 30.0
 +
 

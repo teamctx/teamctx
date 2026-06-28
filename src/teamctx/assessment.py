@@ -1,7 +1,7 @@
 """Classify the broker's answer into one work-start assessment: kind + per-check status.
 
 One shared classification consumed by both the hook (a glanceable line) and the CLI/MCP render
-(a fuller report) — so there is a single voice and the important-vs-low-stakes split lives in one
+(a fuller report), so there is a single voice and the important-vs-low-stakes split lives in one
 place. Pure: no I/O.
 """
 
@@ -17,7 +17,7 @@ from teamctx.core.evaluate import Valuation
 CheckId = Literal["conflict", "criteria", "docs", "gate"]
 CheckStatus = Literal["clear", "found", "unreachable", "not_configured"]
 
-# Verdict labels are CARD_KINDS[*].verdict_label in core/select.py — keep in sync; a mismatch
+# Verdict labels are CARD_KINDS[*].verdict_label in core/select.py. Keep in sync; a mismatch
 # makes verdicts.get(label) miss and the check fall to not_configured (caught by the render tests).
 _LABELS: tuple[tuple[str, CheckId], ...] = (
     ("Conflict check", "conflict"),
@@ -51,7 +51,7 @@ def _status_for(valuation: Valuation) -> CheckStatus:
     if valuation.value == "false":
         return "found"
     if valuation.reason == "conflicting-evidence":
-        return "found"  # connectors fired and disagree — a finding, not a config gap
+        return "found"  # connectors fired and disagree: a finding, not a config gap
     if valuation.reason == "incomplete[stale-dep]":
         return "unreachable"
     return "not_configured"

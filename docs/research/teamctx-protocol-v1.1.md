@@ -1,12 +1,12 @@
 # Honest Context: A Deterministic Broker with Observable Soundness, Existence-Privacy, and Injection-Resistant Selection for AI Coding Agents
 
-*Protocol paper, v1.1 — a clean, self-contained treatment. It states the model, theorems,
+*Protocol paper, v1.1, a clean, self-contained treatment. It states the model, theorems,
 and evaluation in full; it is not written as a diff against any prior draft. Relative to the
 v1.0 line it adopts the 2026-06-19 tightening pass natively: a **runtime** discharge of the
 `deps_G` obligation, a **canonical hint-projection invariant**, a **retrievable, TTL-bounded
 snapshot** for replay, a **per-subject** declassification dial, a **multi-query** leakage
 bound, and an evaluation of the **cost of honesty** (false-`Unknown` rate). Bar: claims never
-outrun proof — every theorem states its assumptions and carries a proof sketch; mechanization
+outrun proof, every theorem states its assumptions and carries a proof sketch; mechanization
 is named as future work; empirical results are characterizations, not production-frequency
 estimates.*
 
@@ -14,15 +14,15 @@ estimates.*
 
 ## Abstract
 
-AI coding agents increasingly act on context drawn from a team's live systems — open pull
-requests, issue trackers, design docs — yet the tools that supply that context are themselves
+AI coding agents increasingly act on context drawn from a team's live systems, open pull
+requests, issue trackers, design docs, yet the tools that supply that context are themselves
 untrusted, incomplete, and mutually inconsistent. An agent that sees "no conflict" cannot tell
 whether none exists or whether the relevant source was never observed; an agent that ingests a
 pull-request body cannot tell evidence from injected instruction; a context layer that reads
 everything a team produces is, by construction, a surveillance and exfiltration risk. We
 present **teamctx**, a **deterministic, no-LLM, read-only context broker**, and a formal model
 for *context assurance*. The broker emits only a certified card set and a coverage
-certificate, and **never a truth valuation** — a construction that lets us prove **observable
+certificate, and **never a truth valuation**: a construction that lets us prove **observable
 soundness** (the broker never fabricates and never licenses "absence ⇒ safety") while
 preserving **existence-privacy** across permission boundaries, tuned by a **per-subject**
 declassification dial whose leakage we bound information-theoretically both **single-shot** and
@@ -46,8 +46,8 @@ undeclared disagreement detection, and the **price of soundness** as a false-`Un
 ## 1. Introduction
 
 Software teams now route much of their work through AI coding agents, and an agent is only as
-good as the context it starts from. The standing human question — *"go check the PRs, the
-tickets, the docs, and tell me what's relevant before I start"* — is today answered, if at all,
+good as the context it starts from. The standing human question, *"go check the PRs, the
+tickets, the docs, and tell me what's relevant before I start"*, is today answered, if at all,
 by asking a language model to read a team's systems live. That approach inherits three problems
 that compound at team scale.
 
@@ -64,20 +64,20 @@ attack class [Greshake2023]. A context layer that pipes source text into a model
 injection delivery system.
 
 **Reading everything is surveilling everything.** A layer with read access to a team's PRs,
-tickets, and docs — across people and permissions — is simultaneously the most useful context
+tickets, and docs, across people and permissions, is simultaneously the most useful context
 source and the most dangerous: it can profile developers, and it can leak the *existence* of
 work across permission boundaries (the presence of a treasury-team PR is itself sensitive).
 
 Existing approaches each cover a slice but do not make *soundness, privacy, authority conflict,
 and injection* the primary reasoning surface. Retrieval-augmented generation [Lewis2020]
 improves recall but says nothing about coverage honesty or injection. Agent "memory" systems
-accumulate trusted state — precisely the thing that can be poisoned, drift, or be subpoenaed.
+accumulate trusted state, precisely the thing that can be poisoned, drift, or be subpoenaed.
 The Model Context Protocol [MCP2024] standardizes a transport but not the guarantees carried
 over it. None treats "no finding ≠ healthy," cross-permission existence-privacy, or
 evidence-vs-authority conflict as first-class.
 
 **Thesis.** A context broker that is *deterministic* and contains *no language model in its
-core* can make guarantees a model-in-the-loop system cannot — and the same decision that buys
+core* can make guarantees a model-in-the-loop system cannot, and the same decision that buys
 those guarantees (determinism) also buys token savings, non-retention, and cross-agent
 portability. The cost is that the broker is *honestly incomplete*: it certifies what it can
 prove and explicitly marks the rest unknown. §9 measures that cost.
@@ -114,29 +114,29 @@ their synthesis for agent context plus the specific constructions and bounds abo
 
 ## 2. Motivating Scenarios
 
-**S1 — Silent collision (absence ≠ safety).** A developer branches to edit
+**S1, Silent collision (absence ≠ safety).** A developer branches to edit
 `ledger/rounding.go`. An open PR already rewrites the same symbol, but the broker's view of the
 relevant repository is stale (the host was briefly unreachable). A system that simply returns
 "no conflicts" licenses a false sense of safety. The requirement: distinguish *no conflict
-observed (fresh)* from *not observed* — and never let the second masquerade as the first.
+observed (fresh)* from *not observed*: and never let the second masquerade as the first.
 
-**S2 — Authority conflict.** The linked ticket says the rounding cap is 5; a linked policy page
+**S2, Authority conflict.** The linked ticket says the rounding cap is 5; a linked policy page
 says 3; the code does 3. Three plausible sources disagree, and no governance rule says which is
 authoritative. A system that silently picks one can be confidently wrong. The requirement:
 model the conflict, refuse to adjudicate, surface it.
 
-**S3 — Cross-permission existence leak.** An open PR touches a shared library inside a
+**S3, Cross-permission existence leak.** An open PR touches a shared library inside a
 repository the developer cannot access. Even *acknowledging* its existence leaks sensitive
 information. The requirement: the observable must be invariant under changes confined to
 artifacts the consumer cannot see.
 
-**S4 — Poisoned artifact (injection).** A PR body contains text crafted to read as an
+**S4, Poisoned artifact (injection).** A PR body contains text crafted to read as an
 instruction to the agent. The requirement: the broker must select and present that text as
 *evidence*, defanged and labeled, never as something it acts on, and its own selection must not
 be steerable by treating payload as instruction.
 
-These four requirements — coverage honesty, authority conflict, existence-privacy, and
-injection-resistance — structure the formal model.
+These four requirements, coverage honesty, authority conflict, existence-privacy, and
+injection-resistance, structure the formal model.
 
 ---
 
@@ -196,8 +196,8 @@ B(⋯) = ⟨ C, κ ⟩
 ```
 where `C` is the **certified card set** (typed claims the broker will stand behind), and `κ` is
 the **coverage certificate**: per-source evidence states, per-§8 authority states, a
-per-subject **dependency-closure status** (§5, δ-gated), and a **snapshot reference** —
-discussed under Theorem 1 — that lets a verifier check, and within a bounded window re-derive, a
+per-subject **dependency-closure status** (§5, δ-gated), and a **snapshot reference**,
+discussed under Theorem 1, that lets a verifier check, and within a bounded window re-derive, a
 past `⟨C, κ⟩`.
 
 **The hint layer and its projection invariant.** A separate, explicitly **untrusted hint
@@ -207,7 +207,7 @@ layer** `H` may carry best-effort guesses (e.g. a learned relevance hunch). `H` 
 that yields `Δ_P` in §6/§8). The model imposes a **canonical projection invariant**:
 
 > **I-H (hint projection).** Every surfacing path emits `Π_P(H)`, never raw `H`. Projection is
-> not conditional on "if surfaced" — it is the *only* exposed form of `H`. Hence `H` is outside
+> not conditional on "if surfaced", it is the *only* exposed form of `H`. Hence `H` is outside
 > the `⟨C, κ⟩` privacy contract yet can never reintroduce an invisible-existence channel,
 > because no un-projected hint is observable.
 
@@ -221,7 +221,7 @@ permanently (it always *verifies* a claimed replay), and the broker **retains th
 content-addressed snapshot for the bounded window `ttl`**, during which a verifier can
 **re-derive `⟨C, κ⟩` and confirm the binding**. After `ttl` the snapshot is garbage-collected;
 the digest still verifies a replay presented to it but can no longer reconstitute one. The TTL
-makes replay operationally real within the window while bounding retention — consistent with
+makes replay operationally real within the window while bounding retention, consistent with
 the no-durable-trusted-state stance (§9, E1). *Sketch:* `B`'s core is a pure function and all
 nondeterminism (time, collection) is lifted to explicit inputs recorded in / referenced by
 `κ`; retention is a bounded side table outside the trusted core, keyed by `snapshot_id`. ∎
@@ -234,29 +234,29 @@ We want the consumer to reason soundly about propositions over work-state (e.g. 
 conflicts with my changed paths") without the broker ever asserting falsity or invisible
 existence.
 
-**Dependency closure — an explicit object, not an adjective.** For a proposition `ρ`,
+**Dependency closure, an explicit object, not an adjective.** For a proposition `ρ`,
 `deps_G(ρ) ⊆ Σ` is the set of sources whose state can affect `ρ`, generated from (i) typed
 references reachable from `ρ`'s subject in the global graph, (ii) policy-mandated sources for
 `ρ`'s scope, and (iii) the query structure. `deps_G` is part of the **trusted rule set**, and
 its correctness is a *named obligation*, discharged at deployment **and continuously at
 runtime**:
 
-> **O1 (`deps_G` soundness — an explicit assumption with a runtime discharge).** A connector
+> **O1 (`deps_G` soundness, an explicit assumption with a runtime discharge).** A connector
 > provides *local structural completeness*: its declared reference schema enumerates every
 > reference class it can emit. O1 is the **assumption** that local structural completeness
-> composes to a global over-approximation of `ρ`'s true dependencies — an honest trusted-base
+> composes to a global over-approximation of `ρ`'s true dependencies, an honest trusted-base
 > assumption, not a proof. It is *enforced* on two fronts. (a) **Deployment gate:** the broker
 > validates each connector's schema manifest before admitting it. (b) **Runtime audit:** on
 > *every* request, each observation a connector emits is checked against that connector's
 > declared schema; any reference class actually emitted but not declared makes `complete?`
-> return `incomplete[unmodeled-ref]` for the affected closure — **never `complete`** — and
+> return `incomplete[unmodeled-ref]` for the affected closure, **never `complete`**: and
 > records the offending class in `κ`. The runtime audit closes the gap between deploys: a
 > connector that *drifts* (emits a new class after its manifest was vetted) degrades to
 > `Unknown` immediately, rather than silently certifying against a stale manifest until the next
 > deployment. So an undeclared, buggy, or drifted class degrades to `Unknown`, never a false
 > `False`.
 
-**Completeness checker — the certificate object.** Define a *total* function
+**Completeness checker, the certificate object.** Define a *total* function
 `complete? : (Prop, κ) → {complete} ∪ {incomplete[r]}` with enumerated failure modes:
 ```
 complete                  every σ∈deps_G(ρ) is in κ with E(source σ)=fresh, and deps_G(ρ) is closed
@@ -266,17 +266,17 @@ incomplete[policy-gap]    a policy-mandated source for ρ's scope is absent or n
 incomplete[unbounded]     ρ's closure hits a connector schema flagged unbounded, or a depth-bounded traversal is truncated
 incomplete[unmodeled-ref] a connector emitted a reference class deps_G does not model (O1: deploy gate or runtime audit)
 ```
-`incomplete[unbounded]` is a **syntactic/bounded** check — a schema flag or a truncated
-depth-bounded traversal — **never** a semantic decision of "is this set finite?" (which would
+`incomplete[unbounded]` is a **syntactic/bounded** check, a schema flag or a truncated
+depth-bounded traversal, **never** a semantic decision of "is this set finite?" (which would
 be undecidable over free-text refs); so `complete?` is genuinely total. `κ` carries the
 per-subject dependency-closure status that `complete?` consumes, so the consumer **runs
 `complete?` itself**; completeness is *checked against an object*, never asserted by adjective.
 
-**Closure status is δ-gated (privacy — closing a leak the certificate could otherwise
+**Closure status is δ-gated (privacy, closing a leak the certificate could otherwise
 introduce).** `complete?` is evaluated over the consumer projection `Δ_P`, and the closure
 status published in `κ` is filtered by the per-subject dial `δ_s` (§6). A dangling reference
 whose *target* is `P`-invisible must not expose its existence: under `δ_s = none` such a case is
-reported as a **generic `Unknown[unobserved]`** — the `[dangling]` reason and any count are
+reported as a **generic `Unknown[unobserved]`**: the `[dangling]` reason and any count are
 withheld; the precise reason is declassified only at higher `δ_s` (§6). Thus
 `incomplete[dangling]` in `κ` denotes a *visible*-target gap; invisible-target gaps are masked,
 so the per-subject closure status cannot reopen T5/T6 or bypass the dial.
@@ -294,14 +294,14 @@ polarity needs exhaustive absence. Relative to an omniscient oracle:
 So an *existential* `ρ` is `True` by one witness and `False` only by exhaustive absence; a
 *universal* `ρ` is `False` by one counterexample and `True` only by exhaustive absence of any
 counterexample (this symmetry is what makes a true universal like Appendix A's `ρ₁` evaluate
-correctly — a single-witness-`True`-only scheme would wrongly call it `False`). Contradictory
-witnesses resolve to `Unknown[conflicting-evidence]` — never `True ∧ False`, preserving Theorem
-2 — and are **distinct** from §8's authority `conflicted` (which is declared-value
+correctly, a single-witness-`True`-only scheme would wrongly call it `False`). Contradictory
+witnesses resolve to `Unknown[conflicting-evidence]`, never `True ∧ False`, preserving Theorem
+2, and are **distinct** from §8's authority `conflicted` (which is declared-value
 disagreement, not contradictory observed facts).
 
 **The broker emits no valuation.** `B` outputs only `⟨C, κ⟩`; it never computes or transmits
 `⟦ρ⟧`. This is essential: were `B` to emit `⟦ρ⟧` at runtime, adding a consumer-invisible source
-to `deps_G(ρ)` would flip `False → Unknown`, a value-channel signal of invisible existence —
+to `deps_G(ρ)` would flip `False → Unknown`, a value-channel signal of invisible existence,
 exactly the leak §6 forbids. Keeping `⟦·⟧` meta-theoretic closes that channel by construction.
 
 **Sound consumer rule.** A consumer holding `⟨C, κ⟩` evaluates `⟦·⟧⁻` by the same
@@ -316,13 +316,13 @@ returning `Unknown` where the oracle would say `True`/`False`). *Sketch:* `True`
 witness (Theorem 3 ⇒ `ρ` holds) or, for a universal, by exhaustive absence of a counterexample
 under `complete?`+O1. `False` holds by a counterexample (Theorem 3 ⇒ `¬ρ` holds) or, for an
 existential, by exhaustive absence under `complete?`+O1. `complete?=complete` requires every
-dependency observed `fresh` and the closure gap-free, and by O1 — now enforced per request by
-the runtime audit, so it holds against the *actual* emitted schema, not a stale manifest — the
+dependency observed `fresh` and the closure gap-free, and by O1, now enforced per request by
+the runtime audit, so it holds against the *actual* emitted schema, not a stale manifest, the
 consumer's `deps_G` misses no true dependency, so the oracle's checker agrees. Contradictory
 witnesses give `Unknown`, never an over-claim; every other case is `Unknown`. ∎ The rigor rests
 on **O1 (a checkable per-connector assumption, discharged at deploy and at runtime) and the
-total `complete?` checker** — not the word "conservative." Standing obligation: `Unknown ≠
-False` — absence never licenses "clear" (resolving S1).
+total `complete?` checker**, not the word "conservative." Standing obligation: `Unknown ≠
+False`, absence never licenses "clear" (resolving S1).
 
 **Theorem 3 (No fabrication).** Every `c ∈ C` is witnessed by at least one observation in `κ`
 with a recorded source and time; `B` emits no card without supporting evidence. *Sketch:* card
@@ -349,7 +349,7 @@ the broker's observable `⟨C, κ⟩` restricted to `s` is invariant under any c
 §5) `B` emits no valuation whose value depends on invisible existence; `κ` reports states only
 for `P`-visible sources, and `s`'s closure status is `δ_s`-gated. Hence two states differing
 only in invisible artifacts induce identical observables for `s`. ∎ (Resolving S3: the
-cross-permission PR is neither surfaced nor hinted — by I-H, `H` is exposed only as `Π_P(H)`,
+cross-permission PR is neither surfaced nor hinted, by I-H, `H` is exposed only as `Π_P(H)`,
 so the hint path cannot reintroduce the channel Theorem 5 closes for `⟨C, κ⟩`.)
 
 **The per-subject dial.** Declassification is controlled **per subject (or per scope)** by a
@@ -392,7 +392,7 @@ the (fixed) inputs; the whole transcript is therefore a deterministic function
 `I(X_Q;transcript) ≤ H(g(X_Q,·)) ≤ Σ_{s∈Q} log₂|range(δ_s∘D)|`, which is the stated sum;
 adaptivity cannot exceed it because the adversary's later queries are themselves functions of
 already-counted observables, and repeated identical queries map to identical responses
-(zero marginal entropy). ∎ Thus determinism — the same property that yields verifiable replay —
+(zero marginal entropy). ∎ Thus determinism, the same property that yields verifiable replay,
 also *caps* multi-query leakage at what the per-subject dials expose, with no amplification from
 volume. **Out of scope (open):** timing side-channels, certificate-size channels, and leakage
 across *correlated* secrets (when `X_s` are a priori dependent, the sum bound still holds but
@@ -411,7 +411,7 @@ not by interpreting payload as a command or prompt.
 or the cards it emits as a matter of being *read as instruction*. *Sketch:* `φ` ranges over a
 fixed typed feature space; payload enters only as data to `φ`, never as code. ∎ Consequently
 injected instructions arrive **defanged and labeled as evidence** (resolving S4 on the broker
-side; end-to-end safety still requires a cooperating consumer — §10).
+side; end-to-end safety still requires a cooperating consumer, §10).
 
 **Diagnostic-vector classification.** Generalize single-feature selection to a vector of
 deterministic judges `J(c) = (j₁,…,j_k)`, each `jᵢ ∈ {1, 0, ⊥}` (no-problem / problem /
@@ -429,8 +429,8 @@ robustness*. An adversary may craft payload to deterministically set a feature (
 whitespace to flip a semantic-equivalence judge) and thereby steer the *class*. This is **input
 selection (evasion), not injection**, and is expected and permitted; its consequence is that
 judges relying on open-ended/free-text features are best-effort and stay in `H`, while only
-pinned/typed judges yield certified classes (§8). A full non-interference lemma — each `jᵢ` a
-pure function of `φ` over observable structure with no payload-directed control flow — is the
+pinned/typed judges yield certified classes (§8). A full non-interference lemma, each `jᵢ` a
+pure function of `φ` over observable structure with no payload-directed control flow, is the
 outstanding proof obligation.
 
 ---
@@ -442,26 +442,26 @@ should be true*. Authority is a **governance declaration, not an inferred fact**
 `α = (scope, source, priority)`, gathered into a declaration set `Δ` supplied out-of-band.
 Crucially, authority is computed over the **consumer-visible projection**
 `Δ_P = Π_P(Δ) = { α∈Δ : can_read(P, source(α)) }`; declarations over invisible sources
-contribute nothing to the consumer's authority state — preserving Theorem 5.
+contribute nothing to the consumer's authority state, preserving Theorem 5.
 
 **Pinned extraction.** All authority values are obtained via a **pinned, typed, partial**
 extractor `φ_f` over a declared schema field `f`, returning `V ∪ {⊥}` (`⊥` = out-of-schema /
 failure). Authority never uses open-ended extraction.
 
-**Authority state** — a total deterministic function of `(Δ_P, E, φ)`, written `A(s, P)`. Let
+**Authority state**: a total deterministic function of `(Δ_P, E, φ)`, written `A(s, P)`. Let
 `M(s)` be the **priority-maximal** declarations in `applies_P(s)` (by static priority; a *fresh*
 in-window temporary override outranks steady-state, a stale/`⊥` temporary is not maximal).
-Freshness is indexed by source — `E(source(α))`:
+Freshness is indexed by source, `E(source(α))`:
 ```
 conflicted  if ≥2 α∈M(s) have E(source(α))=fresh, φ_f(source(α))≠⊥, with values differing under f's typed equality
 resolved    if the unique α∈M(s) has E(source(α))=fresh and φ_f(source(α))≠⊥
 missing     if applies_P(s) = ∅
-Unknown[stale-authority]  if the priority-maximal authority is present but **stale** (E(source(α))≠fresh) — observed-but-outdated; a stale higher-priority authority is **never silently overridden** by a fresh lower-priority one
+Unknown[stale-authority]  if the priority-maximal authority is present but **stale** (E(source(α))≠fresh), observed-but-outdated; a stale higher-priority authority is **never silently overridden** by a fresh lower-priority one
 Unknown[unobserved]  otherwise (φ_f=⊥, or the maximal authority's source genuinely unobserved)
 ```
 *Example (the policy-sensitive case).* `Δ_P` declares the policy page authoritative over the
 ticket for rounding scope. If the policy page is **stale** and the ticket is **fresh**, then
-`A(s,P) = Unknown[stale-authority]` ("authoritative source stale — refresh it") — *not*
+`A(s,P) = Unknown[stale-authority]` ("authoritative source stale, refresh it"), *not*
 `resolved` to the ticket, and deliberately distinct from `Unknown[unobserved]`: the difference
 is operational, telling the consumer to **refresh the policy**, not to request permissions or
 treat it as never-seen. Silently falling through to the fresh lower-priority source would be
@@ -469,24 +469,24 @@ exactly the *absence ⇒ safety* failure the model forbids.
 
 `⊥` never participates in divergence. Because `A` depends on `Δ_P`, it is consumer-relative;
 replay fixes the principal `P`. The certificate may report the categorical `A(s, P)`; by the
-projection this adds **zero information about invisible sources** — the conflict bit over two
-`P`-visible sources is a deterministic function of already-`P`-visible values — so Theorems 5,
+projection this adds **zero information about invisible sources**: the conflict bit over two
+`P`-visible sources is a deterministic function of already-`P`-visible values, so Theorems 5,
 6′, and 6″ are preserved.
 
-**Typed Unknown.** The guarded valuation's `Unknown` carries a reason —
-`unobserved | no_authority | conflict | truncated` — each demanding a distinct consumer action
+**Typed Unknown.** The guarded valuation's `Unknown` carries a reason,
+`unobserved | no_authority | conflict | truncated`, each demanding a distinct consumer action
 (`gather | treat as unranked dissent | escalate | the omission is explicit`).
 
 **Authority-relative observable soundness.** A `resolved` value card is sound iff
 `E(source(α))=fresh` and `φ_f(source(α))=v≠⊥`; a `conflicted` card is sound iff ≥2
-priority-maximal declarations have fresh, pinned-typed, divergent values — it asserts *that*
+priority-maximal declarations have fresh, pinned-typed, divergent values, it asserts *that*
 they diverge, never *which* is correct (resolving S2; `fidelity ≠ truth`).
 
 **Demote, not suppress (a checkable property).** For any `(source, field)` with a fresh
 pinned-typed value diverging from the resolved authority, a representation must exist in `C` (a
 *dissent* card, if the source is pinned-typed, using the *same* validated `φ_f`) or in `H`. **No
 divergence is silently suppressed:** when the volume budget cannot hold a representation of every
-distinct divergence, omitted ones are surfaced as `Unknown[truncated]` in `κ` — the cap is
+distinct divergence, omitted ones are surfaced as `Unknown[truncated]` in `κ`, the cap is
 respected, omissions are explicit. Agreement with the resolved authority carries no information
 and may be suppressed.
 
@@ -495,15 +495,15 @@ only if it is (i) **extraction-free structural** (a fact over explicit edges and
 needing no value extraction), or (ii) a **pinned-typed comparison** where `φ_f` is *validated*
 (deterministic, schema-bounded, returns `⊥` on out-of-schema input, and clears a precision bar
 `τ` on an adversarial conformance suite) and the comparison is licensed by a declaration in
-`Δ_P` or by the resolved authority of `s`. All other value-(dis)agreement claims — undeclared,
-open-extraction comparisons — are inadmissible to `C` and may appear only in `H`. This constraint
+`Δ_P` or by the resolved authority of `s`. All other value-(dis)agreement claims, undeclared,
+open-extraction comparisons, are inadmissible to `C` and may appear only in `H`. This constraint
 is **deliberately conservative, not complete**, and is grounded in the measured extraction limit
 of §9.
 
 This narrows the extractor-robustness assumption: `φ` is relied upon only for validated, pinned,
 typed fields; open-ended extraction is *not* assumed robust (and §9 shows it is not). The prior
 structural theorems are unaffected: Theorems 7–8 select on structural features and Theorem 4
-concerns reference existence — none depends on value-extraction correctness.
+concerns reference existence, none depends on value-extraction correctness.
 
 ---
 
@@ -512,49 +512,49 @@ concerns reference existence — none depends on value-extraction correctness.
 The evaluations are **characterizations and stress tests**, not estimates of how often these
 conditions occur in production. Artifacts and corpora are archived with the paper.
 
-**E1 — The latency of honesty.** A naive design that re-verifies every source on every request
+**E1, The latency of honesty.** A naive design that re-verifies every source on every request
 approximates a sum/maximum of source tail-latencies; over four modeled cloud sources this is
 ≈ 4 s at p95 (serial) or ≈ 2.5 s (parallel). A **warm-daemon design** with freshness-stamped,
 background-refreshed caches reduces per-request latency to a cache read (≈ 8 ms p95), moving the
 cost to *staleness*, which `κ` reports. Hence "deterministic and honest" need not mean slow, and
-"stateless" means *no durable trusted state*, not *no cache* — and, with Theorem 1's TTL
+"stateless" means *no durable trusted state*, not *no cache*: and, with Theorem 1's TTL
 snapshot, not *no bounded replay buffer* either.
 
-**E2 — Coverage of structural relevance.** Across an adversarially-generated corpus of
+**E2, Coverage of structural relevance.** Across an adversarially-generated corpus of
 high-value work-start context events (three independent frontier-model generators,
-self-classified), purely *structural* relevance — explicit edges and change-state, no learning —
+self-classified), purely *structural* relevance, explicit edges and change-state, no learning,
 accounts for ≈ 38% of events; learned/semantic ≈ 43%; declared-policy ≈ 18%. The structural
 slice is the certifiable, highest-confidence, costliest-to-miss subset. This supports a design
 that certifies the structural core, routes learned guesses to `H`, and lets declared authority
 (and the resulting "Unknown, write it down" pressure) grow the certified fraction over time.
 
-**E3 — The extraction limit (grounding the §8 constraint).** On a 48-item adversarial corpus of
+**E3, The extraction limit (grounding the §8 constraint).** On a 48-item adversarial corpus of
 linked-artifact pairs (with representation, superseded-section, unit, and free-text traps), two
 deterministic disagreement detectors reached **precision 0.44** (false positives concentrated in
 representation and superseded-section traps; free-text recall 0). Below any reasonable
 certification bar, this is the empirical basis for excluding undeclared, open-extraction
-value-disagreement from `C` (§8). The corpus is adversarial — appropriate for a *certification*
-decision, where the failures (superseded sections, "was X now Y") are common in real artifacts —
+value-disagreement from `C` (§8). The corpus is adversarial, appropriate for a *certification*
+decision, where the failures (superseded sections, "was X now Y") are common in real artifacts,
 and the detector is a reasonable approximation, not a maximal `φ`; revisiting the constraint
 requires clearing `τ` on an independently-audited adversarial corpus.
 
-**E4 — The price of soundness (false-`Unknown` characterization).** Soundness (Theorem 2) is
+**E4, The price of soundness (false-`Unknown` characterization).** Soundness (Theorem 2) is
 purchased with *under-claim*: the consumer returns `Unknown` wherever it cannot prove `True`/
 `False`, even when an oracle could. E4 measures that cost directly. **Method:** on a labeled
 corpus where the oracle valuation `⟦ρ⟧` is known per proposition, replay the broker against a
-fixed source snapshot and compute the **false-`Unknown` rate** — the fraction of propositions
-with `⟦ρ⟧ ∈ {True, False}` for which `⟦ρ⟧⁻ = Unknown` — stratified by the `incomplete[·]` cause
+fixed source snapshot and compute the **false-`Unknown` rate**: the fraction of propositions
+with `⟦ρ⟧ ∈ {True, False}` for which `⟦ρ⟧⁻ = Unknown`, stratified by the `incomplete[·]` cause
 (`dangling`, `stale-dep`, `policy-gap`, `unmodeled-ref`, `unbounded`) and by whether a governing
 declaration was present. Two properties the metric must report, by construction rather than
-luck: (a) the **false-`False`/false-`True` rate is 0** under O1 (Theorem 2) — soundness is not a
+luck: (a) the **false-`False`/false-`True` rate is 0** under O1 (Theorem 2), soundness is not a
 tunable; only the `Unknown` rate moves; and (b) the false-`Unknown` rate is **lower-bounded by
 the non-structural, undeclared share** of events (≈ the E2 learned slice that lacks a
 declaration), since those route to `H`/`Unknown` by the §8 admissibility constraint, and
-**upper-bounded toward that floor as declarations and freshness improve** — which makes E4 the
+**upper-bounded toward that floor as declarations and freshness improve**: which makes E4 the
 quantitative handle on the "Unknown ⇒ write it down" flywheel. *We report the methodology and
 its two structural bounds here; the point measurement is taken on the archived conformance
 corpus and is a characterization, not a production-frequency estimate.* (We deliberately do not
-quote a single headline number we have not measured under audit — consistent with the paper's
+quote a single headline number we have not measured under audit, consistent with the paper's
 bar.)
 
 ---
@@ -565,13 +565,13 @@ bar.)
 out of scope for `C`. (A2) A single logical sequencer orders ingestion (multi-region needs a
 CRDT fold, out of scope). (A3) Metadata is trustworthy where sources cannot sign it. (A4) `φ` is
 robust **only** for validated, pinned, typed fields. (A5) Connector permission mirroring
-reflects true ACLs. (A6) Declarations `Δ` are authentic governance input — A6 is
+reflects true ACLs. (A6) Declarations `Δ` are authentic governance input, A6 is
 governance-authenticity, *not* extraction-correctness. (A7) Authority is computed over the
 consumer projection `Δ_P`.
 
-**Trusted-base obligation.** (O1) `deps_G` soundness (§5) is an explicit assumption — that
+**Trusted-base obligation.** (O1) `deps_G` soundness (§5) is an explicit assumption, that
 per-connector *local structural completeness* composes to a global over-approximation of `ρ`'s
-dependencies — *enforced* both by deployment-time validation of each connector's schema manifest
+dependencies, *enforced* both by deployment-time validation of each connector's schema manifest
 **and by a per-request runtime audit** of emitted-vs-declared reference classes; an undeclared,
 buggy, or drifted class makes `complete?` return `incomplete[unmodeled-ref]`, so a gap degrades
 to `Unknown`, never a false `False`. Theorems 2 and 4 are stated *under O1*. Closure status
@@ -595,14 +595,14 @@ Theorem-8 non-interference lemma and a mechanized artifact (e.g. Coq/Isabelle fo
 
 teamctx treats context for AI agents as an *assurance* problem rather than a retrieval problem.
 By removing the language model from the core and emitting only a certified card set and a
-coverage certificate — never a truth valuation — the broker proves observable soundness while
+coverage certificate, never a truth valuation, the broker proves observable soundness while
 preserving existence-privacy across permission boundaries, bounds the leakage of its
 per-subject declassification dial under both single-shot and adaptive multi-query access,
 resists injection by treating source text as evidence rather than instruction, and separates
 governance authority from observed evidence so that conflict is surfaced rather than silently
 resolved. Determinism does double duty: it makes answers verifiable by replay within a bounded
 window, and it caps how much an adversary can learn no matter how many times they ask. Its
-honesty is the point — and §9 makes the price of that honesty (under-claim, never
+honesty is the point, and §9 makes the price of that honesty (under-claim, never
 over-claim) a measured quantity rather than a hand-wave. The result is a context layer a
 security reviewer can approve *because* it is deterministic, read-only, and
 incapable-by-construction of retaining or fabricating, and that an agent can rely on *because*
@@ -631,7 +631,7 @@ absence never masquerades as safety.
 
 ---
 
-## Appendix A — Certificate Schema and a Worked Trace
+## Appendix A: Certificate Schema and a Worked Trace
 
 To show the protocol is *implementable*, not merely describable, we give the concrete shapes of
 a card and of `κ`, then trace one scenario end to end.
@@ -680,7 +680,7 @@ O4  shared-proto MR        gitlab           unreachable  -- a linked proto the s
        (completeness is irrelevant for refuting a universal).
      SEPARATELY, "have all conflicts been seen?" : gitlab(shared-proto) unreachable ⇒
        complete?=incomplete[dangling] ⇒ the conflict set's EXHAUSTIVENESS is Unknown.
-     So: ρ1 is False (a real conflict exists, asserted); whether more exist is Unknown —
+     So: ρ1 is False (a real conflict exists, asserted); whether more exist is Unknown,
      absence of further cards never licenses "clear".  (S1.)  [gitlab is a P-visible
      target, so the [dangling] reason is exposable; an invisible target would mask to
      Unknown[unobserved] per §5's δ_s-gate.]
@@ -696,7 +696,7 @@ Card{ kind: collision, subject: rounding.Apply, claim: "PR!4471 rewrites roundin
       witness:[O1], judges:{file:1, symbol:1}, severity:{value:.84, kind_base:.80, magnitude_norm:.6, scope_mult:1.5},
       tier: certified, why: "same-symbol overlap with an open PR" }
 Card{ kind: authority (unverified), subject: rounding-cap,
-      claim: "authoritative cap unverifiable: declared authority (Rounding Policy) is stale 2d — refresh it",
+      claim: "authoritative cap unverifiable: declared authority (Rounding Policy) is stale 2d, refresh it",
       witness:[O3], tier: certified, why: "priority-maximal authority stale; not overridden by the fresh ticket" }
 ```
 
@@ -710,11 +710,11 @@ delta    : { rounding-scope: none }      -- no invisible-target reference expose
 snapshot_ref : { digest: …, snapshot_id: …, ttl: 7d }
 ```
 
-*Consumer result:* the agent sees a **certified collision** — ρ1 ("no conflicts") is **False**,
-act on it — alongside a coverage note that *further* conflicts are **Unknown** (gitlab
+*Consumer result:* the agent sees a **certified collision**: ρ1 ("no conflicts") is **False**,
+act on it, alongside a coverage note that *further* conflicts are **Unknown** (gitlab
 unobserved), so it does not read "nothing else surfaced" as clear. It sees an
 **authoritative-cap-unverifiable** card tagged `stale-authority` (do not assume 5 *or* 3; the
-source of truth is stale — refresh it), distinct from "no authority configured." No value was
+source of truth is stale, refresh it), distinct from "no authority configured." No value was
 fabricated; no stale source was passed off as fresh; no invisible source leaked; and the one
 place the model *could* have guessed (cap = the fresh ticket's 5) it instead surfaced the
 staleness. Every guarantee of §§5–8 is exercised in one request, and `κ.snapshot_ref` lets a

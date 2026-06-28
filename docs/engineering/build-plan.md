@@ -27,19 +27,19 @@ the broker, and no source body browsing by default.
 
 The **[Thesis-Complete Engine milestone](../product/sprints/2026-06-19-milestone-thesis-complete-engine.md)
 is DONE** (merged to `main`): the v1.0-paper core, the four-kind registry, thin authority,
-and replay/explainability are real in code (T1/T2/T5/S2 embodied). **Two connectors are live**
-— collision (GitHub PRs) and doc-superseded (declared frontmatter); the latter merged
+and replay/explainability are real in code (T1/T2/T5/S2 embodied). **Two connectors are live:**
+collision (GitHub PRs) and doc-superseded (declared frontmatter); the latter merged
 2026-06-20.
 
 The active forward plan is now the
 **[Product Completion plan](../product/sprints/2026-06-21-product-completion-plan.md)**:
 we built the credibility *because*; now we build the *marquee* (timely, ambient team context).
-That doc records the **decided-vs-built gap** — the engine targets the certifiable ~38%
+That doc records the **decided-vs-built gap**: the engine targets the certifiable ~38%
 slice on 2 of ~7 sources, while the ambient **L tier (43%) is an empty reserved channel** and
 Jira/Confluence/GitLab/Slack/MCP are decided-but-unbuilt.
 
-Immediate next: **Phase 0** — prove the current vertical (the doc-superseded dogfood), then
-**Phase 1** — feed the two dormant engine kinds via connectors (missed-gate ← GitHub
+Immediate next: **Phase 0**: prove the current vertical (the doc-superseded dogfood), then
+**Phase 1**: feed the two dormant engine kinds via connectors (missed-gate ← GitHub
 check-runs; criteria-changed ← Jira), the cheapest path to marquee breadth.
 
 ## MVP Track

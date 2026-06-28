@@ -3,8 +3,8 @@
 This is where observable soundness (Theorem 2) becomes code, not prose. Given a
 ``query``, the typed certified claims ``C`` (claim cards), and the per-proposition
 coverage closure ``kappa`` (κ), ``evaluate`` under-approximates the three-valued
-semantics: it answers True or False only when justified — by a witness, or by exhaustive
-absence under a *complete* closure — and Unknown otherwise. The absence-branch gates on
+semantics: it answers True or False only when justified, by a witness or by exhaustive
+absence under a *complete* closure, and Unknown otherwise. The absence-branch gates on
 completeness: the absence of a refuting card never licenses "clear".
 
 Pure: dataclasses, typing, and internal core imports only (the core purity test guards it).

@@ -1,7 +1,7 @@
 """CI gate-status normalization.
 
 Turns failing-gate facts into Core Contract V0 objects. No file/network I/O and no card
-rendering — work-start DERIVES missed-gate cards from the signals emitted here.
+rendering; work-start DERIVES missed-gate cards from the signals emitted here.
 """
 
 from __future__ import annotations

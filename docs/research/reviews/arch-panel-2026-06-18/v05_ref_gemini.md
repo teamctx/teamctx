@@ -14,7 +14,7 @@ Below is the section-by-section analysis.
 **Fix:** The broker must compute a consumer-specific projection $\Delta_P = \{ \alpha \in \Delta \mid \text{can\_read}(P, \text{source}(\alpha)) \}$. $A(s)$ must be computed strictly over $\Delta_P$, not $\Delta$.
 
 ### 3. §C: Certified-Set Restriction T7 (Formal Fiction)
-**Objection:** Grounding a formal rule in empirical measurement (0.44 precision) is not a category error—it is a valid justification for introducing an axiomatic restriction. However, the requirement for a "**total**, validated extractor" $\phi_f$ is a formal fiction. No real-world parser over external artifacts is total; malformed payloads exist. 
+**Objection:** Grounding a formal rule in empirical measurement (0.44 precision) is not a category error, it is a valid justification for introducing an axiomatic restriction. However, the requirement for a "**total**, validated extractor" $\phi_f$ is a formal fiction. No real-world parser over external artifacts is total; malformed payloads exist. 
 **Fix:** $\phi_f$ must be modeled as a partial function or explicitly return an error state ($V \cup \{\bot\}$). T7.2 must then rigorously define the admissibility of comparisons involving $\bot$ (e.g., $\bot \neq v$ is a structural failure, not a typed value disagreement).
 
 ### 4. §D: Diagnostic-Vector T3'' (Injection vs. Evasion)

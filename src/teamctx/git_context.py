@@ -1,6 +1,6 @@
 """Read-only git detection for work-start input resolution.
 
-Resolves the two facts git already knows about a working tree — the repository identity
+Resolves the two facts git already knows about a working tree: the repository identity
 (owner/name from the ``origin`` remote) and the current branch. Any failure returns ``None``
 (honest absence), never a guess, so a non-git or unreachable tree degrades to the broker's
 honest-UNKNOWN rather than a fabricated value. No network I/O.

@@ -36,7 +36,7 @@ def test_collision_claim_refutes_the_no_conflict_universal() -> None:
         predicate="no_pr_conflicts_with_paths",
         subject=SubjectRef(repo="svc", paths=("src/auth/token.py", "src/other.py")),
     )
-    # A single existential counterexample refutes the universal — the polarity trap the
+    # A single existential counterexample refutes the universal; the polarity trap the
     # paper flags (a single-witness "True-only" scheme would mis-handle this universal).
     assert witnesses(claim, query) == "refutes"
 

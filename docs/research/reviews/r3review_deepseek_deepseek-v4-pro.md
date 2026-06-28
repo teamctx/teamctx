@@ -1,10 +1,10 @@
 **Round‑2 defect fixes (v0.3)**
 
-- **F1 (T6 definitional collapse) — RESOLVED.** The split into `rel_G` (over the unpermissioned graph `G`) and `rel_render` (over the observed subgraph `Ĝ_P`) correctly makes the existence of a globally‑relevant `P`‑invisible source non‑vacuous, and T6 now quantifies over `rel_G`.
-- **F2 (§5.6 `False` unsoundness) — RESOLVED.** `False` is now guarded by completeness over the global dependency set `deps_G(ρ)`, with disconnected/unavailable sources forcing `Unknown`. The addition of `witness` and `deps_G` maps is a step toward evaluability, though see the new defect below.
-- **F3 (T3′ overclaim) — RESOLVED.** The theorem has been downgraded to **feature‑mediated selection**, with the precise statement that adversarial text can shift an artifact between `Φ`-classes but cannot inject free‑form control/instructions. The `φ`‑robustness assumption (A4) and its limitation are explicitly owned.
-- **F4 (T5′ naming / ceiling) — RESOLVED.** Renamed “Foreign‑Key‑Based Observable Soundness”; the theorem now explicitly confines omissions to “relevance not encoded as a typed reference and not policy‑mandated,” so the ceiling is part of the claim, not hidden in limitations.
-- **F5 (T6 triviality) — RESOLVED.** The impossibility is properly positioned among declassification, hyperproperties, polyinstantiation, and query‑completeness. The quantitative `δ`‑leakage bound (0 / ≤log₂(N+1) / full bits) adds a modest but genuine refinement, moving T6 from tautology to a characterised frontier.
+- **F1 (T6 definitional collapse), RESOLVED.** The split into `rel_G` (over the unpermissioned graph `G`) and `rel_render` (over the observed subgraph `Ĝ_P`) correctly makes the existence of a globally‑relevant `P`‑invisible source non‑vacuous, and T6 now quantifies over `rel_G`.
+- **F2 (§5.6 `False` unsoundness), RESOLVED.** `False` is now guarded by completeness over the global dependency set `deps_G(ρ)`, with disconnected/unavailable sources forcing `Unknown`. The addition of `witness` and `deps_G` maps is a step toward evaluability, though see the new defect below.
+- **F3 (T3′ overclaim), RESOLVED.** The theorem has been downgraded to **feature‑mediated selection**, with the precise statement that adversarial text can shift an artifact between `Φ`-classes but cannot inject free‑form control/instructions. The `φ`‑robustness assumption (A4) and its limitation are explicitly owned.
+- **F4 (T5′ naming / ceiling), RESOLVED.** Renamed “Foreign‑Key‑Based Observable Soundness”; the theorem now explicitly confines omissions to “relevance not encoded as a typed reference and not policy‑mandated,” so the ceiling is part of the claim, not hidden in limitations.
+- **F5 (T6 triviality), RESOLVED.** The impossibility is properly positioned among declassification, hyperproperties, polyinstantiation, and query‑completeness. The quantitative `δ`‑leakage bound (0 / ≤log₂(N+1) / full bits) adds a modest but genuine refinement, moving T6 from tautology to a characterised frontier.
 
 **New defect introduced by v0.3**
 

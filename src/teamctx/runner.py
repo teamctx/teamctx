@@ -2,7 +2,7 @@
 
 Runs every connector the caller has given the means to reach, against ONE shared request
 context, and returns their documents for the broker to compose. A connector is only run
-when its required inputs are present — so a source we cannot reach is honestly absent from
+when its required inputs are present, so a source we cannot reach is honestly absent from
 coverage (the broker reports it Unknown) rather than silently treated as clear.
 
 Does network/file I/O (via the connectors), so it lives outside the pure core.
@@ -62,8 +62,8 @@ def run_work_start_connectors(
     """Run each applicable connector against one shared request context.
 
     Returns the request context and the list of connector documents (one per source checked).
-    The broker composes these; sources not checked here are simply absent — honest coverage,
-    not a false all-clear."""
+    The broker composes these; sources not checked here are simply absent, giving honest coverage
+    rather than a false all-clear."""
 
     request_context = build_request_context(inputs, observed_at=observed_at)
     documents: list[CoreContractDocument] = [

@@ -1,4 +1,4 @@
-# M2 — Messaging Pass Implementation Plan
+# M2: Messaging Pass Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -14,9 +14,9 @@ Spec: `docs/superpowers/specs/2026-06-28-m2-messaging-pass-design.md`.
 
 ## File structure
 
-- **Create** `src/teamctx/assessment.py` — `assess(answer) -> WorkStartAssessment` (+ `CheckState`). Pure.
-- **Modify** `src/teamctx/hook_signal.py` — refactor onto `assess`; identical output.
-- **Modify** `src/teamctx/contract_render.py` — `render_broker_answer` renders prose via `assess`; remove `render_selection`; keep `_authority_line`/`render_contract_context` and the other helpers.
+- **Create** `src/teamctx/assessment.py`, `assess(answer) -> WorkStartAssessment` (+ `CheckState`). Pure.
+- **Modify** `src/teamctx/hook_signal.py`, refactor onto `assess`; identical output.
+- **Modify** `src/teamctx/contract_render.py`, `render_broker_answer` renders prose via `assess`; remove `render_selection`; keep `_authority_line`/`render_contract_context` and the other helpers.
 - **Create** `tests/test_assessment.py`. **Rewrite** `tests/test_render_selection.py` → `tests/test_render_broker_answer.py`.
 - **Update** assertions in: `test_work_start_cli`, `test_mcp_server`, `test_broker`, `test_contract_terminal`, `test_eval`, `test_gate_probe_cli`, `test_docs_probe_cli`, `test_issue_probe_cli`, `test_work_start_answer`.
 
@@ -28,7 +28,7 @@ Order: Task 1 (assessment) → 2 (hook refactor) → 3 (render) → 4 (render te
 
 **Files:** Create `src/teamctx/assessment.py`; Test `tests/test_assessment.py`.
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_assessment.py`. Reuse the broker-driven construction from `test_hook_signal.py` (copy its `_request`, `_collision_signal`, `_fresh_status`, `_unavailable_status` helpers verbatim — they build real `BrokerAnswer`s via `broker_answer`):
+- [ ] **Step 1: Write the failing tests**: `tests/test_assessment.py`. Reuse the broker-driven construction from `test_hook_signal.py` (copy its `_request`, `_collision_signal`, `_fresh_status`, `_unavailable_status` helpers verbatim, they build real `BrokerAnswer`s via `broker_answer`):
 
 ```python
 from __future__ import annotations
@@ -104,15 +104,15 @@ def test_checks_are_ordered_conflict_criteria_docs_gate() -> None:
 
 > First confirm the helper imports exist (they do in `test_hook_signal.py`): `grep -nE "def source_status|def metadata_only_policy" src/teamctx/connectors/_contract.py`. If a signature differs, copy `test_hook_signal.py`'s exact helpers.
 
-- [ ] **Step 2: Run to verify failure** — `pytest tests/test_assessment.py -v` → FAIL (no module `teamctx.assessment`).
+- [ ] **Step 2: Run to verify failure**: `pytest tests/test_assessment.py -v` → FAIL (no module `teamctx.assessment`).
 
-- [ ] **Step 3: Implement** — `src/teamctx/assessment.py`:
+- [ ] **Step 3: Implement**: `src/teamctx/assessment.py`:
 
 ```python
 """Classify the broker's answer into one work-start assessment: kind + per-check status.
 
 One shared classification consumed by both the hook (a glanceable line) and the CLI/MCP render
-(a fuller report) — so there is a single voice and the important-vs-low-stakes split lives in one
+(a fuller report), so there is a single voice and the important-vs-low-stakes split lives in one
 place. Pure: no I/O.
 """
 
@@ -198,13 +198,13 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     return WorkStartAssessment(kind=kind, checks=tuple(states), findings=tuple(findings))
 ```
 
-- [ ] **Step 4: Run** — `pytest tests/test_assessment.py -v` → PASS. `ruff check src/teamctx/assessment.py tests/test_assessment.py`, `mypy src/teamctx/assessment.py` → clean.
+- [ ] **Step 4: Run**: `pytest tests/test_assessment.py -v` → PASS. `ruff check src/teamctx/assessment.py tests/test_assessment.py`, `mypy src/teamctx/assessment.py` → clean.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/teamctx/assessment.py tests/test_assessment.py
-git commit -m "feat: assessment — one shared work-start classification (kind + per-check status)"
+git commit -m "feat: assessment, one shared work-start classification (kind + per-check status)"
 ```
 
 ---
@@ -218,7 +218,7 @@ git commit -m "feat: assessment — one shared work-start classification (kind +
 ```python
 """Map the broker's answer to one glanceable hook signal: ready / heads up / can't verify.
 
-The hook injects a short signal before an edit — not the full CLI report. Per the surfaced-text
+The hook injects a short signal before an edit, not the full CLI report. Per the surfaced-text
 principle, it speaks to a human about to decide: a clean *ready* that names what it checked, a
 *heads up* with the specific item, or *can't verify* when a source that matters was unreachable.
 Low-stakes coverage gaps (a check not configured) are never headlined.
@@ -250,8 +250,8 @@ def hook_signal(answer: BrokerAnswer, *, file_path: str, token_present: bool) ->
 
 
 def _heads_up(findings: tuple[ContextCard, ...], file_path: str) -> str:
-    lines = [f"teamctx — before you edit {file_path}, from the team's current work:"]
-    lines.extend(f"  • {card.text} — {card.why_this_matters}" for card in findings)
+    lines = [f"teamctx, before you edit {file_path}, from the team's current work:"]
+    lines.extend(f"  • {card.text}, {card.why_this_matters}" for card in findings)
     lines.append(
         "Factor these into your plan, and surface anything relevant to your human "
         "collaborator so they can decide."
@@ -262,15 +262,15 @@ def _heads_up(findings: tuple[ContextCard, ...], file_path: str) -> str:
 def _cant_verify(token_present: bool) -> str:
     if not token_present:
         return (
-            "teamctx couldn't check what else is happening around this file — it doesn't have "
+            "teamctx couldn't check what else is happening around this file, it doesn't have "
             "access to GitHub yet. To switch that on, run `teamctx install-hook` and it'll "
             "walk you through giving it a token. If you'd rather not connect it right now, keep "
-            "working — you just won't get a heads-up about open pull requests on the same files "
+            "working, you just won't get a heads-up about open pull requests on the same files "
             "or checks that are failing."
         )
     return (
         "teamctx couldn't reach GitHub just now, so it couldn't check for open pull requests or "
-        "failing checks on these files — likely a transient connection issue. You won't get those "
+        "failing checks on these files, likely a transient connection issue. You won't get those "
         "warnings this session, so glance at GitHub yourself if this file is sensitive."
     )
 
@@ -279,7 +279,7 @@ def _ready(checks: tuple[CheckState, ...], file_path: str) -> str:
     clear = [_CLEAR_PHRASE[s.check] for s in checks if s.status == "clear"]
     if not clear:
         return ""
-    return f"teamctx — looks clear to start on {file_path}: {_join(clear)}."
+    return f"teamctx, looks clear to start on {file_path}: {_join(clear)}."
 
 
 def _join(items: list[str]) -> str:
@@ -288,9 +288,9 @@ def _join(items: list[str]) -> str:
     return ", ".join(items[:-1]) + ", and " + items[-1]
 ```
 
-Note: `_ready` now iterates `checks` (conflict, criteria, docs, gate order) — same clear-phrase set, same order, so the output string is identical to before. `_heads_up` iterates `findings` (selection order) — identical to the old section-filtered list.
+Note: `_ready` now iterates `checks` (conflict, criteria, docs, gate order), same clear-phrase set, same order, so the output string is identical to before. `_heads_up` iterates `findings` (selection order), identical to the old section-filtered list.
 
-- [ ] **Step 2: Run** — `pytest tests/test_hook_signal.py tests/test_hook.py -v` → all PASS unchanged (the hook's behavior is identical). `ruff check src/teamctx/hook_signal.py`, `mypy src/teamctx/hook_signal.py` → clean.
+- [ ] **Step 2: Run**: `pytest tests/test_hook_signal.py tests/test_hook.py -v` → all PASS unchanged (the hook's behavior is identical). `ruff check src/teamctx/hook_signal.py`, `mypy src/teamctx/hook_signal.py` → clean.
 
 - [ ] **Step 3: Commit**
 
@@ -310,8 +310,8 @@ git commit -m "refactor: hook_signal derives from shared assess() (output unchan
 ```python
 _HEADLINE = {
     "ready": "Looks clear to start.",
-    "heads_up": "Before you start — worth handling first:",
-    "cant_verify": "Heads up — I couldn't check the important things:",
+    "heads_up": "Before you start, worth handling first:",
+    "cant_verify": "Heads up, I couldn't check the important things:",
 }
 _CLEAR_PHRASE = {
     "conflict": "no open PRs touch your files",
@@ -320,10 +320,10 @@ _CLEAR_PHRASE = {
     "criteria": "the linked issue's criteria are unchanged",
 }
 _NOT_CHECKED_PHRASE = {
-    "criteria": "spec changes — no issue is linked to this branch (link one to enable)",
-    "docs": "docs — no docs root is configured (set work_start.docs_root to enable)",
-    "gate": "failing checks — couldn't determine your branch",
-    "conflict": "open PRs — couldn't determine the repository",
+    "criteria": "spec changes, no issue is linked to this branch (link one to enable)",
+    "docs": "docs, no docs root is configured (set work_start.docs_root to enable)",
+    "gate": "failing checks, couldn't determine your branch",
+    "conflict": "open PRs, couldn't determine the repository",
 }
 _FINDING_ACTION = {
     "conflict": "look at it before you edit so you don't undo each other's work",
@@ -336,7 +336,7 @@ _FINDING_ACTION = {
 def render_broker_answer(answer: BrokerAnswer) -> str:
     """The one render every transport uses: a signal-led plain-prose report of the broker's
     answer. Decision-enabling; gaps carry their reason and how to turn them on. Deterministic,
-    never via an LLM, and prints — it never blocks."""
+    never via an LLM, and prints, it never blocks."""
 
     from teamctx.assessment import assess  # local import keeps the core import DAG acyclic
 
@@ -367,7 +367,7 @@ def _finding_text(card: ContextCard) -> str:
     check = _check_of_card(card)
     action = _FINDING_ACTION.get(check, "") if check is not None else ""
     pr = _gh_hint(card.source_display)
-    base = f"{card.text} — {action}" if action else card.text
+    base = f"{card.text}, {action}" if action else card.text
     return f"{base}{pr}"
 
 
@@ -389,7 +389,7 @@ def _cant_verify_bullets(a: WorkStartAssessment) -> list[str]:
     conflict = status.get("conflict") == "unreachable"
     gate = status.get("gate") == "unreachable"
     fix = (
-        "teamctx couldn't reach GitHub — either it has no access yet (run `teamctx install-hook` "
+        "teamctx couldn't reach GitHub, either it has no access yet (run `teamctx install-hook` "
         "to connect it) or it's a temporary connection issue."
     )
     if conflict and gate:
@@ -427,7 +427,7 @@ def _authority_block(selection: ContextSelection) -> list[str]:
 
 (Delete `render_selection` and `_verdict_line` entirely. If `from teamctx.core.evaluate import Valuation` becomes unused after removing `_verdict_line`, drop that import to satisfy ruff F401.)
 
-- [ ] **Step 2: Run** — `pytest tests/test_render_selection.py -v` will now FAIL (it calls the removed `render_selection`); that's expected — Task 4 rewrites it. Confirm `ruff check src/teamctx/contract_render.py` and `mypy src/teamctx/contract_render.py` are clean.
+- [ ] **Step 2: Run**: `pytest tests/test_render_selection.py -v` will now FAIL (it calls the removed `render_selection`); that's expected, Task 4 rewrites it. Confirm `ruff check src/teamctx/contract_render.py` and `mypy src/teamctx/contract_render.py` are clean.
 
 - [ ] **Step 3: Commit**
 
@@ -507,7 +507,7 @@ def test_heads_up_surfaces_the_pr_with_action() -> None:
     text = render_broker_answer(
         broker_answer(_request(), [_collision_signal()], [_fresh("git_hosting")])
     )
-    assert text.startswith("Before you start — worth handling first:")
+    assert text.startswith("Before you start, worth handling first:")
     assert "PR #7" in text
     assert "gh pr view 7" in text
     _no_jargon(text)
@@ -515,7 +515,7 @@ def test_heads_up_surfaces_the_pr_with_action() -> None:
 
 def test_cant_verify_when_github_unreachable() -> None:
     text = render_broker_answer(broker_answer(_request(), [], [_unavailable("git_hosting")]))
-    assert text.startswith("Heads up — I couldn't check the important things:")
+    assert text.startswith("Heads up, I couldn't check the important things:")
     assert "couldn't reach GitHub" in text
     assert "teamctx install-hook" in text
     _no_jargon(text)
@@ -537,7 +537,7 @@ def test_no_authority_section_without_declarations() -> None:
     assert "Authority" not in text
 ```
 
-- [ ] **Step 2: Run** — `pytest tests/test_render_broker_answer.py -v` → PASS. `ruff check tests/test_render_broker_answer.py`, `mypy` (if tests are checked) clean.
+- [ ] **Step 2: Run**: `pytest tests/test_render_broker_answer.py -v` → PASS. `ruff check tests/test_render_broker_answer.py`, `mypy` (if tests are checked) clean.
 
 - [ ] **Step 3: Commit**
 
@@ -554,11 +554,11 @@ git commit -m "test: render_broker_answer prose tests; remove render_selection t
 The render output changed, so every test that asserts the old work-start render strings now fails. Update each to the new prose. **Method:** run `pytest -q`, open each failing test, and replace the old-string assertion with the new prose the render now emits (use the mapping below; run the specific test with `-v` and read the actual output to confirm the exact string).
 
 **Old → new mapping** (the render no longer emits the left column):
-- `"Working context"` → gone; the report starts with a headline (`Looks clear to start.` / `Before you start — worth handling first:` / `Heads up — I couldn't check the important things:`). Assert a headline or a specific line instead.
+- `"Working context"` → gone; the report starts with a headline (`Looks clear to start.` / `Before you start, worth handling first:` / `Heads up, I couldn't check the important things:`). Assert a headline or a specific line instead.
 - `"Conflict check: clear"` / `"Gate check: clear"` → `"no open PRs touch your files"` / `"CI is green"` (in the `Checked:` line).
 - `"Criteria check: clear"` / `"Docs check: clear"` → `"the linked issue's criteria are unchanged"` / `"the docs you rely on are current"`.
 - `"Conflict check: NOT CLEAR"` (+ `"PR #7"`) → the heads-up headline + `"PR #7"` (still present) + `"gh pr view 7"`.
-- `"Conflict check: UNKNOWN"` / `"UNKNOWN — coverage incomplete (incomplete[...])"` → for the no-token case, `"couldn't reach GitHub"` + `"teamctx install-hook"`; for a not-configured check, the `"Not checked: …"` line.
+- `"Conflict check: UNKNOWN"` / `"UNKNOWN, coverage incomplete (incomplete[...])"` → for the no-token case, `"couldn't reach GitHub"` + `"teamctx install-hook"`; for a not-configured check, the `"Not checked: …"` line.
 - `"Coverage"` / `"not an all-clear"` / `"absence is not an all-clear"` → gone; honesty now lives in the `Checked:` / `Not checked:` / can't-verify lines.
 
 **Per-file checklist** (run `pytest <file> -v` to see the exact failing assertions):
@@ -584,7 +584,7 @@ git commit -m "test: update render-string assertions to the new prose across all
 - [ ] **Step 1:** `pytest -q` → all pass.
 - [ ] **Step 2:** `ruff check src tests` → clean.
 - [ ] **Step 3:** `mypy src` → clean.
-- [ ] **Step 4:** Spot-check the real output: `printf '%s' '{"hook_event_name":"x"}' ` is not needed — instead, eyeball `python -c "from teamctx.work_start import render_work_start"` imports cleanly, and the render tests cover the three signals. Commit any fixups:
+- [ ] **Step 4:** Spot-check the real output: `printf '%s' '{"hook_event_name":"x"}' ` is not needed, instead, eyeball `python -c "from teamctx.work_start import render_work_start"` imports cleanly, and the render tests cover the three signals. Commit any fixups:
 
 ```bash
 git add -A && git commit -m "chore: lint/type fixups for M2" || echo "nothing to fix"
@@ -596,6 +596,6 @@ git add -A && git commit -m "chore: lint/type fixups for M2" || echo "nothing to
 
 **Spec coverage:** assessment.py (Component 1) → Task 1. hook_signal refactor (Component 2) → Task 2. prose render + per-(check,status) copy + coverage lines + authority (Component 3) → Task 3, tested in Task 4. The ripple (work-start CLI+MCP, probes, eval) → Task 5. Non-goals (json, card-copy, legacy) correctly untouched. The "verify render_selection usage" item is resolved: it's only called by `render_broker_answer`, so Task 3 removes it and Task 4 replaces its tests.
 
-**Placeholder scan:** Tasks 1–4 have complete code. Task 5 is assertion-updating to a fully-determined new output (the render in Task 3) — the mapping + per-file list make each change concrete; the implementer reads the actual new output to pin exact strings (the honest way to do a render-copy ripple).
+**Placeholder scan:** Tasks 1–4 have complete code. Task 5 is assertion-updating to a fully-determined new output (the render in Task 3), the mapping + per-file list make each change concrete; the implementer reads the actual new output to pin exact strings (the honest way to do a render-copy ripple).
 
 **Type/name consistency:** `assess`, `WorkStartAssessment`, `CheckState`, `CheckId`/`CheckStatus`, `_check_of_card`, `findings`, `_CLEAR_PHRASE` (re-keyed to `CheckId`) are consistent across assessment.py, hook_signal.py, and contract_render.py. Verdict labels ("Conflict check"/"Criteria check"/"Docs check"/"Gate check") match `CARD_KINDS`. `card.reason_code` prefixes (collision/criteria/doc/gate) match `core/select.py`.

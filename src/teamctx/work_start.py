@@ -2,7 +2,7 @@
 
 One application-level function that ties the connector runner, the broker, governance
 authority, and the human-plane renderer into the single "produce the work-start answer"
-operation. Every transport — the CLI and the MCP server — calls this, so they deliver an
+operation. Every transport (the CLI and the MCP server) calls this, so they deliver an
 identical answer over one code path.
 """
 
@@ -25,7 +25,7 @@ def work_start_answer(
     authority_path: Path = DEFAULT_AUTHORITY_PATH,
     project_root: Path = Path("."),
 ) -> BrokerAnswer:
-    """Run every applicable connector, compose, and evaluate — returning the structured
+    """Run every applicable connector, compose, and evaluate, returning the structured
     broker answer (cards + honest coverage + one verdict per check). Transports render it;
     the hook maps it to a signal."""
 

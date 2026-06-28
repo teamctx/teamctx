@@ -7,7 +7,7 @@
 *   **The Steelman Counter:** An LLM with a 10M token window doesn't need a broker; it needs a crawler. If the agent can ingest the entire graph of the company's documentation in 3 seconds, a deterministic broker looks like a restrictive filter that might miss the "vibes" or "intent" captured in a messy Confluence comment that a regex-based broker would discard.
 *   **The Moat:** Determinism is your **Trust Moat**. In a world of generative slurry, "I don't know" is a premium feature. An LLM will always try to bridge the gap; `teamctx` provides the hard floor. For any system where "wrong is worse than absent," determinism wins.
 
-### 3) WEAKEST WEDGE: Safety Boundary—Painkiller or Vitamin?
+### 3) WEAKEST WEDGE: Safety Boundary, Painkiller or Vitamin?
 *   **The Reality:** "Safety" is a vitamin for developers and a painkiller for CISOs. Developers will pay (in time/setup) for **Avoided Rework**. 
 *   **The First Payer:** The Senior Lead who is tired of fixing "Agent-induced regressions" where the AI refactored code that was already being deprecated in an unmerged branch. They pay in *adoption* first, because it saves them a 2-hour code review.
 

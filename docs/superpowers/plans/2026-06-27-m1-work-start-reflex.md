@@ -1,8 +1,8 @@
-# M1 — work_start as a reflex (Implementation Plan)
+# M1: work_start as a reflex (Implementation Plan)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A deterministic Claude Code `PreToolUse` hook (plus a portable instruction) that fires `work_start` once per session at the first edit and injects a glanceable signal — *ready* / *heads up* / *can't verify what matters* — never blocking the edit.
+**Goal:** A deterministic Claude Code `PreToolUse` hook (plus a portable instruction) that fires `work_start` once per session at the first edit and injects a glanceable signal, *ready* / *heads up* / *can't verify what matters*: never blocking the edit.
 
 **Architecture:** A lightweight `teamctx-hook` script (own module, cheap no-op hot path) reads the PreToolUse JSON, no-ops if the session was already grounded, else resolves inputs, gets the structured `BrokerAnswer` via a new `work_start_answer`, maps it to one signal via a pure `hook_signal`, and emits `additionalContext`. A `teamctx install-hook` CLI command opt-in-installs the hook and prints the portable snippet.
 
@@ -14,12 +14,12 @@ Spec: `docs/superpowers/specs/2026-06-27-m1-work-start-reflex-design.md`.
 
 ## File structure
 
-- **Create** `src/teamctx/tokens.py` — `resolve_github_token()` (env `GITHUB_TOKEN` → `GITHUB_TOKEN_FILE`), lightweight, no heavy imports. (DRY: `mcp_server` reuses it.)
-- **Modify** `src/teamctx/work_start.py` — add `work_start_answer(...) -> BrokerAnswer`; `render_work_start` delegates to it.
-- **Create** `src/teamctx/hook_signal.py` — pure `hook_signal(answer, *, file_path, token_present) -> str`: the ready/heads-up/can't-verify mapper.
-- **Create** `src/teamctx/hook.py` — `teamctx-hook` entry: stdin→signal→stdout orchestration, once-per-session cache, fail-safe.
-- **Modify** `pyproject.toml` — add `teamctx-hook` console script.
-- **Modify** `src/teamctx/cli.py` — add `install-hook` command.
+- **Create** `src/teamctx/tokens.py`, `resolve_github_token()` (env `GITHUB_TOKEN` → `GITHUB_TOKEN_FILE`), lightweight, no heavy imports. (DRY: `mcp_server` reuses it.)
+- **Modify** `src/teamctx/work_start.py`, add `work_start_answer(...) -> BrokerAnswer`; `render_work_start` delegates to it.
+- **Create** `src/teamctx/hook_signal.py`, pure `hook_signal(answer, *, file_path, token_present) -> str`: the ready/heads-up/can't-verify mapper.
+- **Create** `src/teamctx/hook.py`, `teamctx-hook` entry: stdin→signal→stdout orchestration, once-per-session cache, fail-safe.
+- **Modify** `pyproject.toml`, add `teamctx-hook` console script.
+- **Modify** `src/teamctx/cli.py`, add `install-hook` command.
 - **Create** `tests/test_tokens.py`, `tests/test_hook_signal.py`, `tests/test_hook.py`, `tests/test_install_hook.py`.
 
 Order: Task 1 (tokens) and Task 2 (work_start_answer) are independent; Task 3 (hook_signal) needs Task 2's `BrokerAnswer` access pattern; Task 4 (hook) needs 1–3; Task 5 (install-hook) is independent; Task 6 verifies.
@@ -30,7 +30,7 @@ Order: Task 1 (tokens) and Task 2 (work_start_answer) are independent; Task 3 (h
 
 **Files:** Create `src/teamctx/tokens.py`; Modify `src/teamctx/mcp_server.py`; Test `tests/test_tokens.py`.
 
-- [ ] **Step 1: Write the failing test** — `tests/test_tokens.py`:
+- [ ] **Step 1: Write the failing test**: `tests/test_tokens.py`:
 
 ```python
 from __future__ import annotations
@@ -60,13 +60,13 @@ def test_falls_back_to_file_then_none(monkeypatch, tmp_path: Path) -> None:
     assert resolve_github_token() is None
 ```
 
-- [ ] **Step 2: Run to verify failure** — `pytest tests/test_tokens.py -v` → FAIL (no module `teamctx.tokens`).
+- [ ] **Step 2: Run to verify failure**: `pytest tests/test_tokens.py -v` → FAIL (no module `teamctx.tokens`).
 
-- [ ] **Step 3: Implement** — `src/teamctx/tokens.py`:
+- [ ] **Step 3: Implement**: `src/teamctx/tokens.py`:
 
 ```python
-"""Resolve the GitHub token from the environment (value, then file). Lightweight by design —
-no project imports — so the hot hook path can use it without pulling the broker."""
+"""Resolve the GitHub token from the environment (value, then file). Lightweight by design:
+no project imports, so the hot hook path can use it without pulling the broker."""
 
 from __future__ import annotations
 
@@ -76,7 +76,7 @@ from pathlib import Path
 
 def resolve_github_token() -> str | None:
     """``GITHUB_TOKEN`` (the value) wins; else ``GITHUB_TOKEN_FILE`` (a path) is read. A missing
-    or unreadable file yields ``None`` — honest absence, never a crash."""
+    or unreadable file yields ``None``, honest absence, never a crash."""
 
     token = os.environ.get("GITHUB_TOKEN")
     if token:
@@ -90,7 +90,7 @@ def resolve_github_token() -> str | None:
     return None
 ```
 
-- [ ] **Step 4: Reuse in `mcp_server.py`** — replace the body of `_resolve_github_token` with a call to the shared function (keep the wrapper name so existing tests pass). In `src/teamctx/mcp_server.py`, add import `from teamctx.tokens import resolve_github_token` and change `_resolve_github_token` to:
+- [ ] **Step 4: Reuse in `mcp_server.py`**: replace the body of `_resolve_github_token` with a call to the shared function (keep the wrapper name so existing tests pass). In `src/teamctx/mcp_server.py`, add import `from teamctx.tokens import resolve_github_token` and change `_resolve_github_token` to:
 
 ```python
 def _resolve_github_token() -> str | None:
@@ -99,9 +99,9 @@ def _resolve_github_token() -> str | None:
     return resolve_github_token()
 ```
 
-Remove the now-unused `import os` / `from pathlib import Path` from `mcp_server.py` ONLY if nothing else there uses them (check: `grep -nE "os\.|Path\(" src/teamctx/mcp_server.py` — `_resolution_root` uses both, so keep them).
+Remove the now-unused `import os` / `from pathlib import Path` from `mcp_server.py` ONLY if nothing else there uses them (check: `grep -nE "os\.|Path\(" src/teamctx/mcp_server.py`, `_resolution_root` uses both, so keep them).
 
-- [ ] **Step 5: Run** — `pytest tests/test_tokens.py tests/test_mcp_server.py -v` → all pass. `ruff check src/teamctx/tokens.py src/teamctx/mcp_server.py tests/test_tokens.py` and `mypy src/teamctx/tokens.py src/teamctx/mcp_server.py` clean.
+- [ ] **Step 5: Run**: `pytest tests/test_tokens.py tests/test_mcp_server.py -v` → all pass. `ruff check src/teamctx/tokens.py src/teamctx/mcp_server.py tests/test_tokens.py` and `mypy src/teamctx/tokens.py src/teamctx/mcp_server.py` clean.
 
 - [ ] **Step 6: Commit**
 
@@ -116,7 +116,7 @@ git commit -m "refactor: extract resolve_github_token to teamctx.tokens (shared,
 
 **Files:** Modify `src/teamctx/work_start.py`; Test `tests/test_work_start_answer.py`.
 
-- [ ] **Step 1: Write the failing test** — `tests/test_work_start_answer.py`:
+- [ ] **Step 1: Write the failing test**: `tests/test_work_start_answer.py`:
 
 ```python
 from __future__ import annotations
@@ -150,9 +150,9 @@ def test_render_work_start_still_renders(monkeypatch) -> None:
     assert "Conflict check:" in text
 ```
 
-- [ ] **Step 2: Run to verify failure** — `pytest tests/test_work_start_answer.py -v` → FAIL (no `work_start_answer`).
+- [ ] **Step 2: Run to verify failure**: `pytest tests/test_work_start_answer.py -v` → FAIL (no `work_start_answer`).
 
-- [ ] **Step 3: Implement** — in `src/teamctx/work_start.py`, add `work_start_answer` and make `render_work_start` delegate. Replace the existing `render_work_start` body and add the new function (keep imports; add `from teamctx.core.broker import BrokerAnswer`):
+- [ ] **Step 3: Implement**: in `src/teamctx/work_start.py`, add `work_start_answer` and make `render_work_start` delegate. Replace the existing `render_work_start` body and add the new function (keep imports; add `from teamctx.core.broker import BrokerAnswer`):
 
 ```python
 def work_start_answer(
@@ -162,7 +162,7 @@ def work_start_answer(
     authority_path: Path = DEFAULT_AUTHORITY_PATH,
     project_root: Path = Path("."),
 ) -> BrokerAnswer:
-    """Run every applicable connector, compose, and evaluate — returning the structured
+    """Run every applicable connector, compose, and evaluate, returning the structured
     broker answer (cards + honest coverage + one verdict per check). Transports render it;
     the hook maps it to a signal."""
 
@@ -190,7 +190,7 @@ def render_work_start(
 
 (`run_work_start_connectors` already accepts `project_root` from the Sprint-1 docs fix; `render_broker_answer` and `broker_answer_from_documents` are already imported.)
 
-- [ ] **Step 4: Run** — `pytest tests/test_work_start_answer.py tests/test_work_start_cli.py tests/test_mcp_server.py -v` → all pass (render path unchanged). ruff + mypy clean on `work_start.py`.
+- [ ] **Step 4: Run**: `pytest tests/test_work_start_answer.py tests/test_work_start_cli.py tests/test_mcp_server.py -v` → all pass (render path unchanged). ruff + mypy clean on `work_start.py`.
 
 - [ ] **Step 5: Commit**
 
@@ -208,7 +208,7 @@ git commit -m "feat: expose work_start_answer (structured BrokerAnswer); render 
 The mapper is a pure function over `BrokerAnswer`. Tests construct answers via the real engine
 (`broker_answer`) so we exercise true verdict/coverage shapes, not hand-rolled internals.
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_hook_signal.py`:
+- [ ] **Step 1: Write the failing tests**: `tests/test_hook_signal.py`:
 
 ```python
 from __future__ import annotations
@@ -306,14 +306,14 @@ def test_ready_names_the_clear_checks_no_lowstakes_hedge() -> None:
     assert "couldn't" not in text.lower()  # no "...but" hedge for low-stakes gaps
 ```
 
-- [ ] **Step 2: Run to verify failure** — `pytest tests/test_hook_signal.py -v` → FAIL (no module `teamctx.hook_signal`).
+- [ ] **Step 2: Run to verify failure**: `pytest tests/test_hook_signal.py -v` → FAIL (no module `teamctx.hook_signal`).
 
-- [ ] **Step 3: Implement** — `src/teamctx/hook_signal.py`:
+- [ ] **Step 3: Implement**: `src/teamctx/hook_signal.py`:
 
 ```python
 """Map the broker's answer to one glanceable hook signal: ready / heads up / can't verify.
 
-The hook injects a short signal before an edit — not the full CLI report. Per the surfaced-text
+The hook injects a short signal before an edit, not the full CLI report. Per the surfaced-text
 principle, it speaks to a human about to decide: a clean *ready* that names what it checked, a
 *heads up* with the specific item, or *can't verify* when a source that matters was unreachable.
 Low-stakes coverage gaps (a check not configured) are never headlined.
@@ -360,8 +360,8 @@ def hook_signal(answer: BrokerAnswer, *, file_path: str, token_present: bool) ->
 
 
 def _heads_up(findings: list[ContextCard], file_path: str) -> str:
-    lines = [f"teamctx — before you edit {file_path}, from the team's current work:"]
-    lines.extend(f"  • {card.text} — {card.why_this_matters}" for card in findings)
+    lines = [f"teamctx, before you edit {file_path}, from the team's current work:"]
+    lines.extend(f"  • {card.text}, {card.why_this_matters}" for card in findings)
     lines.append("Pass along anything relevant to whoever you're working with so they can decide.")
     return "\n".join(lines)
 
@@ -369,15 +369,15 @@ def _heads_up(findings: list[ContextCard], file_path: str) -> str:
 def _cant_verify(token_present: bool) -> str:
     if not token_present:
         return (
-            "teamctx couldn't check what else is happening around this file — it doesn't have "
+            "teamctx couldn't check what else is happening around this file, it doesn't have "
             "access to GitHub yet. To switch that on, run `teamctx install-hook` and it'll walk you "
-            "through giving it a token. If you'd rather not connect it right now, that's fine — "
+            "through giving it a token. If you'd rather not connect it right now, that's fine, "
             "keep working; you just won't get a heads-up about open pull requests on the same files "
             "or checks that are failing."
         )
     return (
         "teamctx couldn't reach GitHub just now, so it couldn't check for open pull requests or "
-        "failing checks on these files — usually a passing connection issue, worth a retry. "
+        "failing checks on these files, usually a passing connection issue, worth a retry. "
         "Until it's back you won't get those warnings, so glance at GitHub yourself if this file is "
         "sensitive."
     )
@@ -391,7 +391,7 @@ def _ready(verdicts: dict[str, Valuation], file_path: str) -> str:
     ]
     if not clear:
         return ""
-    return f"teamctx — looks clear to start on {file_path}: {_join(clear)}."
+    return f"teamctx, looks clear to start on {file_path}: {_join(clear)}."
 
 
 def _join(items: list[str]) -> str:
@@ -400,15 +400,15 @@ def _join(items: list[str]) -> str:
     return ", ".join(items[:-1]) + ", and " + items[-1]
 ```
 
-- [ ] **Step 4: Run** — `pytest tests/test_hook_signal.py -v` → PASS. `ruff check src/teamctx/hook_signal.py tests/test_hook_signal.py` and `mypy src/teamctx/hook_signal.py` clean.
+- [ ] **Step 4: Run**: `pytest tests/test_hook_signal.py -v` → PASS. `ruff check src/teamctx/hook_signal.py tests/test_hook_signal.py` and `mypy src/teamctx/hook_signal.py` clean.
 
-> If `source_status` / `metadata_only_policy` are not importable from `teamctx.connectors._contract`, `grep -n "def source_status\|def metadata_only_policy" src/teamctx/connectors/_contract.py` to confirm the names and adjust the test imports. (Do not change `hook_signal.py` for this — only the test's construction helpers.)
+> If `source_status` / `metadata_only_policy` are not importable from `teamctx.connectors._contract`, `grep -n "def source_status\|def metadata_only_policy" src/teamctx/connectors/_contract.py` to confirm the names and adjust the test imports. (Do not change `hook_signal.py` for this, only the test's construction helpers.)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/teamctx/hook_signal.py tests/test_hook_signal.py
-git commit -m "feat: hook_signal — map broker answer to ready/heads-up/can't-verify"
+git commit -m "feat: hook_signal, map broker answer to ready/heads-up/can't-verify"
 ```
 
 ---
@@ -417,7 +417,7 @@ git commit -m "feat: hook_signal — map broker answer to ready/heads-up/can't-v
 
 **Files:** Create `src/teamctx/hook.py`; Modify `pyproject.toml`; Test `tests/test_hook.py`.
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_hook.py`:
+- [ ] **Step 1: Write the failing tests**: `tests/test_hook.py`:
 
 ```python
 from __future__ import annotations
@@ -522,14 +522,14 @@ def test_non_edit_tool_is_noop(monkeypatch, capsys, tmp_path) -> None:
     assert out.strip() == ""
 ```
 
-- [ ] **Step 2: Run to verify failure** — `pytest tests/test_hook.py -v` → FAIL (no module `teamctx.hook`).
+- [ ] **Step 2: Run to verify failure**: `pytest tests/test_hook.py -v` → FAIL (no module `teamctx.hook`).
 
-- [ ] **Step 3: Implement** — `src/teamctx/hook.py`. The hot no-op path (read stdin, check cache) runs before importing the broker:
+- [ ] **Step 3: Implement**: `src/teamctx/hook.py`. The hot no-op path (read stdin, check cache) runs before importing the broker:
 
 ```python
 """``teamctx-hook``: the Claude Code PreToolUse reflex.
 
-On the first Edit/Write/MultiEdit of a session it grounds the agent — runs work_start for the
+On the first Edit/Write/MultiEdit of a session it grounds the agent, runs work_start for the
 in-flight change and injects a short signal (ready / heads up / can't verify) as
 ``additionalContext``. It NEVER blocks an edit and never crashes the session: any error exits 0
 with a plain message or nothing. Kept import-light so the per-edit no-op path stays cheap.
@@ -549,7 +549,7 @@ _EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 def main() -> None:
     try:
         _run()
-    except Exception:  # noqa: BLE001 — a hook must never crash the session
+    except Exception:  # noqa: BLE001, a hook must never crash the session
         # Fail-safe: stay silent, allow the edit.
         pass
     sys.exit(0)
@@ -567,7 +567,7 @@ def _run() -> None:
     session_id = event.get("session_id")
     if not file_path or not cwd or not session_id:
         return
-    if _already_grounded(session_id):  # once per session — cheap no-op path ends here
+    if _already_grounded(session_id):  # once per session, cheap no-op path ends here
         return
     _mark_grounded(session_id)
 
@@ -643,19 +643,19 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 4: Add the console script** — in `pyproject.toml` under `[project.scripts]`, add:
+- [ ] **Step 4: Add the console script**: in `pyproject.toml` under `[project.scripts]`, add:
 
 ```toml
 teamctx-hook = "teamctx.hook:main"
 ```
 
-- [ ] **Step 5: Run** — `pytest tests/test_hook.py -v` → PASS. `ruff check src/teamctx/hook.py tests/test_hook.py` and `mypy src/teamctx/hook.py` clean.
+- [ ] **Step 5: Run**: `pytest tests/test_hook.py -v` → PASS. `ruff check src/teamctx/hook.py tests/test_hook.py` and `mypy src/teamctx/hook.py` clean.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add src/teamctx/hook.py tests/test_hook.py pyproject.toml
-git commit -m "feat: teamctx-hook — PreToolUse reflex, once per session, never blocks"
+git commit -m "feat: teamctx-hook, PreToolUse reflex, once per session, never blocks"
 ```
 
 ---
@@ -664,7 +664,7 @@ git commit -m "feat: teamctx-hook — PreToolUse reflex, once per session, never
 
 **Files:** Modify `src/teamctx/cli.py`; Test `tests/test_install_hook.py`.
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_install_hook.py`:
+- [ ] **Step 1: Write the failing tests**: `tests/test_install_hook.py`:
 
 ```python
 from __future__ import annotations
@@ -717,9 +717,9 @@ def test_install_hook_merges_existing_settings(tmp_path, monkeypatch) -> None:
     assert "PreToolUse" in settings["hooks"]  # added
 ```
 
-- [ ] **Step 2: Run to verify failure** — `pytest tests/test_install_hook.py -v` → FAIL (no `install-hook` command).
+- [ ] **Step 2: Run to verify failure**: `pytest tests/test_install_hook.py -v` → FAIL (no `install-hook` command).
 
-- [ ] **Step 3: Implement** — in `src/teamctx/cli.py`, add the command and helpers (uses `json`, `Path`, `click` — all already imported):
+- [ ] **Step 3: Implement**: in `src/teamctx/cli.py`, add the command and helpers (uses `json`, `Path`, `click`, all already imported):
 
 ```python
 _HOOK_MATCHER = "Edit|Write|MultiEdit"
@@ -727,7 +727,7 @@ _HOOK_ENTRY = {"matcher": _HOOK_MATCHER, "hooks": [{"type": "command", "command"
 _CLAUDE_MD_SNIPPET = (
     "## Team context (teamctx)\n"
     "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
-    "into your plan — it surfaces open PRs touching your files, failing checks, changed specs, and "
+    "into your plan, it surfaces open PRs touching your files, failing checks, changed specs, and "
     "superseded docs. Tell your human collaborator anything relevant in plain terms so they can "
     "decide.\n"
 )
@@ -786,13 +786,13 @@ def _has_hook_entry(settings: dict[str, Any]) -> bool:
 
 Add `from typing import Any` to `cli.py` imports if not already present (`grep -n "from typing import" src/teamctx/cli.py`).
 
-- [ ] **Step 4: Run** — `pytest tests/test_install_hook.py -v` → PASS. `ruff check src/teamctx/cli.py tests/test_install_hook.py` and `mypy src/teamctx/cli.py` clean. (Note: `hook` is used as a loop variable in `_has_hook_entry`; ensure it doesn't shadow a module import — it doesn't in `cli.py`.)
+- [ ] **Step 4: Run**: `pytest tests/test_install_hook.py -v` → PASS. `ruff check src/teamctx/cli.py tests/test_install_hook.py` and `mypy src/teamctx/cli.py` clean. (Note: `hook` is used as a loop variable in `_has_hook_entry`; ensure it doesn't shadow a module import, it doesn't in `cli.py`.)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/teamctx/cli.py tests/test_install_hook.py
-git commit -m "feat: teamctx install-hook — opt-in PreToolUse install + portable snippet"
+git commit -m "feat: teamctx install-hook, opt-in PreToolUse install + portable snippet"
 ```
 
 ---
@@ -810,6 +810,6 @@ git commit -m "feat: teamctx install-hook — opt-in PreToolUse install + portab
 
 **Spec coverage:** Component 1 (the hook) → Tasks 2,3,4. Component 2 (portable instruction) → the snippet in Task 5 (`_CLAUDE_MD_SNIPPET`). Component 3 (opt-in install) → Task 5. Messaging / signal model (ready/heads-up/can't-verify, low-stakes gaps not headlined, the no-token exemplar) → Task 3 `hook_signal` + its tests. Fail-safe-never-block → Task 4 (`main` swallows all exceptions, exits 0, never sets `permissionDecision`). Once-per-session cache → Task 4 (`_already_grounded`). In-flight-change paths → Task 4 (`_changed_paths`). Performance/lazy no-op path → Task 4 (broker imported inside `_ground`, after the cache check). Dedicated `teamctx-hook` script → Task 4. To-verify items (settings schema, real-session delivery) are flagged for the dogfood; the schema is exercised by Task 5's tests.
 
-**Placeholder scan:** none — every step has complete code and exact commands.
+**Placeholder scan:** none, every step has complete code and exact commands.
 
 **Type/name consistency:** `work_start_answer`, `hook_signal(answer, *, file_path, token_present)`, `resolve_github_token`, `_HOOK_ENTRY`/`_HOOK_MATCHER`, `teamctx-hook` used consistently. Verdict labels ("Conflict check"/"Gate check"/"Docs check"/"Criteria check") match `CARD_KINDS` in `core/select.py`. `Valuation.value`/`.reason` and `ContextCard.section`/`.text`/`.why_this_matters` match `core/evaluate.py` and `core/select.py`.

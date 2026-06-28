@@ -1,4 +1,4 @@
-The right framing is that you’re separating two *architectural roles* — a stateless context function and a durable team memory — that must never be collapsed into a single trust domain. The two-package approach is sound, but only if the seam is enforced at every layer, from dependency graph to runtime isolation. Here’s the concrete position on each question.
+The right framing is that you’re separating two *architectural roles*: a stateless context function and a durable team memory, that must never be collapsed into a single trust domain. The two-package approach is sound, but only if the seam is enforced at every layer, from dependency graph to runtime isolation. Here’s the concrete position on each question.
 
 ---
 
@@ -6,9 +6,9 @@ The right framing is that you’re separating two *architectural roles* — a st
 
 **Steelman for a product-only artifact:** A single, tightly-coupled set of packages (broker + optional memory) gives adopters a turnkey solution with no fragmentation. Consistency is guaranteed; the cross-agent file/CLI surface is the product’s moat, and any third-party reimplementation risks subtle semantic drift that breaks deterministic guarantees. For an open-source tool aiming to be acquired, a polished, opinionated product accelerates initial adoption.
 
-**Steelman for a specification-first artifact:** The true moat is the *protocol* — the context card schema, coverage certificate semantics, and the file/CLI/MCP transport contracts. A specification allows multiple implementations (Rust, Python, Wasm), enables enterprise forks with custom trust models, and avoids vendor lock-in. Trust is maximized when anyone can audit the spec and build a compatible broker, and the memory layer can be implemented independently against the same source interface.
+**Steelman for a specification-first artifact:** The true moat is the *protocol*: the context card schema, coverage certificate semantics, and the file/CLI/MCP transport contracts. A specification allows multiple implementations (Rust, Python, Wasm), enables enterprise forks with custom trust models, and avoids vendor lock-in. Trust is maximized when anyone can audit the spec and build a compatible broker, and the memory layer can be implemented independently against the same source interface.
 
-**Commitment: specification + reference implementation serves adoption, trust, and impact better.** The broker’s value is its deterministic, cross-agent contract. That contract *is* a protocol, whether you call it one or not. Publishing it as an explicit, versioned specification (with the current codebase as the reference implementation) invites ecosystem contribution, allows security teams to verify behavior without reading a single codebase, and makes the “no tracking” guarantee auditable at the spec level. The two-package product becomes the canonical open-source implementation, not the only possible one. This is how you earn trust at scale — and adoption follows trust.
+**Commitment: specification + reference implementation serves adoption, trust, and impact better.** The broker’s value is its deterministic, cross-agent contract. That contract *is* a protocol, whether you call it one or not. Publishing it as an explicit, versioned specification (with the current codebase as the reference implementation) invites ecosystem contribution, allows security teams to verify behavior without reading a single codebase, and makes the “no tracking” guarantee auditable at the spec level. The two-package product becomes the canonical open-source implementation, not the only possible one. This is how you earn trust at scale, and adoption follows trust.
 
 ---
 
@@ -30,7 +30,7 @@ The key is that the broker itself is always stateless and never depends on the m
 
 ---
 
-### 3. “Durable-as-a-read-source” holds — but the trust boundary shifts, and that shift must be explicit.
+### 3. “Durable-as-a-read-source” holds: but the trust boundary shifts, and that shift must be explicit.
 
 The broker’s structural guarantees are:
 - **Can’t track:** no retained request logs, no behavioral state.
@@ -47,7 +47,7 @@ When the memory layer is plugged in as a read source, the broker treats it exact
 
 ### 4. The collapse mode: **When the memory layer becomes de facto required for core value.**
 
-The specific failure mode is that the broker’s headline promises — “every agent starts knowing what the team decided” or “no agent misses a handoff” — become impossible without the memory layer. Then the “optional” package is a fiction; users must install it to get the advertised benefit, and the separation is just a config toggle pretending to be an architectural boundary.
+The specific failure mode is that the broker’s headline promises, “every agent starts knowing what the team decided” or “no agent misses a handoff”, become impossible without the memory layer. Then the “optional” package is a fiction; users must install it to get the advertised benefit, and the separation is just a config toggle pretending to be an architectural boundary.
 
 **Design rule to prevent collapse:**
 1. **The broker’s core value proposition must be fully realized with zero dependency on the memory layer.** The stateless broker alone must deliver compelling, cross-agent context from live sources (PR overlaps, stale acceptance criteria, superseded docs). The memory layer adds *durable team knowledge* on top, but that is an additive feature, not the core.

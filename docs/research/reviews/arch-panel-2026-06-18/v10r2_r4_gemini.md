@@ -6,14 +6,14 @@ However, the formal execution of the polarity/valuation logic contains a **criti
 
 Here is the detailed Round 2 evaluation.
 
-### PART 1 — Closure of Round 1 Issues
+### PART 1: Closure of Round 1 Issues
 *   **(i) O1 as enforced assumption:** **Closed cleanly.** Promoting O1 to an explicit trusted-base assumption discharged via deployment-time manifest validation is the correct architectural approach. It bridges the gap between formal semantics and systems reality.
 *   **(ii) Unbounded syntactic:** **Closed cleanly.** Defining unboundedness as a syntactic/depth-bounded check guarantees `complete?` totality without brushing against undecidability.
 *   **(iii) $\delta$-gated closure status:** **Closed cleanly.** Masking invisible-target dangling references to `Unknown[unobserved]` perfectly seals the T5/T6 existence-privacy leak.
 *   **(iv) Polarity / Counterexamples:** **Conceptually closed, formally flawed.** The distinction between counterexample-False and exhaustive-absence-False is correct, but the mathematical notation in §5 is broken (see Part 2a).
 *   **(v) Unknown[stale-authority]:** **Closed cleanly.** Explicitly trapping stale maximal authority prevents silent, unsafe fallbacks to lower-priority fresh sources.
 
-### PART 2 — New Contradictions & Theorem Checks
+### PART 2: New Contradictions & Theorem Checks
 
 **(a) The Polarity Asymmetry (CRITICAL BUG)**
 Your prose states: *(existential ρ: True by one witness; universal ρ: False by one counterexample)*. However, your formal valuation rule is asymmetric and fails for universal propositions. 

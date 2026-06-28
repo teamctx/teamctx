@@ -195,7 +195,7 @@ def test_closure_stale_dep_when_git_hosting_not_fresh() -> None:
 
 
 def test_closure_policy_gap_when_git_hosting_unobserved() -> None:
-    # the fixture has only a docs source — the mandated git_hosting source is absent.
+    # the fixture has only a docs source; the mandated git_hosting source is absent.
     coverage = build_coverage(load_document().source_statuses)
     assert assess_completeness(_collision_query(), coverage) == "incomplete[policy-gap]"
 

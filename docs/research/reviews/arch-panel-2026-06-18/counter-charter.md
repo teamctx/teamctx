@@ -2,12 +2,12 @@ You are a skeptical principal engineer. A 4-model panel reached a consensus on t
 architecture of a deterministic, read-only, cross-agent "context broker" for AI
 coding agents (returns typed "context cards" + an honest "coverage certificate" of
 what was/wasn't observed). Your job is to ATTACK the consensus and find where it is
-wrong, naive, or theater. Product/architecture/trust/adoption lens ONLY — never
+wrong, naive, or theater. Product/architecture/trust/adoption lens ONLY, never
 business model, pricing, or GTM.
 
 THE CONSENSUS YOU MUST ATTACK:
 
-1. Ship it as a "specification + reference implementation," not just packages —
+1. Ship it as a "specification + reference implementation," not just packages:
    publish a Context-Broker Protocol (card schema, coverage-certificate semantics,
    source-connector interface, determinism rules); the codebase is the reference
    impl; third parties can build compatible brokers. (One panelist dissented: said
@@ -24,7 +24,7 @@ THE CONSENSUS YOU MUST ATTACK:
 
 3. "Durable-as-a-read-source" holds: the memory layer plugs into the broker via the
    same interface as GitHub/Jira, so the broker stays stateless even when memory is
-   present — PROVIDED the memory layer is a pure read source (no query-driven
+   present, PROVIDED the memory layer is a pure read source (no query-driven
    mutation, no write-back on read, no broker-side caching across calls), and the
    coverage certificate pins the memory layer's immutable commit hash.
 

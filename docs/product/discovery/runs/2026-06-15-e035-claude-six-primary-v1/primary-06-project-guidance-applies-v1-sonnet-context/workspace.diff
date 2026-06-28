@@ -30,4 +30,4 @@ index 49c8881..1f5f394 100644
 +        except TimeoutError as exc:
 +            if time.monotonic() >= deadline:
 +                raise TokenRotationError("token rotation timed out") from exc
-+            # within retry window — retry the rotation
++            # within retry window, retry the rotation

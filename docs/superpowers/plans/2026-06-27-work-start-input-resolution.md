@@ -12,11 +12,11 @@
 
 ## File structure
 
-- **Create** `src/teamctx/git_context.py` — read-only git detection: `detect_repo`, `detect_branch`, `parse_owner_name`. No network.
-- **Create** `src/teamctx/resolve.py` — `WorkStartResolutionError`, `resolve_work_start_inputs(...)`. The one resolution path both transports use.
-- **Modify** `src/teamctx/project_config.py` — add `WorkStartConfig` model + `work_start` field on `ProjectConfig` (additive, backward-compatible, still `v0`).
-- **Modify** `src/teamctx/cli.py` — `work-start`: `--github-repo` optional; resolve via `resolve_work_start_inputs`; remove now-unused `WorkStartInputs` import.
-- **Modify** `src/teamctx/mcp_server.py` — `work_start`: `repo` optional, `paths` first; extract `_run_work_start` + `_resolution_root` (honours `TEAMCTX_PROJECT_ROOT`); resolution error returned as the tool's text.
+- **Create** `src/teamctx/git_context.py`, read-only git detection: `detect_repo`, `detect_branch`, `parse_owner_name`. No network.
+- **Create** `src/teamctx/resolve.py`, `WorkStartResolutionError`, `resolve_work_start_inputs(...)`. The one resolution path both transports use.
+- **Modify** `src/teamctx/project_config.py`, add `WorkStartConfig` model + `work_start` field on `ProjectConfig` (additive, backward-compatible, still `v0`).
+- **Modify** `src/teamctx/cli.py`, `work-start`: `--github-repo` optional; resolve via `resolve_work_start_inputs`; remove now-unused `WorkStartInputs` import.
+- **Modify** `src/teamctx/mcp_server.py`, `work_start`: `repo` optional, `paths` first; extract `_run_work_start` + `_resolution_root` (honours `TEAMCTX_PROJECT_ROOT`); resolution error returned as the tool's text.
 - **Create** `tests/test_git_context.py`, `tests/test_resolve.py`; **Modify** `tests/test_project_config.py`, `tests/test_work_start_cli.py`, `tests/test_mcp_server.py`.
 
 Dependency order: Task 1 (git_context) and Task 2 (config) are independent; Task 3 (resolve) needs both; Tasks 4–5 (transports) need Task 3; Task 6 verifies the whole.
@@ -97,7 +97,7 @@ def test_detect_branch_none_when_detached(tmp_path: Path) -> None:
 - [ ] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_git_context.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'teamctx.git_context'`.
+Expected: FAIL, `ModuleNotFoundError: No module named 'teamctx.git_context'`.
 
 - [ ] **Step 3: Implement the module**
 
@@ -105,7 +105,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'teamctx.git_context'`.
 # src/teamctx/git_context.py
 """Read-only git detection for work-start input resolution.
 
-Resolves the two facts git already knows about a working tree — the repository identity
+Resolves the two facts git already knows about a working tree, the repository identity
 (owner/name from the ``origin`` remote) and the current branch. Any failure returns ``None``
 (honest absence), never a guess, so a non-git or unreachable tree degrades to the broker's
 honest-UNKNOWN rather than a fabricated value. No network I/O.
@@ -239,9 +239,9 @@ def test_work_start_section_rejects_unknown_fields(tmp_path: Path) -> None:
 - [ ] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_project_config.py -k work_start -v`
-Expected: FAIL — `AttributeError`/validation: `ProjectConfig` has no `work_start`.
+Expected: FAIL, `AttributeError`/validation: `ProjectConfig` has no `work_start`.
 
-- [ ] **Step 3: Implement the models** — in `src/teamctx/project_config.py`, add `WorkStartConfig` after `GitHubSourceConfig`, and the `work_start` field on `ProjectConfig`.
+- [ ] **Step 3: Implement the models**: in `src/teamctx/project_config.py`, add `WorkStartConfig` after `GitHubSourceConfig`, and the `work_start` field on `ProjectConfig`.
 
 ```python
 class WorkStartConfig(StrictConfigModel):
@@ -262,7 +262,7 @@ class ProjectConfig(StrictConfigModel):
 - [ ] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_project_config.py -v`
-Expected: PASS (new tests + all pre-existing config tests still green — backward compatible).
+Expected: PASS (new tests + all pre-existing config tests still green, backward compatible).
 
 - [ ] **Step 5: Commit**
 
@@ -365,7 +365,7 @@ def test_resolves_from_a_real_repo_and_config(tmp_path: Path) -> None:
 - [ ] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_resolve.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'teamctx.resolve'`.
+Expected: FAIL, `ModuleNotFoundError: No module named 'teamctx.resolve'`.
 
 - [ ] **Step 3: Implement the resolver**
 
@@ -377,7 +377,7 @@ Both transports (the CLI and the MCP tool) call ``resolve_work_start_inputs`` be
 the broker, so they resolve identically. Precedence per field is
 ``explicit > .teamctx/config.json > git-detection > honest-absent``. Branch is never read from
 config (it is volatile). A repository that cannot be resolved from any source raises
-``WorkStartResolutionError`` — there is nothing to check, so that is a setup error, not a
+``WorkStartResolutionError``, there is nothing to check, so that is a setup error, not a
 coverage gap.
 """
 
@@ -512,9 +512,9 @@ Also **update** the existing `test_work_start_with_no_token_degrades_honestly` s
 - [ ] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_work_start_cli.py -v`
-Expected: FAIL — `test_work_start_resolves_repo_from_git_without_flag` errors because `--github-repo` is currently required.
+Expected: FAIL, `test_work_start_resolves_repo_from_git_without_flag` errors because `--github-repo` is currently required.
 
-- [ ] **Step 3: Implement** — in `src/teamctx/cli.py`:
+- [ ] **Step 3: Implement**: in `src/teamctx/cli.py`:
 
 (a) Remove the unused import line `from teamctx.runner import WorkStartInputs`.
 (b) Add `from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs`.
@@ -618,9 +618,9 @@ def test_work_start_returns_error_text_when_repo_unresolvable(monkeypatch, tmp_p
 - [ ] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_mcp_server.py -v`
-Expected: FAIL — new tests fail (`work_start(paths=...)` requires `repo`; no `_resolution_root`).
+Expected: FAIL, new tests fail (`work_start(paths=...)` requires `repo`; no `_resolution_root`).
 
-- [ ] **Step 3: Implement** — in `src/teamctx/mcp_server.py`:
+- [ ] **Step 3: Implement**: in `src/teamctx/mcp_server.py`:
 
 (a) Replace `from teamctx.runner import WorkStartInputs` with:
 
@@ -712,7 +712,7 @@ git commit -m "feat: MCP work_start auto-resolves repo; root via TEAMCTX_PROJECT
 - [ ] **Step 1: Full test suite**
 
 Run: `pytest`
-Expected: PASS — all pre-existing tests plus the new ones (no regressions).
+Expected: PASS, all pre-existing tests plus the new ones (no regressions).
 
 - [ ] **Step 2: Lint**
 

@@ -2,7 +2,7 @@
 
 ## 1. Resolution of Prior Defects
 
-**(a) T5 reachability paradox (circularity in Req(q)):** RESOLVED. The shift to dangling references read from foreign keys *within* the observed subgraph cleanly breaks the circularity. Computing `D(q)` without traversing offline sources is the correct fix. The honest residual—structurally disconnected relevant sources—is properly admitted.
+**(a) T5 reachability paradox (circularity in Req(q)):** RESOLVED. The shift to dangling references read from foreign keys *within* the observed subgraph cleanly breaks the circularity. Computing `D(q)` without traversing offline sources is the correct fix. The honest residual, structurally disconnected relevant sources, is properly admitted.
 
 **(b) "Dissolve → relocate" overclaim:** RESOLVED. Dropping "dissolve" and making `κ` an explicit, machine-checkable ignorance boundary with the 3-valued semantics is a genuine improvement. The admission that correct consumption is an obligation the protocol cannot enforce (cited as agent-cooperation limitation) closes this.
 

@@ -1,27 +1,27 @@
 # Certified Context for Autonomous Coding Agents
 ### A Deterministic Mediation Protocol with Coverage Guarantees
 
-*Working paper v0.1 — written in role as a Distributed Systems & Security research pair (PhD candidate + advisor). This is an internal stress-testing document, not a publication. Claims are stated to be attacked.*
+*Working paper v0.1, written in role as a Distributed Systems & Security research pair (PhD candidate + advisor). This is an internal stress-testing document, not a publication. Claims are stated to be attacked.*
 
 ---
 
 ## Abstract
 
-Autonomous coding agents act on the live state of a software team — open pull requests, changed acceptance criteria, updated process docs — yet they begin each session blind to it. The prevailing remedy is *best-effort retrieval*: dump source material (RAG, long context, agent memory) into the model and hope it attends to the right facts. Best-effort retrieval has three structural defects: it is **unverifiable** (you cannot prove what the agent could and could not have seen), it **conflates current with correct** and **absent with safe**, and it is a **prompt-injection delivery channel** by construction.
+Autonomous coding agents act on the live state of a software team, open pull requests, changed acceptance criteria, updated process docs, yet they begin each session blind to it. The prevailing remedy is *best-effort retrieval*: dump source material (RAG, long context, agent memory) into the model and hope it attends to the right facts. Best-effort retrieval has three structural defects: it is **unverifiable** (you cannot prove what the agent could and could not have seen), it **conflates current with correct** and **absent with safe**, and it is a **prompt-injection delivery channel** by construction.
 
-We reframe the problem as **certified context mediation**. We define a deterministic protocol, `teamctx`, that sits between untrusted systems-of-record and an acting agent and returns a small set of source-backed *context cards* together with a **coverage certificate** `κ`. We prove (sketch) four properties — *determinism*, *permission noninterference*, *evidence/instruction separation*, and *no-silent-omission* — and show they follow from a single design choice: the card generator is a pure function over a permission-indexed snapshot, with source content confined to a typed, non-imperative channel. The coverage certificate makes the protocol's *negative* claims explicit and bounded: `teamctx` cannot say "all clear," only "no conflict over the observed, permitted region described by `κ`." We give an adversary-by-adversary security analysis, state the limitations honestly (fidelity is guaranteed, *truth* is not), and position the work against reference monitors, information-flow control, language-theoretic security, and bounded-staleness consistency.
+We reframe the problem as **certified context mediation**. We define a deterministic protocol, `teamctx`, that sits between untrusted systems-of-record and an acting agent and returns a small set of source-backed *context cards* together with a **coverage certificate** `κ`. We prove (sketch) four properties, *determinism*, *permission noninterference*, *evidence/instruction separation*, and *no-silent-omission*: and show they follow from a single design choice: the card generator is a pure function over a permission-indexed snapshot, with source content confined to a typed, non-imperative channel. The coverage certificate makes the protocol's *negative* claims explicit and bounded: `teamctx` cannot say "all clear," only "no conflict over the observed, permitted region described by `κ`." We give an adversary-by-adversary security analysis, state the limitations honestly (fidelity is guaranteed, *truth* is not), and position the work against reference monitors, information-flow control, language-theoretic security, and bounded-staleness consistency.
 
 **Contributions.**
 1. A formalization of agent context as *certified mediation* rather than best-effort retrieval.
-2. The **coverage certificate** `κ` and the **No-Silent-Omission** property, a calculus in which "I don't know" is typed and bounded — the formal dissolution of the *absence-as-clearance* fallacy.
-3. A proof sketch that **determinism + typed channels + permission-indexed inputs** jointly yield reproducible audit, noninterference privacy, and injection-resistance — properties usually pursued separately.
+2. The **coverage certificate** `κ` and the **No-Silent-Omission** property, a calculus in which "I don't know" is typed and bounded, the formal dissolution of the *absence-as-clearance* fallacy.
+3. A proof sketch that **determinism + typed channels + permission-indexed inputs** jointly yield reproducible audit, noninterference privacy, and injection-resistance, properties usually pursued separately.
 4. A **decidable, learning-free relevance predicate** based on typed blast-radius reachability, with an explicit *relevance ceiling* and an untrusted client-side hint layer that cannot perturb the certified set.
 
 ---
 
 ## 1. Introduction
 
-A unit of software work is a task on a branch. Its *truth* — the facts that should change what gets written — is scattered across a forge (PRs/MRs), a tracker (issues, acceptance criteria), docs (process rules), and CI. Humans discover these facts late, after the collision; autonomous agents discover them never, because each session starts cold and the agent confidently fills gaps it cannot see.
+A unit of software work is a task on a branch. Its *truth*: the facts that should change what gets written, is scattered across a forge (PRs/MRs), a tracker (issues, acceptance criteria), docs (process rules), and CI. Humans discover these facts late, after the collision; autonomous agents discover them never, because each session starts cold and the agent confidently fills gaps it cannot see.
 
 The dominant response is to widen the agent's intake: larger context windows, retrieval pipelines, persistent "memory." This treats context as a *recall* problem. We argue it is a *mediation* problem with three hard requirements that recall-based systems cannot satisfy:
 
@@ -29,7 +29,7 @@ The dominant response is to widen the agent's intake: larger context windows, re
 - **Permission fidelity.** The agent must see only what the requesting human is permitted to see, and the system's output must not leak the existence of what it may not see.
 - **Trust boundary.** Source text is written by potentially adversarial third parties (anyone who can open an issue). It must reach the agent as *evidence*, never as *instructions*.
 
-`teamctx` is a protocol designed so that these three requirements, plus a fourth — *honesty about what was not observed* — are **structural properties with proofs**, not best-effort behaviors.
+`teamctx` is a protocol designed so that these three requirements, plus a fourth, *honesty about what was not observed*: are **structural properties with proofs**, not best-effort behaviors.
 
 ### 1.1 Why determinism is load-bearing, not nostalgic
 
@@ -41,10 +41,10 @@ A natural objection: "Won't 10M-token windows and cheap inference make a determi
 
 ### 2.1 Entities
 
-- **Principal** `P` — a human, with an identity and a set of permissions across sources.
-- **Agent** `A` — an autonomous tool acting *on behalf of* `P`. `A` is untrusted by the protocol.
-- **Broker** `B` — the `teamctx` implementation. Trusted, but minimized: deterministic, read-only, no learned components in the certified path.
-- **Sources** `Σ = {σ₁ … σₙ}` — forge, tracker, docs, CI. Each exposes (a) artifacts, (b) a permission oracle, (c) an event stream. Sources are *semi-trusted*: trusted to report their own state, **not** trusted for the *content* of artifacts authored within them.
+- **Principal** `P`, a human, with an identity and a set of permissions across sources.
+- **Agent** `A`, an autonomous tool acting *on behalf of* `P`. `A` is untrusted by the protocol.
+- **Broker** `B`, the `teamctx` implementation. Trusted, but minimized: deterministic, read-only, no learned components in the certified path.
+- **Sources** `Σ = {σ₁ … σₙ}`, forge, tracker, docs, CI. Each exposes (a) artifacts, (b) a permission oracle, (c) an event stream. Sources are *semi-trusted*: trusted to report their own state, **not** trusted for the *content* of artifacts authored within them.
 
 ### 2.2 Trust classification
 
@@ -82,7 +82,7 @@ We treat `vis_P` as authoritative; §8 discusses ACL-skew.
 
 A **request** is `q = (P, repo, branch, base, paths, symbols, linked_refs, session, t)`.
 
-The typed **artifact graph** `G = (V, E)`: nodes are artifacts and work targets; edges are *deterministic* relations (`pr —modifies→ path`, `branch —references→ issue`, `issue —links→ doc`, `doc —governs→ component`, `pr —overlaps→ pr`). The **seed** `seed(q) ⊆ V` is the set of nodes named by `q` (touched paths, resolved symbols, linked refs). The **blast radius** is bounded reachability:
+The typed **artifact graph** `G = (V, E)`: nodes are artifacts and work targets; edges are *deterministic* relations (`pr, modifies→ path`, `branch, references→ issue`, `issue, links→ doc`, `doc, governs→ component`, `pr, overlaps→ pr`). The **seed** `seed(q) ⊆ V` is the set of nodes named by `q` (touched paths, resolved symbols, linked refs). The **blast radius** is bounded reachability:
 `R_k(q) = { v ∈ V : dist(seed(q), v) ≤ k over admitted edge types }`.
 `R_k` is computable by bounded BFS in `O(|V| + |E|)`, in practice bounded by `k` and node degree.
 
@@ -136,8 +136,8 @@ B → A :  CtxResponse { cards: Card[],          // the certified set C
 
 The agent-facing payload is partitioned into two channels:
 
-- **Instruction channel `I`** — `agent_instruction` and other broker-authored fields, drawn from a fixed finite vocabulary `𝒱` with `𝒱 ∩ (source bytes) = ∅`.
-- **Evidence channel `E`** — every field carrying source-derived bytes appears only as `quote(meta, payload)`, where `payload` is opaque and `meta` is typed broker metadata (freshness, provenance, permission).
+- **Instruction channel `I`**: `agent_instruction` and other broker-authored fields, drawn from a fixed finite vocabulary `𝒱` with `𝒱 ∩ (source bytes) = ∅`.
+- **Evidence channel `E`**: every field carrying source-derived bytes appears only as `quote(meta, payload)`, where `payload` is opaque and `meta` is typed broker metadata (freshness, provenance, permission).
 
 The only constructor admitting source bytes is `quote(·)`. No source byte may appear in `I`.
 
@@ -151,7 +151,7 @@ The only constructor admitting source bytes is `quote(·)`. No source byte may a
 *Sketch.* `g` is a composition of pure functions; all ambient effects (clock, network, randomness) are excluded from the certified path; `S` and `t` are explicit parameters. ∎
 
 **Theorem 2 (Permission noninterference).** If `S|_P = S′|_P` then `g(S,q,P) = g(S′,q,P)`. Equivalently, `g` depends only on the `P`-visible sub-snapshot.
-*Sketch.* `π_P` is the first stage and `π_P(S) = S|_P`; downstream stages are pure functions of `π_P`'s output. Hence artifacts in `S \ S|_P` cannot affect output. *Corollary:* `B`'s output reveals no information about artifacts `P` cannot see — including their existence. (Side channels addressed in §7/§8.) ∎
+*Sketch.* `π_P` is the first stage and `π_P(S) = S|_P`; downstream stages are pure functions of `π_P`'s output. Hence artifacts in `S \ S|_P` cannot affect output. *Corollary:* `B`'s output reveals no information about artifacts `P` cannot see, including their existence. (Side channels addressed in §7/§8.) ∎
 
 **Theorem 3 (Evidence/instruction separation; injection-resistance at the broker).** No source-derived byte occupies an imperative position in `B`'s output, and source *content* cannot influence which cards are produced.
 *Sketch.* (i) By construction, source bytes enter output only via `quote(·) ∈ E`; `I` is drawn from `𝒱`, disjoint from source bytes. (ii) `rules`/`rank` branch only on typed metadata (type, scope, freshness, permission), never on `payload` bytes; thus `payload` is control-flow-irrelevant in `B`. Therefore an injection payload can be *carried* (as quoted evidence) but can neither *command* `B` nor *steer* card selection. ∎
@@ -176,7 +176,7 @@ where `policy_admits` is a team-authored, version-controlled policy (`.teamctx` 
 
 `overlapping_change · linked_issue_changed_after_branch · acceptance_criteria_changed · required_checklist_changed · advisory_affects_touched_dependency · related_branch_ci_failure · doc_superseded · source_unavailable`.
 
-**Relevance ceiling (stated, not hidden).** Structural reachability is *sound* (a surfaced overlap is real) but not *semantically complete*: "this Confluence rule should change your implementation" may not be structurally reachable. We bound the claim to structural relevance and expose a separate, **untrusted client-side hint layer** that may re-order or de-emphasize *already-certified* cards using any method (including an LLM) — but **cannot add to or remove from** the certified set `C`. Thus hints never perturb Theorems 1–5; they only affect presentation. Complexity: `rel` is `O(|R_k(q)|)`; the certified set is independent of the hint layer.
+**Relevance ceiling (stated, not hidden).** Structural reachability is *sound* (a surfaced overlap is real) but not *semantically complete*: "this Confluence rule should change your implementation" may not be structurally reachable. We bound the claim to structural relevance and expose a separate, **untrusted client-side hint layer** that may re-order or de-emphasize *already-certified* cards using any method (including an LLM), but **cannot add to or remove from** the certified set `C`. Thus hints never perturb Theorems 1–5; they only affect presentation. Complexity: `rel` is `O(|R_k(q)|)`; the certified set is independent of the hint layer.
 
 ---
 
@@ -222,7 +222,7 @@ The recurring pattern: `teamctx` converts each adversary's *silent* success into
 
 ## 10. Discussion: is there a breakthrough here?
 
-Measured claim: the **engineering insight** is that *agent context should be a certified, falsifiable artifact, and that "honest absence" is the property best-effort systems can never provide.* Larger context windows improve recall monotonically and still cannot produce `κ`. The coverage certificate is small, cheap, and — as far as current practice goes — an unaddressed primitive: today's agent-context stacks fail *silently* on partial observability, which §7 shows is exactly where the worst outcomes (confident wrong action on stale/blocked state) occur.
+Measured claim: the **engineering insight** is that *agent context should be a certified, falsifiable artifact, and that "honest absence" is the property best-effort systems can never provide.* Larger context windows improve recall monotonically and still cannot produce `κ`. The coverage certificate is small, cheap, and, as far as current practice goes, an unaddressed primitive: today's agent-context stacks fail *silently* on partial observability, which §7 shows is exactly where the worst outcomes (confident wrong action on stale/blocked state) occur.
 
 If a single sentence survives review, let it be: **a context system for an acting agent must return not only what it found, but a bounded, machine-checkable statement of what it could not see.**
 
@@ -236,4 +236,4 @@ If a single sentence survives review, let it be: **a context system for an actin
 
 ## 11. Conclusion
 
-`teamctx` reframes context for autonomous coding agents from best-effort retrieval to certified mediation: a deterministic, permission-faithful, injection-resistant protocol that returns source-backed cards **and a coverage certificate that bounds its own ignorance**. The guarantees are structural consequences of one decision — a pure card generator over a permission-indexed snapshot with a typed evidence channel — and they degrade *visibly*, never silently, under adversarial conditions. The protocol does not promise truth or omniscience. It promises something rarer and checkable: it will not lie to your agent by omission.
+`teamctx` reframes context for autonomous coding agents from best-effort retrieval to certified mediation: a deterministic, permission-faithful, injection-resistant protocol that returns source-backed cards **and a coverage certificate that bounds its own ignorance**. The guarantees are structural consequences of one decision, a pure card generator over a permission-indexed snapshot with a typed evidence channel, and they degrade *visibly*, never silently, under adversarial conditions. The protocol does not promise truth or omniscience. It promises something rarer and checkable: it will not lie to your agent by omission.

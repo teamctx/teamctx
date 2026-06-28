@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>teamctx · Honest Context (protocol v1.1)</title>
-<meta name="description" content="teamctx protocol paper v1.1 — a deterministic broker with observable soundness, existence-privacy, and injection-resistant selection for AI coding agents." />
+<meta name="description" content="teamctx protocol paper v1.1, a deterministic broker with observable soundness, existence-privacy, and injection-resistant selection for AI coding agents." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -53,7 +53,7 @@
   /* the leading italic abstract-ish note */
   #doc > p:first-of-type em, #doc > p em:only-child{}
 
-  /* code — the formal model leans on these heavily */
+  /* code, the formal model leans on these heavily */
   #doc code{font-family:var(--mono);font-size:.82em;background:var(--paper-2);border:1px solid var(--line);
     border-radius:4px;padding:.08em .34em;color:#0e5f47;}
   #doc pre{font-family:var(--mono);font-size:13px;line-height:1.55;background:#1c1f27;color:#e8e6e0;
@@ -83,14 +83,14 @@
     <div id="status" class="status">Loading the paper…</div>
   </main>
   <footer>
-    Rendered from <a href="teamctx-protocol-v1.1.md"><code>teamctx-protocol-v1.1.md</code></a> — the markdown is the source of truth. ·
+    Rendered from <a href="teamctx-protocol-v1.1.md"><code>teamctx-protocol-v1.1.md</code></a>, the markdown is the source of truth. ·
     teamctx · deterministic context assurance
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous"></script>
   <script>
     // Backed by the .md file: fetch and render it. (Needs to be served over http(s);
-    // browsers block fetch() of a sibling file under file:// — see the fallback message.)
+    // browsers block fetch() of a sibling file under file://, see the fallback message.)
     const SRC = "teamctx-protocol-v1.1.md";
     const docEl = document.getElementById("doc");
     const statusEl = document.getElementById("status");
@@ -109,7 +109,7 @@
           "Couldn't load <code>" + SRC + "</code> (" + e.message + ").<br><br>" +
           "This page renders the markdown file next to it. Open it over a local server, e.g.<br>" +
           "<code>python -m http.server</code> in <code>docs/research/</code>, then visit " +
-          "<code>teamctx-protocol-v1.1.html</code> — or read the " +
+          "<code>teamctx-protocol-v1.1.html</code>, or read the " +
           "<a href='" + SRC + "'>markdown directly</a>.";
       });
   </script>

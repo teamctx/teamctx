@@ -273,7 +273,7 @@
   <header class="eng-head">
     <div class="kicker"><span class="dot"></span>Architecture<span class="sep">/</span>Feature &amp; Functionality View<span class="sep">/</span>v0 · thesis-complete engine</div>
     <h1><span>team</span><span class="x">ctx</span></h1>
-    <p class="lede">A <b>deterministic, read-only cross-agent context broker</b> — the credibility engine that tells an agent, <b>before it acts</b>, whether the shared context it is relying on is still trustworthy. It emits typed, witnessed cards plus an honest coverage certificate, and refuses to adjudicate. No model sits in the trusted path.</p>
+    <p class="lede">A <b>deterministic, read-only cross-agent context broker</b>, the credibility engine that tells an agent, <b>before it acts</b>, whether the shared context it is relying on is still trustworthy. It emits typed, witnessed cards plus an honest coverage certificate, and refuses to adjudicate. No model sits in the trusted path.</p>
     <div class="invariants">
       <span class="inv">No LLM in the trusted path</span>
       <span class="inv">Read-only · consent-not-trust</span>
@@ -295,7 +295,7 @@
     <div class="grid g4">
       <div class="card live"><div class="ct"><code>work-start</code> <span class="badge b-live">live</span></div><div class="cd">Primary agent entry. Derives cards + coverage + a verdict per card kind from live source metadata.</div><div class="meta">cli · the request lifecycle</div></div>
       <div class="card live"><div class="ct">docs-probe <span class="badge b-new">new</span></div><div class="cd">Surfaces <b>doc-superseded</b> from declared <code>superseded_by:</code> frontmatter; names the current doc.</div><div class="meta">cli · shipped this milestone</div></div>
-      <div class="card core"><div class="ct">Consumer SDK <span class="badge b-thm">T2</span></div><div class="cd"><code>evaluate(query, C, closure)</code> soundly under-approximates the three-valued semantics — verdicts never over-claim.</div><div class="meta">labeled verdict per query</div></div>
+      <div class="card core"><div class="ct">Consumer SDK <span class="badge b-thm">T2</span></div><div class="cd"><code>evaluate(query, C, closure)</code> soundly under-approximates the three-valued semantics, verdicts never over-claim.</div><div class="meta">labeled verdict per query</div></div>
       <div class="card live"><div class="ct">refresh · context · why</div><div class="cd">Write <code>.teamctx/context.json</code>; render a stored answer; explain a card; open a source; record session use.</div><div class="meta">cli · open-source · use</div></div>
     </div>
   </section>
@@ -305,9 +305,9 @@
   <section class="band">
     <div class="band-head"><span class="band-no">02</span><span class="band-title">The broker answer &nbsp;⟨ C , κ ⟩</span><span class="band-sub">certified claims + coverage certificate · the observable</span></div>
     <div class="grid g4">
-      <div class="card core"><div class="ct">C — certified cards</div><div class="cd">Typed claim cards, ordered by section: <i>Needs attention · Verify before relying · Project guidance · Source unavailable · Good to know.</i></div></div>
+      <div class="card core"><div class="ct">C, certified cards</div><div class="cd">Typed claim cards, ordered by section: <i>Needs attention · Verify before relying · Project guidance · Source unavailable · Good to know.</i></div></div>
       <div class="card core"><div class="ct">κ.closure</div><div class="cd">Per-proposition completeness: <code>complete</code> / <code>incomplete[policy-gap]</code> / <code>[stale-dep]</code> …</div></div>
-      <div class="card core"><div class="ct">κ.authority <span class="badge b-thm">S2</span></div><div class="cd">Per-subject authority state — surfaces conflict, refuses to pick a winner.</div></div>
+      <div class="card core"><div class="ct">κ.authority <span class="badge b-thm">S2</span></div><div class="cd">Per-subject authority state, surfaces conflict, refuses to pick a winner.</div></div>
       <div class="card core"><div class="ct">κ.digest <span class="badge b-thm">T1</span></div><div class="cd">Snapshot digest binding the exact inputs → the answer is verifiable by replay.</div></div>
     </div>
   </section>
@@ -315,12 +315,12 @@
   <div class="flow"><span class="note">derived &amp; certified by</span><span class="stem"></span><span class="chev">▼</span></div>
 
   <section class="band heart">
-    <div class="band-head"><span class="band-no">03</span><span class="band-title">Pure core engine — the broker</span><span class="band-sub">no I/O · no clock · no randomness · replayable</span></div>
+    <div class="band-head"><span class="band-no">03</span><span class="band-title">Pure core engine, the broker</span><span class="band-sub">no I/O · no clock · no randomness · replayable</span></div>
     <div class="grid g4">
       <div class="card core"><div class="ct">Typed propositions</div><div class="cd"><code>Prop</code> = predicate · subject · args. <code>witnesses(claim, query)</code> → supports / refutes / unrelated, over typed structure only.</div><div class="meta">build-once seam: claim with polarity</div></div>
-      <div class="card core"><div class="ct">Card-kind registry</div><div class="cd"><code>CARD_KINDS</code>: each kind = derive · query · render · verdict. Adding a kind is additive — control flow unchanged.</div><div class="meta">registry-driven · 4 kinds</div></div>
+      <div class="card core"><div class="ct">Card-kind registry</div><div class="cd"><code>CARD_KINDS</code>: each kind = derive · query · render · verdict. Adding a kind is additive, control flow unchanged.</div><div class="meta">registry-driven · 4 kinds</div></div>
       <div class="card core"><div class="ct">Derivation</div><div class="cd">Maps P-visible signals → typed <code>ClaimCard</code>s by structural relevance (repo + path / issue overlap with the request).</div><div class="meta">derive_claims → render_claim</div></div>
-      <div class="card core"><div class="ct">Coverage &amp; closure</div><div class="cd"><code>deps_G</code> per proposition — the mandated source families its truth depends on. Fails loud on an unmodeled predicate.</div><div class="meta">absence of cards ≠ clearance</div></div>
+      <div class="card core"><div class="ct">Coverage &amp; closure</div><div class="cd"><code>deps_G</code> per proposition, the mandated source families its truth depends on. Fails loud on an unmodeled predicate.</div><div class="meta">absence of cards ≠ clearance</div></div>
       <div class="card core"><div class="ct">Privacy projection <span class="badge b-thm">T5</span></div><div class="cd">C / H split + Δ<sub>P</sub>. Selection &amp; digest run over the consumer-visible projection only → existence-privacy by construction.</div><div class="meta">H carries no certificate weight</div></div>
       <div class="card core"><div class="ct">Thin authority <span class="badge b-thm">S2</span></div><div class="cd">Assesses declared authority per subject; surfaces conflict, never adjudicates.</div><div class="meta">refuse-to-pick</div></div>
       <div class="card core"><div class="ct">Verifiable replay <span class="badge b-thm">T1</span></div><div class="cd">Snapshot digest over the projection binds request + signals + statuses + declarations.</div><div class="meta">deterministic ⇒ auditable</div></div>
@@ -331,7 +331,7 @@
   <div class="flow"><span class="chev">▲</span><span class="stem"></span><span class="note">typed over</span></div>
 
   <section class="band">
-    <div class="band-head"><span class="band-no">04</span><span class="band-title">Core Contract v0 — the versioned seam</span><span class="band-sub">durable interface between connectors and the core</span></div>
+    <div class="band-head"><span class="band-no">04</span><span class="band-title">Core Contract v0, the versioned seam</span><span class="band-sub">durable interface between connectors and the core</span></div>
     <div class="grid g3">
       <div class="card"><div class="ct">CoreContractDocument</div><div class="cd">source_signals · source_statuses · source_open_targets · guidance_records · request_context.</div></div>
       <div class="card"><div class="ct">Fail-closed policy</div><div class="cd"><code>PolicyDecision</code> validators · visibility firewall · default-deny source bodies · reference-integrity check.</div></div>
@@ -342,7 +342,7 @@
   <div class="flow"><span class="chev">▲</span><span class="stem"></span><span class="note">normalized into</span></div>
 
   <section class="band">
-    <div class="band-head"><span class="band-no">05</span><span class="band-title">Connectors — the I/O edge</span><span class="band-sub">fetch &amp; normalize · never derive cards</span></div>
+    <div class="band-head"><span class="band-no">05</span><span class="band-title">Connectors, the I/O edge</span><span class="band-sub">fetch &amp; normalize · never derive cards</span></div>
     <div class="grid g5">
       <div class="card live"><div class="ct">collision <span class="badge b-live">live</span></div><div class="cd">GitHub PRs touching your paths.</div><div class="meta">github.py · forge_review.py</div></div>
       <div class="card live"><div class="ct">doc-superseded <span class="badge b-live">live</span></div><div class="cd">Declared <code>superseded_by</code> frontmatter.</div><div class="meta">docs.py · docs_supersession.py</div></div>
@@ -355,7 +355,7 @@
   <div class="flow"><span class="chev">▲</span><span class="stem"></span><span class="note">observed from</span></div>
 
   <section class="band">
-    <div class="band-head"><span class="band-no">06</span><span class="band-title">Sources — the world</span><span class="band-sub">untrusted until typed &amp; policy-gated</span></div>
+    <div class="band-head"><span class="band-no">06</span><span class="band-title">Sources, the world</span><span class="band-sub">untrusted until typed &amp; policy-gated</span></div>
     <div class="grid g5">
       <div class="card"><div class="ct">GitHub PRs</div><div class="cd">open PRs · changed paths</div></div>
       <div class="card"><div class="ct">Repo docs</div><div class="cd">markdown + frontmatter</div></div>
@@ -382,10 +382,10 @@
   </section>
 
   <section class="band road" style="margin-top:30px">
-    <div class="band-head"><span class="band-no" style="border-color:rgba(230,172,99,.4);color:var(--amber)">↗</span><span class="band-title">Roadmap — the product's planned extent</span><span class="band-sub">deferred behind locked seams</span></div>
+    <div class="band-head"><span class="band-no" style="border-color:rgba(230,172,99,.4);color:var(--amber)">↗</span><span class="band-title">Roadmap, the product's planned extent</span><span class="band-sub">deferred behind locked seams</span></div>
     <div class="grid g3">
       <div class="card deferred"><div class="ct">Durable memory layer</div><div class="cd">The deferred second package (Ambara lineage). Stateless broker now → durable memory later, across one frozen seam.</div></div>
-      <div class="card deferred"><div class="ct">Distribution</div><div class="cd">MCP transport · IDE panel · pip / launch. Candidate seed: a teamctx⇄Kagenti/Rosso integration — after usefulness is proven.</div></div>
+      <div class="card deferred"><div class="ct">Distribution</div><div class="cd">MCP transport · IDE panel · pip / launch. Candidate seed: a teamctx⇄Kagenti/Rosso integration, after usefulness is proven.</div></div>
       <div class="card deferred"><div class="ct">Full &amp; graduated authority</div><div class="cd">Temporary-override states · <code>.teamctx</code> → durable graduation · conflict-precision tuning.</div></div>
       <div class="card deferred"><div class="ct">Live criteria / gate connectors</div><div class="cd">Wire issue-tracker &amp; CI check-run sources; missed-gate via check-runs is the cheapest next.</div></div>
       <div class="card deferred"><div class="ct">Protocol v1.1</div><div class="cd">Reviewed tightenings, not yet written to the paper.</div></div>
@@ -395,10 +395,10 @@
 
   <footer>
     <div class="thms">
-      <div class="thm"><b>T1</b> — verifiable replay: the answer is a pure function of digested inputs.</div>
-      <div class="thm"><b>T2</b> — sound evaluate: a verdict never asserts more than the evidence supports.</div>
-      <div class="thm"><b>T5</b> — existence-privacy: a consumer cannot detect that invisible context exists.</div>
-      <div class="thm"><b>S2</b> — thin authority: the broker surfaces conflict and refuses to pick.</div>
+      <div class="thm"><b>T1</b>, verifiable replay: the answer is a pure function of digested inputs.</div>
+      <div class="thm"><b>T2</b>, sound evaluate: a verdict never asserts more than the evidence supports.</div>
+      <div class="thm"><b>T5</b>, existence-privacy: a consumer cannot detect that invisible context exists.</div>
+      <div class="thm"><b>S2</b>, thin authority: the broker surfaces conflict and refuses to pick.</div>
     </div>
     <div class="sig">teamctx · core contract <span class="obs">v0</span><br/>observable = ⟨ C , κ ⟩ · replayable by digest<br/>feature/functionality view · 2026-06-21</div>
   </footer>
@@ -410,8 +410,8 @@
     <div class="kicker"><span class="dot"></span>Product<span class="sep">/</span>Value · Positioning</div>
     <p class="whynow">Agents broke the speed at which work moves. Team coordination didn't keep up.</p>
     <h2>Timely, <em>ambient team context.</em></h2>
-    <p class="sub">Humans and their agents, working from the <b>same live picture</b> of the current state of the work — and the standards around it. The movement in your PRs, your tickets, your docs, surfaced where the work happens, the moment it's relevant.</p>
-    <div class="cat"><b>Context, not memory</b><span class="sep">·</span>delivered, not stored<span class="sep">·</span>the facts already live in your tools — teamctx transforms the <b>delivery</b>, not the content</div>
+    <p class="sub">Humans and their agents, working from the <b>same live picture</b> of the current state of the work, and the standards around it. The movement in your PRs, your tickets, your docs, surfaced where the work happens, the moment it's relevant.</p>
+    <div class="cat"><b>Context, not memory</b><span class="sep">·</span>delivered, not stored<span class="sep">·</span>the facts already live in your tools, teamctx transforms the <b>delivery</b>, not the content</div>
   </section>
 
   <section class="psec">
@@ -421,33 +421,33 @@
       <ul class="support">
         <li>The standards around the work, actually adhered to</li>
         <li>Faster ramp onto unfamiliar code, faster resumption after a break</li>
-        <li>Cross-agent continuity — swap Claude Code, Cursor, Codex freely; context is just data</li>
+        <li>Cross-agent continuity, swap Claude Code, Cursor, Codex freely; context is just data</li>
         <li>Fewer stale-spec and missed-gate mistakes</li>
       </ul>
     </div>
-    <p class="hedge">It <b>informs; it doesn't enforce.</b> The benefit is better-informed work when the team acts on it — never a guaranteed outcome. And the absence of a card is never an all-clear: teamctx always tells you what it <b>couldn't</b> check.</p>
+    <p class="hedge">It <b>informs; it doesn't enforce.</b> The benefit is better-informed work when the team acts on it, never a guaranteed outcome. And the absence of a card is never an all-clear: teamctx always tells you what it <b>couldn't</b> check.</p>
   </section>
 
   <section class="psec">
     <div class="psec-h">A work-start moment</div>
     <div class="termcard"><span class="h">teamctx · working context · fix-webhook-retries</span>
 <span class="sec">─ Needs attention ──────────────────────────────</span>
-• Open PR #214 (yours) already refactors <span class="b">webhooks/retry.py</span> — the file
+• Open PR #214 (yours) already refactors <span class="b">webhooks/retry.py</span>, the file
   you're about to touch. Unmerged, 3 days old.
     <span class="w">why: same-file overlap with your changed paths · github PR #214 · 12s ago</span>
 • Linked issue PROJ-88 acceptance criteria changed 6h ago: retry cap is now 5 (was 3).
     <span class="w">why: criteria changed after your branch point · jira PROJ-88 · 6h ago</span>
 <span class="sec">─ Coverage ──────────────────────────────────────</span>
 checked: github ✓ (12s)   jira ✓ (6h)</div>
-    <p class="cap"><b>Illustrative — the target experience.</b> One glance before the agent acts: a PR you'd forgotten and a ticket whose criteria moved — without leaving the editor or asking "go check all my PRs and issues." <b>GitHub and repo docs are live today; Jira, Confluence and the rest are on the roadmap</b> (see the source strip below, and the Engineering tab).</p>
+    <p class="cap"><b>Illustrative, the target experience.</b> One glance before the agent acts: a PR you'd forgotten and a ticket whose criteria moved, without leaving the editor or asking "go check all my PRs and issues." <b>GitHub and repo docs are live today; Jira, Confluence and the rest are on the roadmap</b> (see the source strip below, and the Engineering tab).</p>
   </section>
 
   <section class="psec">
-    <div class="psec-h">The because — the credibility engine</div>
+    <div class="psec-h">The because, the credibility engine</div>
     <div class="believe">
       <div class="lead">
         <h3>Why a team can trust the picture.</h3>
-        <p>The differentiator under the category: <b>no LLM in the content path.</b> Facts arrive <b>verbatim, source-backed, one-click verifiable, and replayable</b> — teamctx is the deterministic ground an agent can stand on and check itself against. <b>Complementary to the LLM, never adversarial:</b> the model does judgment and generation, teamctx hands it trustworthy current facts. The same construction means it <b>can't track</b> you and <b>can't be hijacked</b> by a poisoned artifact.</p>
+        <p>The differentiator under the category: <b>no LLM in the content path.</b> Facts arrive <b>verbatim, source-backed, one-click verifiable, and replayable</b>, teamctx is the deterministic ground an agent can stand on and check itself against. <b>Complementary to the LLM, never adversarial:</b> the model does judgment and generation, teamctx hands it trustworthy current facts. The same construction means it <b>can't track</b> you and <b>can't be hijacked</b> by a poisoned artifact.</p>
       </div>
       <div class="guars">
         <div class="guar"><div class="gt"><span class="badge b-thm">T2</span>Sound</div><div class="gd">Never claims more than the evidence supports.</div></div>
@@ -456,17 +456,17 @@ checked: github ✓ (12s)   jira ✓ (6h)</div>
         <div class="guar"><div class="gt"><span class="badge b-thm">S2</span>In its lane</div><div class="gd">Surfaces conflict; leaves the call to you.</div></div>
       </div>
     </div>
-    <p class="cap">Credibility is the <b>because</b>, not the marquee — it's what makes "the same live picture" a claim a security team and a developer can both trust. Safety (it can't cause harm) is table stakes, delivered free by the same construction.</p>
+    <p class="cap">Credibility is the <b>because</b>, not the marquee, it's what makes "the same live picture" a claim a security team and a developer can both trust. Safety (it can't cause harm) is table stakes, delivered free by the same construction.</p>
   </section>
 
   <section class="psec">
     <div class="psec-h">Where it sits</div>
     <div class="posmap">
       <div class="pos"><div class="tagln">Optimization</div><h4>Context compression</h4><p>Shrinks the window to fit more in. Says nothing about whether the context is <i>current</i>.</p></div>
-      <div class="pos"><div class="tagln">Infrastructure</div><h4>Agent platforms &amp; mesh</h4><p>Deploy, route and authenticate agents. Moves and secures the pipes — not the truth of what flows through them.</p></div>
-      <div class="pos us"><div class="tagln">Ambient context</div><h4>teamctx</h4><p>The shared live picture of the work — made trustworthy. Rides on top of both; complementary to the LLM.</p></div>
+      <div class="pos"><div class="tagln">Infrastructure</div><h4>Agent platforms &amp; mesh</h4><p>Deploy, route and authenticate agents. Moves and secures the pipes, not the truth of what flows through them.</p></div>
+      <div class="pos us"><div class="tagln">Ambient context</div><h4>teamctx</h4><p>The shared live picture of the work, made trustworthy. Rides on top of both; complementary to the LLM.</p></div>
     </div>
-    <p class="cargo">Compression shrinks the cargo. Infrastructure moves and secures it. <b>teamctx makes sure it's the current cargo — and that you can trust it.</b></p>
+    <p class="cargo">Compression shrinks the cargo. Infrastructure moves and secures it. <b>teamctx makes sure it's the current cargo, and that you can trust it.</b></p>
   </section>
 
   <section class="psec">
@@ -479,11 +479,11 @@ checked: github ✓ (12s)   jira ✓ (6h)</div>
       <span class="src planned">Confluence <span class="st p">planned</span></span>
       <span class="src planned">Slack handoffs <span class="st p">planned</span></span>
     </div>
-    <p class="cap"><b>Read-only and permission-scoped</b> — your agent sees exactly what you can see, nothing more, and never learns that what it can't see even exists. Honest about what's wired today versus planned.</p>
+    <p class="cap"><b>Read-only and permission-scoped</b>, your agent sees exactly what you can see, nothing more, and never learns that what it can't see even exists. Honest about what's wired today versus planned.</p>
   </section>
 
   <div class="pfoot">
-    <div class="who"><b>Primary consumer: a human using an agent</b>, who acts on the context — solo founder to regulated enterprise, same engine, configs not editions. Fully-autonomous agents are adjacent, and later.</div>
+    <div class="who"><b>Primary consumer: a human using an agent</b>, who acts on the context, solo founder to regulated enterprise, same engine, configs not editions. Fully-autonomous agents are adjacent, and later.</div>
     <div class="stamp">teamctx · <b>v0</b> · timely, ambient team context<br/>early · theorem-backed · 2 live sources, more on the way</div>
   </div>
   </div><!-- /panel-prod -->

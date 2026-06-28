@@ -2,7 +2,7 @@
 
 This is the broker's heart: it DERIVES context cards from typed source signals by
 computing structural relevance against the request, rather than rendering authored cards.
-Pure and deterministic — no I/O, time, or randomness (enforced by the core purity test) —
+Pure and deterministic: no I/O, time, or randomness (enforced by the core purity test),
 so every derived card is replayable and its reason names the overlap it came from.
 """
 
@@ -32,7 +32,7 @@ class Hint:
     """An untrusted, uncertified best-effort guess (the H layer).
 
     H is **outside the privacy contract**: a hint must be projected to the consumer-visible
-    set before it is ever surfaced to a human, and it carries NO certificate weight — it
+    set before it is ever surfaced to a human, and it carries NO certificate weight; it
     never enters the certified card set C. No hint producers exist yet; the layer is kept
     structurally separate so certified and uncertified context never share a channel.
     """
@@ -279,7 +279,7 @@ def render_missed_gate_claim(claim_card: ClaimCard) -> ContextCard:
 @dataclass(frozen=True)
 class CardKind:
     """One registered card kind: how to derive it, what universal it refutes, how to render
-    it. New kinds are added by appending an entry — the engine's control flow is unchanged."""
+    it. New kinds are added by appending an entry; the engine's control flow is unchanged."""
 
     signal_type: str
     card_predicate: str
@@ -385,7 +385,7 @@ Completeness = Literal[
 
 # deps_G: the trusted, mandated source families a proposition's truth depends on. A
 # predicate is registered here as its card kind is added. An unregistered predicate fails
-# loud — we never silently certify a query whose dependencies we have not modeled.
+# loud; we never silently certify a query whose dependencies we have not modeled.
 DEPS_REGISTRY: dict[str, frozenset[str]] = {
     "no_pr_conflicts_with_paths": frozenset({"git_hosting"}),
     "no_criteria_changed_for_issues": frozenset({"issue_tracker"}),

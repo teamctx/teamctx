@@ -1,4 +1,4 @@
-PART 1 — Status of the five fixes
+PART 1, Status of the five fixes
 
 (i) O1 as assumption-with-enforced-discharge  
 Closed. You now (1) clearly mark O1 as an explicit, local-to-global completeness assumption; (2) describe a concrete, checkable enforcement mechanism: every connector declares its ref classes; at deployment, the broker validates manifests; any undeclared-emitted ref forces complete?→incomplete[unmodeled‑ref], never complete. That gives a real, mechanizable line between “assumed” and “verified locally.” No hidden global reasoning is smuggled in.
@@ -29,7 +29,7 @@ Closed. The authority status partition:
 
 is well-defined and mutually exclusive under your description. “Stale” is explicitly separated from “unobserved,” and lower-priority fresh never silently overrides stale-maximal. This closes the earlier ambiguity around authority freshness vs absence.
 
-PART 2 — New contradictions?
+PART 2, New contradictions?
 
 (a) Polarity and mutual inconsistency in C  
 

@@ -1,7 +1,7 @@
 """Pure core context and contract primitives for teamctx.
 
 One model: the contracts model below. (The retired fixture-lineage prototype model was
-removed in the foundation-hardening pass — the evidence engine now tests this model via
+removed in the foundation-hardening pass; the evidence engine now tests this model via
 ``teamctx.eval``.)
 """
 

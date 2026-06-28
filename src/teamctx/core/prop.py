@@ -5,7 +5,7 @@ card witnesses a consumer's query proposition ``rho`` or its negation is a deter
 relation over typed structure (``witnesses``), never a reading of payload. This is the seam
 the consumer SDK and observable soundness (Theorem 2) build on.
 
-Pure: dataclasses and typing only — no I/O, time, or randomness (the core purity test
+Pure: dataclasses and typing only, no I/O, time, or randomness (the core purity test
 guards this).
 """
 

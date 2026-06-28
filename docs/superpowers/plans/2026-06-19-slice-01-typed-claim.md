@@ -1,8 +1,8 @@
-# Slice 1 — Typed `claim` + Witness Polarity Implementation Plan
+# Slice 1: Typed `claim` + Witness Polarity Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give the broker's cards a typed proposition (`claim`) with polarity, so a card can be said to witness a query proposition `ρ` or its negation `¬ρ` — the foundation for the consumer `evaluate` SDK and observable soundness (T2) — while keeping `work-start`'s output byte-identical.
+**Goal:** Give the broker's cards a typed proposition (`claim`) with polarity, so a card can be said to witness a query proposition `ρ` or its negation `¬ρ`, the foundation for the consumer `evaluate` SDK and observable soundness (T2), while keeping `work-start`'s output byte-identical.
 
 **Architecture:** In-place strangler. Introduce a pure typed-proposition layer (`core/prop.py`) *beneath* the existing collision derivation: `derive_claims` produces typed `ClaimCard`s, `render_claim` turns one into the exact same `ContextCard` as today, and `derive_cards` becomes `[render_claim(c) for c in derive_claims(...)]`. The new seam is tested independently; existing output is preserved by construction (the current tests in `tests/test_select.py` already pin it).
 
@@ -12,10 +12,10 @@
 
 ## File structure
 
-- **Create `src/teamctx/core/prop.py`** — the typed-proposition seam. `SubjectRef`, `Prop` (predicate + subject + args, with a registry-derived `shape`), and `witnesses(claim, query)`. Pure: dataclasses + typing only. One responsibility: the proposition algebra. No imports from `core.contracts` (stays a free-standing algebra the SDK will reuse).
-- **Modify `src/teamctx/core/select.py`** — add `ClaimCard`, `derive_claims`, `_derive_collision_claim`, `no_conflict_query`, `render_claim`; refactor `derive_cards` to delegate; delete the now-superseded `_derive_collision_card`. This file bridges the proposition algebra (`core.prop`) and the render contract (`core.contracts`).
-- **Create `tests/test_prop.py`** — unit tests for the proposition model and `witnesses`.
-- **Modify `tests/test_select.py`** — add tests for `derive_claims` (typed claim + polarity) and `render_claim` (reproduces the collision card). Existing `derive_cards`/coverage tests stay and act as the byte-identical guard.
+- **Create `src/teamctx/core/prop.py`**: the typed-proposition seam. `SubjectRef`, `Prop` (predicate + subject + args, with a registry-derived `shape`), and `witnesses(claim, query)`. Pure: dataclasses + typing only. One responsibility: the proposition algebra. No imports from `core.contracts` (stays a free-standing algebra the SDK will reuse).
+- **Modify `src/teamctx/core/select.py`**: add `ClaimCard`, `derive_claims`, `_derive_collision_claim`, `no_conflict_query`, `render_claim`; refactor `derive_cards` to delegate; delete the now-superseded `_derive_collision_card`. This file bridges the proposition algebra (`core.prop`) and the render contract (`core.contracts`).
+- **Create `tests/test_prop.py`**: unit tests for the proposition model and `witnesses`.
+- **Modify `tests/test_select.py`**: add tests for `derive_claims` (typed claim + polarity) and `render_claim` (reproduces the collision card). Existing `derive_cards`/coverage tests stay and act as the byte-identical guard.
 
 Gates: the core purity test (`tests/test_core_contracts.py::test_core_package_has_no_file_or_runtime_side_effect_imports`) globs `src/teamctx/core/*.py`, so `prop.py` is automatically held to no-I/O. `mypy --strict` and `ruff` cover both new files.
 
@@ -86,7 +86,7 @@ def test_unregistered_predicate_is_rejected() -> None:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/test_prop.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'teamctx.core.prop'`
+Expected: FAIL, `ModuleNotFoundError: No module named 'teamctx.core.prop'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -99,7 +99,7 @@ card witnesses a consumer's query proposition ``rho`` or its negation is a deter
 relation over typed structure (``witnesses``), never a reading of payload. This is the seam
 the consumer SDK and observable soundness (Theorem 2) build on.
 
-Pure: dataclasses and typing only — no I/O, time, or randomness (the core purity test
+Pure: dataclasses and typing only, no I/O, time, or randomness (the core purity test
 guards this).
 """
 
@@ -181,7 +181,7 @@ def test_collision_claim_refutes_the_no_conflict_universal() -> None:
         predicate="no_pr_conflicts_with_paths",
         subject=SubjectRef(repo="svc", paths=("src/auth/token.py", "src/other.py")),
     )
-    # A single existential counterexample refutes the universal — the polarity trap the
+    # A single existential counterexample refutes the universal, the polarity trap the
     # paper flags (a single-witness "True-only" scheme would mis-handle this universal).
     assert witnesses(claim, query) == "refutes"
 
@@ -213,7 +213,7 @@ def test_claim_in_a_different_repo_is_not_a_witness() -> None:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/test_prop.py -v`
-Expected: FAIL — `ImportError: cannot import name 'witnesses' from 'teamctx.core.prop'`
+Expected: FAIL, `ImportError: cannot import name 'witnesses' from 'teamctx.core.prop'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -228,7 +228,7 @@ def witnesses(claim: Prop, query: Prop) -> Witness:
 
     Deterministic over typed structure only. For this build: an existential
     ``pr_conflicts_with_path`` claim *refutes* the universal ``no_pr_conflicts_with_paths``
-    query whenever they share a repo and at least one path — a counterexample to "no
+    query whenever they share a repo and at least one path, a counterexample to "no
     conflict". ``supports`` is reserved for kinds whose claim establishes a query directly.
     """
 
@@ -303,7 +303,7 @@ def test_hidden_collision_signal_derives_no_claim() -> None:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/test_select.py -v`
-Expected: FAIL — `ImportError: cannot import name 'ClaimCard' from 'teamctx.core.select'`
+Expected: FAIL, `ImportError: cannot import name 'ClaimCard' from 'teamctx.core.select'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -374,7 +374,7 @@ Note: `dataclass` is already imported in `select.py` (used by `Coverage`). `Prop
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/test_select.py -v`
-Expected: PASS (the two new tests pass; all prior tests still pass — `derive_cards` is untouched so far).
+Expected: PASS (the two new tests pass; all prior tests still pass, `derive_cards` is untouched so far).
 
 - [ ] **Step 5: Commit**
 
@@ -426,7 +426,7 @@ def test_render_claim_reproduces_the_collision_context_card() -> None:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/test_select.py::test_render_claim_reproduces_the_collision_context_card -v`
-Expected: FAIL — `ImportError: cannot import name 'render_claim' from 'teamctx.core.select'`
+Expected: FAIL, `ImportError: cannot import name 'render_claim' from 'teamctx.core.select'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -473,7 +473,7 @@ Delete the entire old `_derive_collision_card` function (its logic now lives in 
 - [ ] **Step 4: Run the full suite + lint + types (byte-identical guard)**
 
 Run: `pytest`
-Expected: PASS — all tests, including the pre-existing `test_collision_signal_overlapping_request_path_derives_a_card`, `test_only_collision_signals_derive_cards_in_this_vertical`, and `tests/test_render_selection.py::test_render_shows_collision_card_and_honest_incomplete_coverage` (these are the byte-identical guard: `derive_cards` output is unchanged).
+Expected: PASS, all tests, including the pre-existing `test_collision_signal_overlapping_request_path_derives_a_card`, `test_only_collision_signals_derive_cards_in_this_vertical`, and `tests/test_render_selection.py::test_render_shows_collision_card_and_honest_incomplete_coverage` (these are the byte-identical guard: `derive_cards` output is unchanged).
 
 Run: `ruff check`
 Expected: `All checks passed!`
@@ -505,7 +505,7 @@ Expected: all tests pass (the 109 prior + the new prop/claim tests), `All checks
 - [ ] **Step 2: Confirm the purity guard covers the new module**
 
 Run: `pytest tests/test_core_contracts.py::test_core_package_has_no_file_or_runtime_side_effect_imports -v`
-Expected: PASS — confirms `src/teamctx/core/prop.py` introduces no I/O/time/randomness imports.
+Expected: PASS, confirms `src/teamctx/core/prop.py` introduces no I/O/time/randomness imports.
 
 - [ ] **Step 3: Confirm the live tool still runs unchanged (optional smoke)**
 
@@ -518,7 +518,7 @@ Expected: the same `work-start` output as before this slice (collision card + co
 
 **Definition of done (all must hold):**
 - Collision cards are now backed by a typed `claim` (`Prop`) with a registry-derived `shape`.
-- `witnesses(claim, no_conflict_query(request)) == "refutes"` — the card correctly witnesses `¬ρ` (the universal polarity trap is covered).
+- `witnesses(claim, no_conflict_query(request)) == "refutes"`, the card correctly witnesses `¬ρ` (the universal polarity trap is covered).
 - `work-start` output is byte-identical (guarded by the unchanged `test_select.py` / `test_render_selection.py` assertions).
 - Fail-closed machinery preserved: `derive_claims` still gates on `_is_surfaceable`.
 - Full gate green; purity guard covers `prop.py`.

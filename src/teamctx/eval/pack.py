@@ -56,8 +56,8 @@ def export_eval_pack(scenarios_dir: Path, output_dir: Path) -> list[ScenarioExpo
 
 def run_one_scenario(scenario: EvalScenario, *, variant: str) -> str:
     """The minimal runner: produce the exact prompt an agent would receive for one arm.
-    ``variant`` is 'baseline' or 'context'. This is the end-to-end wiring — scenario through
-    the real engine to a prompt — without spawning an agent (that is the campaign)."""
+    ``variant`` is 'baseline' or 'context'. This is the end-to-end wiring: scenario through
+    the real engine to a prompt, without spawning an agent (that is the campaign)."""
 
     if variant == "baseline":
         return render_baseline_prompt(scenario)

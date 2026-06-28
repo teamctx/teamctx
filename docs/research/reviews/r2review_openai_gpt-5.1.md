@@ -39,7 +39,7 @@ Open problems:
 
 - They still equivocate between “payload-invariant selection” (what T3′ actually proves) and “injection-resistant selection” (a significantly stronger, semantic claim). The *corollary* they state:
 
-  > `Adv₁` can change *which* cards appear only by changing a `φ`-feature — a genuine structural signal …
+  > `Adv₁` can change *which* cards appear only by changing a `φ`-feature, a genuine structural signal …
 
   depends entirely on (i) the adequacy and enforcement of the `Φ` schema, and (ii) the assumption that `φ` itself is not adversarially manipulable in opaque ways. In practice, a “feature” like `overlap_hunks:int` or `field_changed(acceptance_criteria)` can be triggered by arbitrary textual fiddling. That is still content-driven influence on selection; it’s just reified in a coarse structural statistic. They have *not* shown that φ-features can’t be used as an injection vector (for example, adversary learns that having “critical” in a title toggles `severity:high` and influences the presence of “advisory_affects_touched_dependency` cards).
 - The enforcement of “no free-text predicate” is hand-waved: “static discipline checkable by inspecting the rule set against Φ.” There is no formal type system or syntactic condition; the reader has to trust that the developers of `rules_φ` never smuggle in a `contains("X")` test.

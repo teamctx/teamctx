@@ -1,4 +1,4 @@
-# Work-start input resolution (Sprint 1 — effortless, correct invocation)
+# Work-start input resolution (Sprint 1: effortless, correct invocation)
 
 **Status:** design, awaiting CPO review · **Date:** 2026-06-27
 
@@ -8,9 +8,9 @@ Make the broker's one call effortless and correct. Today both transports (`work-
 `work_start` MCP tool) require the caller to hand over `repo`, and leave `branch` / `docs_root`
 to manual flags. The MCP dogfood showed the friction: the agent did git archaeology for repo
 and branch, and docs came back UNKNOWN because nothing told it the docs root. This slice
-resolves those inputs from the two places that actually know them — **git** (volatile facts:
+resolves those inputs from the two places that actually know them, **git** (volatile facts:
 repo identity, current branch) and a committed **`.teamctx/config.json`** (stable project
-facts: repo override, docs_root) — while preserving the honest-UNKNOWN promise exactly.
+facts: repo override, docs_root), while preserving the honest-UNKNOWN promise exactly.
 
 ## Non-goals (sequenced elsewhere, not cut)
 
@@ -21,7 +21,7 @@ facts: repo override, docs_root) — while preserving the honest-UNKNOWN promise
   Sprint 2. This slice leaves the legacy `github`/`default_output` config fields in place,
   deprecated, and does not reuse them.
 - **Additional forges/trackers** (GitLab, Jira) → Sprint 4.
-- **Warn when git origin ≠ config repo** — not needed for correctness (config wins); a possible
+- **Warn when git origin ≠ config repo**: not needed for correctness (config wins); a possible
   future nicety, not built now.
 
 ## Design
@@ -52,19 +52,19 @@ resolved from any source it raises `WorkStartResolutionError` with a precise mes
 
 ### Git detection (`teamctx/git_context.py`)
 
-Thin, read-only subprocess wrappers — no network. Any failure returns `None` (honest absence),
+Thin, read-only subprocess wrappers, no network. Any failure returns `None` (honest absence),
 never a guess:
 
-- `detect_repo(root) -> str | None` — parse `git -C <root> remote get-url origin` into
+- `detect_repo(root) -> str | None`, parse `git -C <root> remote get-url origin` into
   `owner/name`. Handles SSH (`git@host:owner/name.git`) and HTTPS
   (`https://host/owner/name(.git)`) forms; returns `None` for unparseable / no-origin /
   not-a-repo.
-- `detect_branch(root) -> str | None` — `git -C <root> rev-parse --abbrev-ref HEAD`; returns
+- `detect_branch(root) -> str | None`, `git -C <root> rev-parse --abbrev-ref HEAD`; returns
   `None` for detached HEAD (`"HEAD"`) or not-a-repo.
 
 ### Config: additive `work_start` section
 
-Extend `ProjectConfig` (still `teamctx.project_config.v0` — additive, backward-compatible;
+Extend `ProjectConfig` (still `teamctx.project_config.v0`, additive, backward-compatible;
 `extra="forbid"` plus defaults means old config files keep validating, so no version bump is
 warranted):
 
@@ -75,13 +75,13 @@ class WorkStartConfig(StrictConfigModel):
 
 class ProjectConfig(StrictConfigModel):
     schema_version: Literal["teamctx.project_config.v0"]
-    github: GitHubSourceConfig | None = None   # LEGACY (refresh) — frozen, not reused here
+    github: GitHubSourceConfig | None = None   # LEGACY (refresh), frozen, not reused here
     default_output: str = DEFAULT_OUTPUT_PATH  # LEGACY
     work_start: WorkStartConfig | None = None  # NEW
 ```
 
 **Shared-vs-local seam (load-bearing for Sprint 2):** `.teamctx/config.json` is *committed and
-shared* — `work_start.repo`, `work_start.docs_root` are facts about the project, identical for
+shared*, `work_start.repo`, `work_start.docs_root` are facts about the project, identical for
 every actor. The **token/identity is per-actor and never committed** (`GITHUB_TOKEN` /
 `GITHUB_TOKEN_FILE`, unchanged). This is what lets multiple terminals each be a distinct actor
 against one shared repo.
@@ -96,7 +96,7 @@ against one shared repo.
 | token      | unchanged (`GITHUB_TOKEN` → `GITHUB_TOKEN_FILE`) |
 | issues / since / ref | explicit-only (unchanged; criteria stays UNKNOWN by default) |
 
-Branch is **never** read from config — it is volatile and a static file would be stale.
+Branch is **never** read from config, it is volatile and a static file would be stale.
 
 ### Honest-UNKNOWN behavior (the invariant)
 
@@ -129,7 +129,7 @@ detection robust when cwd ≠ repo, instead of silently depending on launch cwd.
 
 ## Testing
 
-- **git_context:** URL parsing — SSH, HTTPS, with/without `.git`, non-parseable → None; branch —
+- **git_context:** URL parsing, SSH, HTTPS, with/without `.git`, non-parseable → None; branch:
   normal, detached HEAD → None, not-a-repo → None. Use a real temp git repo fixture.
 - **resolve:** table-driven precedence per field (explicit / config / git / none); the
   repo-unresolved error; passthrough fields untouched.
@@ -141,7 +141,7 @@ detection robust when cwd ≠ repo, instead of silently depending on launch cwd.
 
 ## Open questions for CPO review
 
-1. The repo-unresolved **error** (vs. an all-UNKNOWN answer) — I chose the precise error because
+1. The repo-unresolved **error** (vs. an all-UNKNOWN answer), I chose the precise error because
    "no repo" is a setup problem, not a coverage gap. Agree?
-2. `TEAMCTX_PROJECT_ROOT` as the MCP root override — minimal and removes a silent cwd dependency.
+2. `TEAMCTX_PROJECT_ROOT` as the MCP root override, minimal and removes a silent cwd dependency.
    Acceptable, or do you want root handling deferred until a real cwd≠repo case appears?

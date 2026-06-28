@@ -1,4 +1,4 @@
-# teamctx — State & Plan (session capture, 2026-06-18)
+# teamctx: State & Plan (session capture, 2026-06-18)
 
 > **Previous (2026-06-18 snapshot).** The *current* plan is
 > [`docs/product/plan/CURRENT.md`](../plan/CURRENT.md). Kept as history: the decisions and
@@ -16,15 +16,15 @@ vision-and-formalization push; we are at a deliberate stopping point before buil
 ## 1. What teamctx is (settled)
 
 A **deterministic, no-LLM, read-only, cross-agent context broker** for AI coding
-agents. At work-start (new branch / resumed session) any agent — Claude Code, Codex,
-Gemini CLI, Cursor, opencode — asks for context and gets compact, typed,
+agents. At work-start (new branch / resumed session) any agent, Claude Code, Codex,
+Gemini CLI, Cursor, opencode, asks for context and gets compact, typed,
 permission-scoped **context cards** plus an honest **coverage certificate**. One
 decision (no LLM in the core) buys four otherwise-conflicting properties:
 token/wasted-work savings, can't-track (by non-retention), bounded harm (read-only +
 deterministic selection), cross-agent portability (context is data).
 
 **The full-circle finding.** A fresh-eyes derivation reconverged on Edgar's original
-**Jurati MCP** design — now with a proof scaffold under it. The detour's payoff was
+**Jurati MCP** design, now with a proof scaffold under it. The detour's payoff was
 not the architecture (Jurati had it) but discovering the **seam**: the broker's read
 half can make provable guarantees the durable half structurally cannot.
 
@@ -34,7 +34,7 @@ half can make provable guarantees the durable half structurally cannot.
 
 Full detail in [architecture-decision.md](architecture-decision.md). Seven decisions:
 
-1. **Two packages, one product** — stateless broker (base) + optional durable memory
+1. **Two packages, one product**: stateless broker (base) + optional durable memory
    layer. The seam is **evidence vs. authority** (= stateless vs. durable): they make
    opposite promises about state and must be separate record types. Capability-absence
    is **SBOM-auditable** (durable code not in the lockfile). Capability **ladder**:
@@ -42,18 +42,18 @@ Full detail in [architecture-decision.md](architecture-decision.md). Seven decis
    package/process. Strict one-way coupling; durable registers as *just another read
    source*; broker stays stateless even when memory is present. Broker is an
    **extraction** from the shared pure foundation, not a rewrite.
-2. **Product *and* protocol** — standardize the edges (card schema, coverage
+2. **Product *and* protocol**, standardize the edges (card schema, coverage
    certificate, connector interface, transport); own a single canonical reproducible
    **engine**; no third-party engines in v1 (determinism would drift).
-3. **Cross-agent transport** — file + CLI + MCP. The **file adapter** is the
+3. **Cross-agent transport**: file + CLI + MCP. The **file adapter** is the
    plugin-free, per-everything foundation (stronger than an IDE plugin). **Two planes:**
    machine (MCP→agent, delivers value) + human (file/CLI/IDE-panel, delivers trust),
    the human plane **renders certified cards directly, never via the LLM**, and
    **prints, never blocks**.
-4. **Route / Stamp / Envelope** — every candidate claim → ROUTE (surface? how loud?
-   which tier? — **tunable**), STAMP (honest framing — **fact, never tunable**),
+4. **Route / Stamp / Envelope**: every candidate claim → ROUTE (surface? how loud?
+   which tier?, **tunable**), STAMP (honest framing, **fact, never tunable**),
    ENVELOPE (coverage). Composition **algebra**: gate / multiplicative-precondition /
-   additive-flavor / interaction / categorical-state — *intersections are computed,
+   additive-flavor / interaction / categorical-state, *intersections are computed,
    not enumerated*. **Trust tiers** certified|hint are a **firewall**. **Tune the
    gate, never the truth.** Two failure families (cry-wolf / lie); **trust is
    multiplicative** (one bad card poisons the surface).
@@ -83,14 +83,14 @@ the-truth; no people-graph; bounded-harm honestly scoped (not "incapable of harm
   panel: round-1 minor/major → all six convergent bugs fixed → round-2 **accept-with-
   nits**, all six confirmed closed, one new pigeonhole (budget vs. dissent) resolved
   via `Unknown[truncated]`. (Mirrors the v0.1→v0.4 Reject→Accept arc.)
-- **Latency experiment** — the "honesty tax" is real for the naive design (~4s p95)
+- **Latency experiment**: the "honesty tax" is real for the naive design (~4s p95)
   but the **warm-daemon + freshness-stamped cache** design erases it (~8ms p95); cost
   moves to staleness, which the certificate reports. "Stateless" = no durable *trusted*
   state, **not** no cache.
-- **Relevance-coverage experiment** — structural relevance covers ~**38%** of high-
+- **Relevance-coverage experiment**: structural relevance covers ~**38%** of high-
   value events (L≈43%, D≈18%); but it's the certifiable, highest-confidence,
   costliest-to-miss slice. Validates structural-by-design + the L→D flywheel.
-- **Disagreement-detection experiment** — two deterministic detectors hit **precision
+- **Disagreement-detection experiment**: two deterministic detectors hit **precision
   0.44** on a 48-item adversarial corpus → undeclared value-disagreement **stays an L
   hint, not a certified card**. The integrity thesis eating its own dogfood.
 
@@ -104,31 +104,31 @@ All artifacts persisted under
 | # | Item | Status |
 |---|---|---|
 | 1 | φ-robustness (A4) | partially answered (extraction brittle → keep certified surface structural / pinned-typed) |
-| 2 | Undeclared-disagreement certifiability | **RESOLVED** — stays L hint (precision 0.44) |
-| 3 | Severity calibration | **deferred by nature** — needs deployment telemetry; defaults are sane starting guesses |
+| 2 | Undeclared-disagreement certifiability | **RESOLVED**: stays L hint (precision 0.44) |
+| 3 | Severity calibration | **deferred by nature**: needs deployment telemetry; defaults are sane starting guesses |
 | 4 | Protocol v0.5 formalization | **DONE** (round-2 closed) |
 | 5 | T3″ non-interference lemma + mechanized proofs | proof obligations, non-blocking |
-| 6 | SRE / operability persona | **DONE** — Nadia (operator-of-daemon): fail-safe read-only, bounded egress, back-off → honest-staleness, replay forensics; freshness-as-SLO the honest limit ([personas.md](personas.md) §7) |
-| 7 | Safe-experiment harness | **DONE** — spec written: Mode A golden tests (default) + Mode B sealed sandbox; fail-closed no-unsafe-experiment gate + pre-flight cage check ([safe-experiment-harness.md](../../research/safe-experiment-harness.md)) |
-| 8 | Vision artifacts vs. new model | **DONE** — day-in-the-life (authority card + disagreement-downgrade + Route/Stamp/human-plane grounding) and the Raj/Priya/Sol personas reconciled to the v0 model; all five + Wei/Nadia now consistent |
-| 9 | **Distribution / moment-of-invocation** | **open** (role-play panel 5/5) — elevate the human-plane IDE panel + default agent work-start invocation from side-note to first-class strategy; the vision is built for trust, under-built for distribution |
-| 10 | **Positioning** | **DECIDED** (2026-06-19) — marquee = the *category* (timely, ambient team context); can't-track/determinism demoted from marquee to **credibility engine** (a proof obligation: determinism + verbatim source-backing + one-click verifiability + replay); rework = lead benefit; safety = table stakes; complementary to LLMs, not a dual banner. See [positioning.md](positioning.md) |
-| 11 | **Source-of-record quality (GIGO)** | **open** (3/5) — deterministic broker faithfully propagates stale/garbage SoR; sharpen fidelity≠truth into an adoption precondition; can non-LLM signals flag likely-stale SoR? |
-| 12 | **Signal-taxonomy ownership + defaults** | **open** (3/5) — a declared cross-team owner of "what counts as a card"; opinionated per-repo/monorepo default policies so v1 isn't noise on day one |
+| 6 | SRE / operability persona | **DONE**: Nadia (operator-of-daemon): fail-safe read-only, bounded egress, back-off → honest-staleness, replay forensics; freshness-as-SLO the honest limit ([personas.md](personas.md) §7) |
+| 7 | Safe-experiment harness | **DONE**: spec written: Mode A golden tests (default) + Mode B sealed sandbox; fail-closed no-unsafe-experiment gate + pre-flight cage check ([safe-experiment-harness.md](../../research/safe-experiment-harness.md)) |
+| 8 | Vision artifacts vs. new model | **DONE**: day-in-the-life (authority card + disagreement-downgrade + Route/Stamp/human-plane grounding) and the Raj/Priya/Sol personas reconciled to the v0 model; all five + Wei/Nadia now consistent |
+| 9 | **Distribution / moment-of-invocation** | **open** (role-play panel 5/5), elevate the human-plane IDE panel + default agent work-start invocation from side-note to first-class strategy; the vision is built for trust, under-built for distribution |
+| 10 | **Positioning** | **DECIDED** (2026-06-19), marquee = the *category* (timely, ambient team context); can't-track/determinism demoted from marquee to **credibility engine** (a proof obligation: determinism + verbatim source-backing + one-click verifiability + replay); rework = lead benefit; safety = table stakes; complementary to LLMs, not a dual banner. See [positioning.md](positioning.md) |
+| 11 | **Source-of-record quality (GIGO)** | **open** (3/5), deterministic broker faithfully propagates stale/garbage SoR; sharpen fidelity≠truth into an adoption precondition; can non-LLM signals flag likely-stale SoR? |
+| 12 | **Signal-taxonomy ownership + defaults** | **open** (3/5), a declared cross-team owner of "what counts as a card"; opinionated per-repo/monorepo default policies so v1 isn't noise on day one |
 
 ---
 
 ## 5. Where we go next (prioritized)
 
 **Still in the vision phase (no code yet, per Edgar's framing):**
-1. ✅ **Reconcile the vision artifacts** — **DONE.** Wei + Nadia personas written; the
+1. ✅ **Reconcile the vision artifacts**: **DONE.** Wei + Nadia personas written; the
    day-in-the-life scenes and the original Raj/Priya/Sol personas reconciled to the v0
    model (authority cards, Route/Stamp/Envelope, the human plane, disagreement-as-hint).
-2. ✅ **Safe-experiment harness spec** (#7) — **DONE**
+2. ✅ **Safe-experiment harness spec** (#7), **DONE**
    ([safe-experiment-harness.md](../../research/safe-experiment-harness.md)): Mode A
    golden tests (default, no live model) + Mode B sealed sandbox; G1 pre-flight cage
    check, G3 fail-closed no-unsafe-experiment gate; build-order = corpus + Mode A first.
-3. ✅ **Role-play panel** (CPO/eng-adoption/exec-impact) — **DONE.** Authored panel +
+3. ✅ **Role-play panel** (CPO/eng-adoption/exec-impact), **DONE.** Authored panel +
    4-model frontier panel, independent then converged
    ([roleplay-panel-2026-06-18/convergence.md](../../research/reviews/roleplay-panel-2026-06-18/convergence.md)).
    Surfaced open items #9–#12; net signal = the vision is **under-built on distribution**
@@ -140,7 +140,7 @@ All artifacts persisted under
    connectors + transports), omitting durable/write code → the capability-absent base
    package.
 5. **Publish the contract spec** (card schema, coverage certificate, connector
-   interface, transport) — the standardized edges.
+   interface, transport), the standardized edges.
 6. **Implement** Route/Stamp/Envelope + the coverage taxonomy + the phantom filter +
    authority *behavior* (missing-default / refuse-to-pick / surface-conflict). Severity
    defaults shipped, calibrated later via dogfood telemetry.
@@ -156,11 +156,11 @@ All artifacts persisted under
   v0.5 extension. New formal primitives are unproven until refereed; the panel
   reliably catches internal contradictions.
 - **Small experiments to adjudicate disagreements** (latency, relevance, disagreement-
-  detection) — modeled/adversarial, honest about "direction not exact %."
+  detection), modeled/adversarial, honest about "direction not exact %."
 - **Cross-product pattern-matching** as compression (gut-pulls cheap to check;
-  occasionally a key — but **80%-right analogies are the expensive trap**; the
+  occasionally a key, but **80%-right analogies are the expensive trap**; the
   *tune-the-gate-never-the-truth* boundary came from catching one such disanalogy).
-- **Claims never outrun proof** — every decision tagged proven / decided / open.
+- **Claims never outrun proof**: every decision tagged proven / decided / open.
 
 **Private prior art (do NOT cite in teamctx product/vision docs):** the assurance-
 state-model pattern and the pure-core/tuned-weights house pattern were sharpened by
@@ -172,7 +172,7 @@ borrowable code, not a public reference.
 ## 7. Standing context
 
 - **Edgar's frame:** building a **product** (OSS, maybe acquired), not a company.
-  Evaluate on adoption / trust / impact — **not** business model / pricing / GTM.
+  Evaluate on adoption / trust / impact, **not** business model / pricing / GTM.
 - **Deployment model & cloud-vs-self-hosted sources:** left **open** (not locked).
 - **Connectors first-class:** GitHub, GitLab, Jira, Confluence. **No in-editor LLM
   assistant** (the IDE *panel* is a deterministic renderer, a different thing).
@@ -182,7 +182,7 @@ borrowable code, not a public reference.
 
 ---
 
-## 8. v1.0 paper revisions (Edgar's review, 2026-06-18) — ✅ ALL FIVE APPLIED
+## 8. v1.0 paper revisions (Edgar's review, 2026-06-18): ✅ ALL FIVE APPLIED
 
 **Status:** all five landed in `teamctx-protocol-v1.0.md` (next session resumed):
 #1 `deps_G` → explicit `complete?` checker + obligation **O1** (§5; T2/T4 now stated
@@ -191,10 +191,10 @@ surfaced (§4/§6); #3 T1 reworded to *verifiable replay* + content-addressed sn
 (§4); #4 source-indexed freshness + stale-high/fresh-low → `Unknown[unobserved]` with a
 worked example (§8); #5 certificate schema + a full worked trace (Appendix A).
 **Re-refereed (2 rounds) → CLOSED.** Round 1 caught two real defects the fixes
-introduced/exposed — a δ-bypass privacy leak (closure status in κ) and a polarity bug
+introduced/exposed, a δ-bypass privacy leak (closure status in κ) and a polarity bug
 (universals mis-valued); both fixed (δ-gated closure; shape-branched valuation with
 `Unknown[conflicting-evidence]`). Round 2: gpt-5.1 **accept**, gemini accept-w-minor,
-deepseek minor — the two prescribed fixes applied, paper closed. Reports
+deepseek minor, the two prescribed fixes applied, paper closed. Reports
 `v10r1_*` / `v10r2_*`. Remaining proof obligations (non-blocking): T8 non-interference
 lemma, mechanization. Original review preserved below.
 
@@ -204,7 +204,7 @@ certified-`C` / untrusted-`H` boundary; the extraction-limit section using bad p
 *as a design argument* rather than waving it away. Five fixes, roughly in priority:
 
 1. **`deps_G` is carrying too much theorem weight (the load-bearing fix).** Observable
-   soundness (T2) depends on the consumer verifying `deps_G(ρ)` is *complete* — right now
+   soundness (T2) depends on the consumer verifying `deps_G(ρ)` is *complete*: right now
    that rigor hides in the word "conservative." Make **`deps_G` / completeness its own
    explicit certificate object or checker, with stated failure modes**, or a skeptical
    reader says "the whole soundness theorem moved into one adjective."
@@ -216,7 +216,7 @@ certified-`C` / untrusted-`H` boundary; the extraction-limit section using bad p
    unless the snapshot/archive is retrievable. Reword to "enables **verification** of
    replay," or include a **content-addressed snapshot reference**.
 4. **Tighten the authority-state rules (§8).** `E=fresh` should be **source-indexed**;
-   the stale/`⊥` override behavior needs a **worked example** — esp. the policy-sensitive
+   the stale/`⊥` override behavior needs a **worked example**: esp. the policy-sensitive
    case: *stale high-priority authority + fresh lower-priority authority* → does it
    resolve downward, or become `Unknown[unobserved]`? Decide and show it.
 5. **Add a concrete certificate schema + one worked example (S1 or S2).** Input

@@ -11,12 +11,12 @@ index 3cadcb4..60ce79f 100644
 -- Run unit tests.
 -- Confirm token rotation rollout owner.
 -- Check dashboards after deploy.
-+> **WARNING — stale source:** The Confluence checklist this was originally exported from was last refreshed 2026-06-12. Steps below have been augmented from Jira API-482, but some linked docs were inaccessible. Verify the full release process against a fresh Confluence snapshot before proceeding.
++> **WARNING, stale source:** The Confluence checklist this was originally exported from was last refreshed 2026-06-12. Steps below have been augmented from Jira API-482, but some linked docs were inaccessible. Verify the full release process against a fresh Confluence snapshot before proceeding.
 +
 +## Pre-deploy
 +
 +- [ ] Run unit tests.
-+- [ ] **Resolve open conflict with PR #482** — that branch edits `src/auth/token.py` (token rotation retry behavior and legacy-client compatibility). Coordinate with the PR owner before merging to avoid overwriting changes.
++- [ ] **Resolve open conflict with PR #482**: that branch edits `src/auth/token.py` (token rotation retry behavior and legacy-client compatibility). Coordinate with the PR owner before merging to avoid overwriting changes.
 +- [ ] Confirm token rotation rollout owner.
 +- [ ] Verify token rotation retries stay inside the 30-second retry window (Jira API-482 acceptance criteria).
 +- [ ] Verify legacy clients remain compatible with the existing token format (Jira API-482 acceptance criteria).

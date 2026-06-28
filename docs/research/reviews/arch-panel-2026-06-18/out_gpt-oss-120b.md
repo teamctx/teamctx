@@ -75,7 +75,7 @@ When the memory layer registers itself as a **source connector** (e.g., `memory:
 | **Stateful error handling** | The broker records “failed to read memory store” flags in a global variable and suppresses future reads for that session. | This introduces hidden mutable state that influences future outputs, again breaking the pure‑function model. |
 | **Write‑back side‑effects** | The memory connector, in order to “normalize” data, writes a canonical version of a card back to its git store when queried. | The read‑only contract of the broker is violated because a read request triggers a write, creating a poisonable feedback loop. |
 
-If the **memory layer itself** is a *pure read source*—i.e., it never writes, never caches across calls, and its API is limited to “given commit hash → deterministic card set”—then the broker’s structural guarantees **remain intact**.  The coverage certificate will still list the memory source as “observed” and will be auditable because the broker can be re‑run with the same commit hash and produce the same certificate.
+If the **memory layer itself** is a *pure read source*, i.e., it never writes, never caches across calls, and its API is limited to “given commit hash → deterministic card set”, then the broker’s structural guarantees **remain intact**.  The coverage certificate will still list the memory source as “observed” and will be auditable because the broker can be re‑run with the same commit hash and produce the same certificate.
 
 **Concrete safeguard:** The broker core must enforce that every connector implements an interface that **exposes only a stateless `extract` function** and **does not expose any mutable handles** (e.g., file descriptors that remain open).  A static analysis rule (e.g., `golangci-lint` rule `no-stateful-connector`) can be used to verify this property for any third‑party connector, including the memory layer.
 
@@ -96,7 +96,7 @@ If the **memory layer itself** is a *pure read source*—i.e., it never writes, 
 2. **Runtime contract** – The broker only receives connectors via a *registration* API (`broker.RegisterSource(connector)`). The memory package registers itself *outside* the broker process (e.g., via a side‑car that feeds JSON over the MCP). The broker never imports the memory code; it merely consumes its output.  
 3. **Versioned SBOM verification** – Deployments are scanned; if any symbol from the memory package appears in the broker binary, the build is rejected.
 
-When those rules are in place, the two packages remain **architecturally distinct** even though they are shipped together.  The only way the hybrid “collapses” is if a developer deliberately violates the registration contract—something that can be caught early by static analysis and SBOM gating.
+When those rules are in place, the two packages remain **architecturally distinct** even though they are shipped together.  The only way the hybrid “collapses” is if a developer deliberately violates the registration contract, something that can be caught early by static analysis and SBOM gating.
 
 ---
 

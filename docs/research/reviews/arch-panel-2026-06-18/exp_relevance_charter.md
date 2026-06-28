@@ -1,5 +1,5 @@
 Enumerate context events that should reach an AI coding agent at the START of a
-unit of work (a new branch, or resuming a session) — for both solo developers and
+unit of work (a new branch, or resuming a session), for both solo developers and
 enterprise teams. This tests whether a DETERMINISTIC, STRUCTURAL context broker is
 sufficient, or whether it's "just a high-latency grep tool."
 
@@ -14,13 +14,13 @@ For EACH event output one row, pipe-delimited:
   id | one-line description | CLASS | one-line justification
 
 CLASS is exactly one of:
-  S (Structural) — catchable by a deterministic rule over explicit edges
+  S (Structural), catchable by a deterministic rule over explicit edges
       (same file/symbol overlap, linked ticket/doc changed since branch point,
        missing required check, dependency edge, superseded version).
-  L (Learned/Semantic) — needs fuzzy/semantic relevance or a usage feedback loop
+  L (Learned/Semantic), needs fuzzy/semantic relevance or a usage feedback loop
       (e.g. a conceptually-related but UNLINKED RFC; "files often changed together";
        tribal knowledge that was never written into a linked artifact).
-  D (Declared) — catchable only via durable, human-declared config/policy
+  D (Declared), catchable only via durable, human-declared config/policy
       (e.g. "payments/ requires finance review"; "this module is frozen").
 
 Rules:
