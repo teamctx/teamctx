@@ -117,6 +117,40 @@ def test_work_start_errors_when_repo_unresolvable(monkeypatch, tmp_path: Path) -
     assert "could not determine the repository" in result.output
 
 
+def test_work_start_reads_token_from_file(monkeypatch, tmp_path: Path) -> None:
+    """CLI gains the file-based token fallback: GITHUB_TOKEN_FILE is honoured when GITHUB_TOKEN
+    is unset. With a token present the connector attempts a network call and gets a GitHub auth
+    error rather than the no-token can't-verify path, proving the token was picked up."""
+
+    token_file = tmp_path / "token"
+    token_file.write_text("file-based-token\n", encoding="utf-8")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setenv("GITHUB_TOKEN_FILE", str(token_file))
+    monkeypatch.chdir(tmp_path)
+
+    import teamctx.connectors.github as gh
+    from teamctx.connectors.github import ForgeReviewFetch
+
+    # The connector is called with the file-sourced token; capture it.
+    captured: list[str | None] = []
+
+    def _fake_fetch(**kw: object) -> ForgeReviewFetch:
+        captured.append(kw.get("token"))
+        return ForgeReviewFetch(pull_requests=[], truncated=False)
+
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", _fake_fetch)
+
+    result = CliRunner().invoke(
+        main,
+        ["work-start", "--github-repo", "acme/widgets", "--path", "src/widgets/core.py"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    # Token was read from the file and forwarded to the connector.
+    assert captured == ["file-based-token"]
+
+
 def test_work_start_errors_on_malformed_config(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".teamctx").mkdir()

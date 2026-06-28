@@ -10,14 +10,14 @@ through a tool call, so credentials stay server-side.
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from teamctx.clock import utc_now_iso
 from teamctx.project_config import ProjectConfigError
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
-from teamctx.tokens import resolve_github_token
+from teamctx.tokens import resolve_token
 from teamctx.work_start import render_work_start
 
 mcp = FastMCP("teamctx")
@@ -60,21 +60,17 @@ def work_start(
             issues=tuple(issues or ()),
             since=since,
             ref=ref,
-            token=resolve_github_token(),
+            token=resolve_token(),
             root=_resolution_root(),
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
         return str(exc)
-    return render_work_start(inputs, observed_at=_utc_now_string(), project_root=_resolution_root())
+    return render_work_start(inputs, observed_at=utc_now_iso(), project_root=_resolution_root())
 
 
 def _resolution_root() -> Path:
     override = os.environ.get("TEAMCTX_PROJECT_ROOT")
     return Path(override) if override else Path.cwd()
-
-
-def _utc_now_string() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def main() -> None:

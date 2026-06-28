@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import copy
 import json
-import os
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import click
 
+from teamctx.clock import utc_now_iso
 from teamctx.connectors.declared_authority import load_declared_authority
 from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.github import run_github_pr_probe
@@ -41,6 +40,7 @@ from teamctx.project_config import (
     write_project_config,
 )
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
+from teamctx.tokens import resolve_token
 from teamctx.work_start import render_work_start
 
 
@@ -192,13 +192,13 @@ def work_start_command(
             since=since,
             ref=ref,
             include_titles=include_title,
-            token=os.environ.get(token_env),
+            token=resolve_token(token_env),
             root=Path.cwd(),
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(
-        render_work_start(inputs, observed_at=_utc_now_string(), project_root=Path.cwd()),
+        render_work_start(inputs, observed_at=utc_now_iso(), project_root=Path.cwd()),
         nl=False,
     )
 
@@ -218,7 +218,7 @@ def docs_probe_command(
 ) -> None:
     """Derive doc-superseded context (declared-frontmatter) for the relied-on docs."""
 
-    observed_at = _utc_now_string()
+    observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
         request_id=f"docs-supersession-probe:{repo}:{observed_at}",
@@ -254,7 +254,7 @@ def gate_probe_command(
 ) -> None:
     """Derive missed-gate context from failing GitHub check-runs."""
 
-    observed_at = _utc_now_string()
+    observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
         request_id=f"github-checks-probe:{repo}:{observed_at}",
@@ -269,7 +269,7 @@ def gate_probe_command(
     document = run_github_checks_probe(
         repo=repo,
         ref=ref,
-        token=os.environ.get(token_env),
+        token=resolve_token(token_env),
         request_context=request_context,
         observed_at=observed_at,
     )
@@ -296,7 +296,7 @@ def issue_probe_command(
 ) -> None:
     """Derive criteria-changed context from GitHub Issue movement."""
 
-    observed_at = _utc_now_string()
+    observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
         request_id=f"github-issues-probe:{repo}:{observed_at}",
@@ -312,7 +312,7 @@ def issue_probe_command(
         repo=repo,
         issues=list(issues),
         since=since,
-        token=os.environ.get(token_env),
+        token=resolve_token(token_env),
         request_context=request_context,
         observed_at=observed_at,
     )
@@ -650,7 +650,7 @@ def _github_contract_document(
     token_env: str,
     include_title: bool,
 ) -> CoreContractDocument:
-    observed_at = _utc_now_string()
+    observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
         request_id=f"github-pr-probe:{repo}:{observed_at}",
@@ -664,7 +664,7 @@ def _github_contract_document(
     )
     return run_github_pr_probe(
         repo=repo,
-        token=os.environ.get(token_env),
+        token=resolve_token(token_env),
         request_context=request_context,
         observed_at=observed_at,
         include_titles=include_title,
@@ -687,10 +687,6 @@ def _load_contract_or_raise(path: Path) -> CoreContractDocument:
         return load_contract_document(path)
     except ContractDocumentError as exc:
         raise click.ClickException(str(exc)) from exc
-
-
-def _utc_now_string() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 if __name__ == "__main__":
