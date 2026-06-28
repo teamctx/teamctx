@@ -1,9 +1,6 @@
 {
   "schema_version": "teamctx.project_config.v0",
-  "github": {
-    "repo": "org/app",
-    "token_env": "GITHUB_TOKEN",
-    "include_title": false
-  },
-  "default_output": ".teamctx/context.json"
+  "work_start": {
+    "repo": "org/app"
+  }
 }

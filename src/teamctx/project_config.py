@@ -9,7 +9,6 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 DEFAULT_CONFIG_PATH = Path(".teamctx/config.json")
-DEFAULT_OUTPUT_PATH = ".teamctx/context.json"
 
 
 class ProjectConfigError(ValueError):
@@ -18,12 +17,6 @@ class ProjectConfigError(ValueError):
 
 class StrictConfigModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-
-class GitHubSourceConfig(StrictConfigModel):
-    repo: str
-    token_env: str = "GITHUB_TOKEN"
-    include_title: bool = False
 
 
 class WorkStartConfig(StrictConfigModel):
@@ -36,27 +29,7 @@ class WorkStartConfig(StrictConfigModel):
 
 class ProjectConfig(StrictConfigModel):
     schema_version: Literal["teamctx.project_config.v0"]
-    github: GitHubSourceConfig | None = None
-    default_output: str = DEFAULT_OUTPUT_PATH
     work_start: WorkStartConfig | None = None
-
-
-def build_project_config(
-    *,
-    github_repo: str,
-    token_env: str = "GITHUB_TOKEN",
-    include_title: bool = False,
-    default_output: str = DEFAULT_OUTPUT_PATH,
-) -> ProjectConfig:
-    return ProjectConfig(
-        schema_version="teamctx.project_config.v0",
-        github=GitHubSourceConfig(
-            repo=github_repo,
-            token_env=token_env,
-            include_title=include_title,
-        ),
-        default_output=default_output,
-    )
 
 
 def build_work_start_project_config(
