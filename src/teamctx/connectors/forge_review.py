@@ -56,6 +56,7 @@ def normalize_forge_review_prs(
     observed_at: str,
     expires_at: str = "next_refresh",
     source_id: str = "github_pr_metadata",
+    coverage_truncated: bool = False,
 ) -> CoreContractDocument:
     source_signals: list[SourceSignal] = []
     source_open_targets: list[SourceOpenTarget] = []
@@ -133,14 +134,21 @@ def normalize_forge_review_prs(
             )
         )
 
+    status: SourceStatusValue = "stale" if coverage_truncated else "fresh"
+    safe_user_message = (
+        "Checked the most recent 100 open PRs; there are more open PRs not included, "
+        "so this is not a complete check."
+        if coverage_truncated
+        else "Git-host PR metadata refreshed."
+    )
     source_statuses = [
         forge_review_source_status(
             source_id=source_id,
             provider="github",
             repo=request_context.repo,
-            status="fresh",
+            status=status,
             observed_at=observed_at,
-            safe_user_message="Git-host PR metadata refreshed.",
+            safe_user_message=safe_user_message,
             visibility="silent",
         )
     ]

@@ -39,21 +39,25 @@ def test_work_start_tool_surfaces_a_collision(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
     import teamctx.connectors.github as gh
     from teamctx.connectors.forge_review import ForgeReviewPullRequest
+    from teamctx.connectors.github import ForgeReviewFetch
 
     def fake_prs(**kwargs):  # type: ignore[no-untyped-def]
-        return [
-            ForgeReviewPullRequest(
-                provider="github",
-                repo="acme/widgets",
-                number=7,
-                state="open",
-                url="https://github.com/acme/widgets/pull/7",
-                title=None,
-                changed_paths=("src/app/core.py",),
-                created_at="2026-06-25T10:00:00Z",
-                updated_at="2026-06-25T11:00:00Z",
-            )
-        ]
+        return ForgeReviewFetch(
+            pull_requests=[
+                ForgeReviewPullRequest(
+                    provider="github",
+                    repo="acme/widgets",
+                    number=7,
+                    state="open",
+                    url="https://github.com/acme/widgets/pull/7",
+                    title=None,
+                    changed_paths=("src/app/core.py",),
+                    created_at="2026-06-25T10:00:00Z",
+                    updated_at="2026-06-25T11:00:00Z",
+                )
+            ],
+            truncated=False,
+        )
 
     monkeypatch.setattr(gh, "fetch_github_pull_requests", fake_prs)
     monkeypatch.setenv("GITHUB_TOKEN", "t")
