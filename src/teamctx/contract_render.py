@@ -172,12 +172,16 @@ def _coverage_line(assessment: WorkStartAssessment) -> str:
 
 
 def _couldnt_check_line(assessment: WorkStartAssessment) -> str:
-    # Non-important unreachable checks. The important ones (conflict/gate) are surfaced as the
-    # can't-verify bullets; this keeps honest-UNKNOWN from being silently dropped for the rest.
+    # Surface every unreachable check that isn't already in the can't-verify bullets. Those
+    # bullets only fire when kind == cant_verify and only for the important checks, so in any
+    # other mode (a found check made it heads_up) the unreachable important checks must be
+    # surfaced here too. Honest-UNKNOWN is never silently dropped.
+    in_bullets = assessment.kind == "cant_verify"
     gaps = [
         _UNREACHABLE_PHRASE[s.check]
         for s in assessment.checks
-        if s.status == "unreachable" and s.check not in ("conflict", "gate")
+        if s.status == "unreachable"
+        and not (in_bullets and s.check in ("conflict", "gate"))
     ]
     if not gaps:
         return ""

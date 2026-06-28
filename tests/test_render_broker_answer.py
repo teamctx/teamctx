@@ -88,6 +88,18 @@ def test_non_important_unreachable_is_surfaced_not_hidden() -> None:
     _no_jargon(text)
 
 
+def test_heads_up_still_surfaces_unreachable_important_check() -> None:
+    text = render_broker_answer(
+        broker_answer(
+            _request(), [_collision_signal()], [_fresh("git_hosting"), _unavailable("ci_deploy")]
+        )
+    )
+    assert text.startswith("Before you start, here is what to handle first:")
+    assert "PR #7" in text
+    assert "Couldn't check: failing checks" in text
+    _no_jargon(text)
+
+
 def test_authority_section_surfaces_a_conflict() -> None:
     decls = [
         AuthorityDecl(subject="rounding-cap", source="ticket", priority=10, value="5", fresh=True),
