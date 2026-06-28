@@ -92,8 +92,9 @@ retirement (drop `refresh`/`context`, rebuild `why`/`open-source` on the broker)
 (pip/uvx) + token-hygiene docs · E README (claims-match-code, **reality-grounding** lead) · then the
 multi-actor dogfood.
 **Carry-forward (non-blocking):** *Closed by M2*: the `gh pr view N` action (conflict findings now
-carry it) and the stale Docs/Criteria honesty gap (now a "Couldn't check:" line). *Still open*: CLI
-`work-start` lacks the `GITHUB_TOKEN_FILE` fallback the hook/MCP have; `_utc_now` is triplicated.
+carry it) and the stale Docs/Criteria honesty gap (now a "Couldn't check:" line). *Closed 2026-06-28
+(`7e13ec7`)*: CLI now honors `{token_env}_FILE` via the shared `resolve_token`, and `_utc_now` is
+deduped into `teamctx.clock.utc_now_iso`.
 *New, for slice C*: the probe commands (`issue-probe` etc.) reuse the work-start render, so they print
 "Looks clear to start." and not_configured reasons ("couldn't determine the repository/branch") that
 read wrong for a single-check diagnostic; give the probes their own headline or suppress not-run
