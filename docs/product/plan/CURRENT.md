@@ -56,7 +56,7 @@ docs verdicts; forks correct via committed config; non-git / unreachable degrade
 -UNKNOWN; tests cover the UNKNOWN edges, not just the happy path.
 Spec: `docs/superpowers/specs/2026-06-27-work-start-input-resolution-design.md`.
 
-### Sprint 2: Ready for others, proven multi-actor  *(IN PROGRESS: Slice A / M1 reflex DONE 2026-06-28, merged `5bf4ad9`)*
+### Sprint 2: Ready for others, proven multi-actor  *(IN PROGRESS: M1 reflex + M2 messaging pass DONE 2026-06-28)*
 pip/uvx installable; a real `teamctx init` that scaffolds the work_start config; MCP wiring +
 file-based token hygiene documented; README that claims exactly what the code proves. **Retire
 legacy:** drop `refresh`/`context`; rebuild `why`/`open-source` on the live broker. **Validation
@@ -69,15 +69,25 @@ never-block, network time-bounded, edited path normalized to repo-relative so **
 all-clear**) + opt-in `teamctx install-hook` + portable `CLAUDE.md` snippet. Signal model:
 *ready / heads-up / can't-verify* (honest-UNKNOWN surfaces only when it changes the decision).
 Spec/plan: `docs/superpowers/{specs,plans}/2026-06-27-m1-work-start-reflex*`.
+**M2 (the messaging pass): DONE 2026-06-28 (merged `a41ad60`, 245 tests).** One shared `assess()`
+classification (kind + per-check status, single source of truth incl. `IMPORTANT_CHECKS`) feeds both
+the hook and a signal-led prose render (`render_broker_answer`), so every transport (CLI work-start,
+MCP, probe commands, eval pack) speaks one plain voice. **Every check status is surfaced exactly once,
+so honest-UNKNOWN is never silently dropped** (Checked / Couldn't check / Not checked lines; the final
+review caught and we fixed three would-be silent-clear holes). Also a **repo-wide em-dash scrub**:
+zero em dashes anywhere is now a hard ship gate ([[feedback_no_em_dashes_plain_human]]).
+Spec/plan: `docs/superpowers/{specs,plans}/2026-06-28-m2-messaging-pass*`.
 **Remaining slices (ordered):** B `teamctx init` scaffolds the work_start config · C legacy
 retirement (drop `refresh`/`context`, rebuild `why`/`open-source` on the broker) · D packaging
 (pip/uvx) + token-hygiene docs · E README (claims-match-code, **reality-grounding** lead) · then the
-multi-actor dogfood. **M2 (the messaging pass)** is the immediate copy slice (see
-[[project_teamctx_surfaced_text]]).
-**Carry-forward minors from M1 review (M2/later, non-blocking):** CLI `work-start` lacks the
-`GITHUB_TOKEN_FILE` fallback the hook/MCP have; heads-up copy could name the `gh pr view N` action;
-`_utc_now` is triplicated; a *stale* (tried-but-failed) Docs/Criteria source is currently neither
-headlined nor in 'ready', fix when those checks join the headline set. **Bar:** fresh-actor setup from the README alone, and genuine multi-actor scenarios surfaced
+multi-actor dogfood.
+**Carry-forward (non-blocking):** *Closed by M2*: the `gh pr view N` action (conflict findings now
+carry it) and the stale Docs/Criteria honesty gap (now a "Couldn't check:" line). *Still open*: CLI
+`work-start` lacks the `GITHUB_TOKEN_FILE` fallback the hook/MCP have; `_utc_now` is triplicated.
+*New, for slice C*: the probe commands (`issue-probe` etc.) reuse the work-start render, so they print
+"Looks clear to start." and not_configured reasons ("couldn't determine the repository/branch") that
+read wrong for a single-check diagnostic; give the probes their own headline or suppress not-run
+checks. **Bar:** fresh-actor setup from the README alone, and genuine multi-actor scenarios surfaced
 correctly across terminals.
 
 ### Sprint 3: Proof (the numbers)
