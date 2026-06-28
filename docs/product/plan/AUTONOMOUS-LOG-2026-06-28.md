@@ -58,4 +58,23 @@ cards have `source_open_target_id=None`, so C-judge must thread open-targets thr
 + terminal label helpers in `contract_render.py`, and the legacy config (`GitHubSourceConfig`,
 `github`/`default_output`, `build_project_config`). Kept `CoreContractDocument`, `render_broker_answer`,
 `SourceOpenTarget`, the live broker. Note: `ProjectConfig` now rejects configs with `github`/
-`default_output` (a clean break, acceptable pre-release).
+`default_output` (a clean break, acceptable pre-release). **MERGED `348c307`. Codex review: APPROVE.**
+
+### Packaging (D): verified buildable 2026-06-28
+`pyproject.toml` is complete (hatchling, src layout, three console scripts, mcp/dev extras).
+`python -m build` produces a clean sdist + wheel (`teamctx-0.0.0`). Structurally done. Token-hygiene
+docs fold into the README (slice E). **PUBLISH to PyPI is PARKED for Edgar** (external, irreversible).
+
+### Slice C-judge (rebuild why/open-source): DESIGNED, DEFERRED for Edgar's nod
+All-or-nothing (plumbing is useless without the commands) + touches the sensitive core (`BrokerAnswer`
+must carry open-targets) + the selector UX is a product call. So I designed it (Codex B accepted) and
+surfaced it rather than build it solo at the tail of this run. Spec:
+`docs/superpowers/specs/2026-06-28-c-judge-why-open-source-design.md`. Needs a nod on the selector
+syntax (`pr:7` / `path:` / `issue:#`) and confirmation to keep why/open-source at all.
+
+### Slice E (README): deferred until after C-judge (so it reflects the final command set).
+
+### Adversarial false-clear hunt: focused re-run in flight
+The broad core pass hung (killed it). A focused re-run is hunting the same bug class as the GitHub
+pagination fix across the other connectors (issue_criteria, docs_supersession, gate_status,
+declared_authority) + `assess_completeness`. Will triage and fix any real false-clear before surfacing.
