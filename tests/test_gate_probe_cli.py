@@ -15,7 +15,7 @@ def test_gate_probe_surfaces_missed_gate_card_and_verdict(monkeypatch) -> None:
 
     result = CliRunner().invoke(
         main,
-        ["gate-probe", "--repo", "teamctx/teamctx", "--ref", "build/x",
+        ["dev", "gate-probe", "--repo", "teamctx/teamctx", "--ref", "build/x",
          "--path", "src/teamctx/core/select.py"],
         catch_exceptions=False,
     )
@@ -29,7 +29,7 @@ def test_gate_probe_without_token_degrades_honestly(monkeypatch) -> None:
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     result = CliRunner().invoke(
         main,
-        ["gate-probe", "--repo", "teamctx/teamctx", "--ref", "build/x",
+        ["dev", "gate-probe", "--repo", "teamctx/teamctx", "--ref", "build/x",
          "--path", "src/teamctx/core/select.py"],
         catch_exceptions=False,
     )

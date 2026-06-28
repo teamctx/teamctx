@@ -51,6 +51,11 @@ def main() -> None:
     """Deterministic ambient context for software teams."""
 
 
+@main.group("dev")
+def dev() -> None:
+    """Diagnostic and developer commands (per-connector probes, eval export)."""
+
+
 @main.command()
 def status() -> None:
     """Show local teamctx status."""
@@ -109,7 +114,7 @@ def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
     )
 
 
-@main.command("github-pr-probe")
+@dev.command("github-pr-probe")
 @click.option("--repo", required=True, help="GitHub repository in owner/name form.")
 @click.option("--path", "paths", multiple=True, required=True, help="Current task file path.")
 @click.option("--branch", default=None, help="Current branch name.")
@@ -204,7 +209,7 @@ def work_start_command(
     )
 
 
-@main.command("docs-probe")
+@dev.command("docs-probe")
 @click.option("--repo", required=True, help="Repository in owner/name form (scope only; no fetch).")
 @click.option("--root", required=True, help="Docs root to scan for supersession frontmatter.")
 @click.option("--path", "paths", multiple=True, required=True, help="A doc the work relies on.")
@@ -237,7 +242,7 @@ def docs_probe_command(
     click.echo(_work_start_view(document), nl=False)
 
 
-@main.command("gate-probe")
+@dev.command("gate-probe")
 @click.option("--repo", required=True, help="GitHub repository in owner/name form.")
 @click.option("--ref", required=True, help="Git ref (branch or SHA) to read check-runs for.")
 @click.option("--path", "paths", multiple=True, required=True,
@@ -277,7 +282,7 @@ def gate_probe_command(
     click.echo(_work_start_view(document), nl=False)
 
 
-@main.command("issue-probe")
+@dev.command("issue-probe")
 @click.option("--repo", required=True, help="GitHub repository in owner/name form.")
 @click.option("--issue", "issues", multiple=True, required=True, help="Linked issue (e.g. #42).")
 @click.option("--since", required=True, help="ISO timestamp: only surface changes after this time.")
@@ -464,7 +469,7 @@ def open_source_command(ref_id: str, contract_path: Path | None, config_path: Pa
         raise click.ClickException(f"Unknown source or card id: {ref_id}") from exc
 
 
-@main.command("eval-export")
+@dev.command("eval-export")
 @click.option(
     "--scenarios-dir",
     required=True,

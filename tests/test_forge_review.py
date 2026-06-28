@@ -174,7 +174,7 @@ def test_cli_github_pr_probe_missing_token_outputs_contract_document() -> None:
     result = runner.invoke(
         main,
         [
-            "github-pr-probe",
+            "dev", "github-pr-probe",
             "--repo",
             "org/app",
             "--path",
