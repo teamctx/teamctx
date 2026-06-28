@@ -15,16 +15,8 @@ from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.github import run_github_pr_probe
 from teamctx.connectors.github_checks import run_github_checks_probe
 from teamctx.connectors.github_issues import run_github_issues_probe
-from teamctx.contract_documents import (
-    ContractDocumentError,
-    load_contract_document,
-    write_contract_document,
-)
 from teamctx.contract_render import (
     render_broker_answer,
-    render_contract_context,
-    render_contract_open_source,
-    render_contract_why,
 )
 from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import CoreContractDocument, RequestContext
@@ -33,11 +25,8 @@ from teamctx.eval.scenario import EvalScenarioError
 from teamctx.git_context import detect_repo
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
-    DEFAULT_OUTPUT_PATH,
-    ProjectConfig,
     ProjectConfigError,
     build_work_start_project_config,
-    maybe_load_project_config,
     write_project_config,
 )
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
@@ -325,150 +314,6 @@ def issue_probe_command(
     click.echo(_work_start_view(document), nl=False)
 
 
-@main.command("refresh")
-@click.option("--github-repo", "repo", default=None, help="GitHub repository in owner/name form.")
-@click.option("--path", "paths", multiple=True, required=True, help="Current task file path.")
-@click.option("--branch", default=None, help="Current branch name.")
-@click.option("--task", default="Refresh TeamCtx context.", show_default=True, help="Task text.")
-@click.option("--token-env", default=None, help="Token env var name.")
-@click.option(
-    "--include-title/--omit-title",
-    default=None,
-    help="Whether PR titles are allowed in normalized metadata.",
-)
-@click.option(
-    "--output",
-    "output_path",
-    default=None,
-    type=click.Path(dir_okay=False, path_type=Path),
-    help="Where to write the Core Contract document.",
-)
-@click.option(
-    "--config",
-    "config_path",
-    default=DEFAULT_CONFIG_PATH,
-    show_default=True,
-    type=click.Path(dir_okay=False, path_type=Path),
-    help="Project config path.",
-)
-def refresh_command(
-    repo: str | None,
-    paths: tuple[str, ...],
-    branch: str | None,
-    task: str,
-    token_env: str | None,
-    include_title: bool | None,
-    output_path: Path | None,
-    config_path: Path,
-) -> None:
-    """Refresh local TeamCtx context from configured source metadata."""
-
-    config = _maybe_load_project_config_or_raise(config_path)
-    refresh_options = _resolve_refresh_options(
-        config=config,
-        repo=repo,
-        token_env=token_env,
-        include_title=include_title,
-        output_path=output_path,
-    )
-    document = _github_contract_document(
-        repo=refresh_options.repo,
-        paths=paths,
-        branch=branch,
-        task=task,
-        token_env=refresh_options.token_env,
-        include_title=refresh_options.include_title,
-    )
-    try:
-        write_contract_document(refresh_options.output_path, document)
-    except ContractDocumentError as exc:
-        raise click.ClickException(str(exc)) from exc
-    click.echo(f"Refreshed context at {refresh_options.output_path}")
-
-
-@main.command("context")
-@click.option(
-    "--contract",
-    "contract_path",
-    required=False,
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help="Core Contract document path.",
-)
-@click.option(
-    "--config",
-    "config_path",
-    default=DEFAULT_CONFIG_PATH,
-    show_default=True,
-    type=click.Path(dir_okay=False, path_type=Path),
-    help="Project config path for default local context lookup.",
-)
-def context_command(contract_path: Path | None, config_path: Path) -> None:
-    """Render working context from a Core Contract document."""
-
-    if contract_path is None:
-        contract_path = _default_contract_path_or_raise(config_path)
-    document = _load_contract_or_raise(contract_path)
-    click.echo(render_contract_context(document), nl=False)
-
-
-@main.command("why")
-@click.argument("card_id")
-@click.option(
-    "--contract",
-    "contract_path",
-    required=False,
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help="Core Contract document path.",
-)
-@click.option(
-    "--config",
-    "config_path",
-    default=DEFAULT_CONFIG_PATH,
-    show_default=True,
-    type=click.Path(dir_okay=False, path_type=Path),
-    help="Project config path for default local context lookup.",
-)
-def why_command(card_id: str, contract_path: Path | None, config_path: Path) -> None:
-    """Show why a context card appears."""
-
-    if contract_path is None:
-        contract_path = _default_contract_path_or_raise(config_path)
-    document = _load_contract_or_raise(contract_path)
-    try:
-        click.echo(render_contract_why(document, card_id), nl=False)
-    except KeyError as exc:
-        raise click.ClickException(f"Unknown card id: {card_id}") from exc
-
-
-@main.command("open-source")
-@click.argument("ref_id")
-@click.option(
-    "--contract",
-    "contract_path",
-    required=False,
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help="Core Contract document path.",
-)
-@click.option(
-    "--config",
-    "config_path",
-    default=DEFAULT_CONFIG_PATH,
-    show_default=True,
-    type=click.Path(dir_okay=False, path_type=Path),
-    help="Project config path for default local context lookup.",
-)
-def open_source_command(ref_id: str, contract_path: Path | None, config_path: Path) -> None:
-    """Open a source body when policy allows it."""
-
-    if contract_path is None:
-        contract_path = _default_contract_path_or_raise(config_path)
-    document = _load_contract_or_raise(contract_path)
-    try:
-        click.echo(render_contract_open_source(document, ref_id), nl=False)
-    except KeyError as exc:
-        raise click.ClickException(f"Unknown source or card id: {ref_id}") from exc
-
-
 @dev.command("eval-export")
 @click.option(
     "--scenarios-dir",
@@ -582,71 +427,6 @@ def _has_hook_entry(settings: dict[str, Any]) -> bool:
     return False
 
 
-class RefreshOptions:
-    def __init__(
-        self,
-        *,
-        repo: str,
-        token_env: str,
-        include_title: bool,
-        output_path: Path,
-    ) -> None:
-        self.repo = repo
-        self.token_env = token_env
-        self.include_title = include_title
-        self.output_path = output_path
-
-
-def _resolve_refresh_options(
-    *,
-    config: ProjectConfig | None,
-    repo: str | None,
-    token_env: str | None,
-    include_title: bool | None,
-    output_path: Path | None,
-) -> RefreshOptions:
-    github_config = config.github if config is not None else None
-    resolved_repo = repo or (github_config.repo if github_config is not None else None)
-    if resolved_repo is None:
-        raise click.ClickException("Provide --github-repo or configure github.repo.")
-
-    resolved_token_env = token_env or (
-        github_config.token_env if github_config is not None else "GITHUB_TOKEN"
-    )
-    resolved_include_title = (
-        include_title
-        if include_title is not None
-        else bool(github_config and github_config.include_title)
-    )
-    resolved_output_path = output_path or Path(
-        config.default_output if config is not None else ".teamctx/context.json"
-    )
-    return RefreshOptions(
-        repo=resolved_repo,
-        token_env=resolved_token_env,
-        include_title=resolved_include_title,
-        output_path=resolved_output_path,
-    )
-
-
-def _maybe_load_project_config_or_raise(path: Path) -> ProjectConfig | None:
-    try:
-        return maybe_load_project_config(path)
-    except ProjectConfigError as exc:
-        raise click.ClickException(str(exc)) from exc
-
-
-def _default_contract_path_or_raise(config_path: Path) -> Path:
-    config = _maybe_load_project_config_or_raise(config_path)
-    contract_path = Path(config.default_output if config is not None else DEFAULT_OUTPUT_PATH)
-    if not contract_path.exists():
-        raise click.ClickException(
-            f"No local TeamCtx context at {contract_path}. "
-            "Run `teamctx refresh`, or provide --contract."
-        )
-    return contract_path
-
-
 def _github_contract_document(
     *,
     repo: str,
@@ -686,13 +466,6 @@ def _work_start_view(document: CoreContractDocument) -> str:
         declarations,
     )
     return render_broker_answer(answer)
-
-
-def _load_contract_or_raise(path: Path) -> CoreContractDocument:
-    try:
-        return load_contract_document(path)
-    except ContractDocumentError as exc:
-        raise click.ClickException(str(exc)) from exc
 
 
 def _detect_docs_root(root: Path) -> str | None:
