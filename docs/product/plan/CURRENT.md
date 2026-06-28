@@ -56,17 +56,28 @@ docs verdicts; forks correct via committed config; non-git / unreachable degrade
 -UNKNOWN; tests cover the UNKNOWN edges, not just the happy path.
 Spec: `docs/superpowers/specs/2026-06-27-work-start-input-resolution-design.md`.
 
-### Sprint 2 — Ready for others, proven multi-actor  *(NEXT)*
+### Sprint 2 — Ready for others, proven multi-actor  *(IN PROGRESS — Slice A / M1 reflex DONE 2026-06-28, merged `5bf4ad9`)*
 pip/uvx installable; a real `teamctx init` that scaffolds the work_start config; MCP wiring +
 file-based token hygiene documented; README that claims exactly what the code proves. **Retire
 legacy:** drop `refresh`/`context`; rebuild `why`/`open-source` on the live broker. **Validation
 = Edgar in multiple terminals emulating distinct actors** against a shared repo — we don't
 recruit a human, we emulate humans — so the real cross-actor scenarios (collision / criteria /
 doc / gate) surface correctly.
-**Plus M1 (keystone): work_start as a reflex** — opt-in agent hook / one-line `CLAUDE.md` so it
-auto-fires at work-start (also how the grounding *norm* gets planted early). Consider M2
-(actionable honest-UNKNOWN). **Lead all framing with the reality-grounding positioning** (strategy
-doc). **Bar:** fresh-actor setup from the README alone, and genuine multi-actor scenarios surfaced
+**Slice A — M1 (work_start as a reflex): DONE 2026-06-28 (merged `5bf4ad9`, 235 tests).** A
+deterministic Claude Code `PreToolUse` hook (`teamctx-hook`: once-per-session, fail-safe
+never-block, network time-bounded, edited path normalized to repo-relative so **no false
+all-clear**) + opt-in `teamctx install-hook` + portable `CLAUDE.md` snippet. Signal model:
+*ready / heads-up / can't-verify* (honest-UNKNOWN surfaces only when it changes the decision).
+Spec/plan: `docs/superpowers/{specs,plans}/2026-06-27-m1-work-start-reflex*`.
+**Remaining slices (ordered):** B `teamctx init` scaffolds the work_start config · C legacy
+retirement (drop `refresh`/`context`, rebuild `why`/`open-source` on the broker) · D packaging
+(pip/uvx) + token-hygiene docs · E README (claims-match-code, **reality-grounding** lead) · then the
+multi-actor dogfood. **M2 (the messaging pass)** is the immediate copy slice (see
+[[project_teamctx_surfaced_text]]).
+**Carry-forward minors from M1 review (M2/later, non-blocking):** CLI `work-start` lacks the
+`GITHUB_TOKEN_FILE` fallback the hook/MCP have; heads-up copy could name the `gh pr view N` action;
+`_utc_now` is triplicated; a *stale* (tried-but-failed) Docs/Criteria source is currently neither
+headlined nor in 'ready' — fix when those checks join the headline set. **Bar:** fresh-actor setup from the README alone, and genuine multi-actor scenarios surfaced
 correctly across terminals.
 
 ### Sprint 3 — Proof (the numbers)
