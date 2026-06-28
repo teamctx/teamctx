@@ -13,6 +13,7 @@ from teamctx.core.authority import AuthorityEntry
 from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import (
     ContextCard,
+    SourceOpenTarget,
 )
 from teamctx.core.select import ContextSelection
 
@@ -169,3 +170,74 @@ def _authority_block(selection: ContextSelection) -> list[str]:
     lines = ["", "Authority"]
     lines.extend(_authority_line(entry) for entry in selection.authority)
     return lines
+
+
+def render_why(card: ContextCard) -> str:
+    """Render the full evidence for one finding, plain prose.
+
+    Covers: the finding text, why it matters, why teamctx flagged it, the source with
+    freshness and confidence, and an honest note about body availability. Plain and
+    decision-enabling; no jargon, no em dashes.
+    """
+
+    reason = card.reason.rstrip(".")
+    lines = [
+        card.text,
+        f"  Why it matters: {card.why_this_matters}",
+        f"  Why teamctx flagged it: {reason}.",
+        f"  Source: {card.source_display} ({card.freshness}, {card.confidence} confidence).",
+    ]
+    if card.source_body == "status_only":
+        lines.append("  teamctx shows metadata only here; it does not read the source body.")
+    elif card.source_body == "blocked":
+        lines.append("  Source body access is blocked by policy.")
+    elif card.source_body == "unavailable":
+        lines.append("  Source body is unavailable.")
+    return "\n".join(lines) + "\n"
+
+
+def render_open_source(card: ContextCard, open_targets: tuple[SourceOpenTarget, ...]) -> str:
+    """Render how to open the source for one finding card.
+
+    The opener command depends on the kind (pr, gate, criteria, doc). Body availability is
+    stated honestly; when status-only, the note names it. If the card has a matched
+    SourceOpenTarget its body_availability is used; otherwise card.source_body is the fallback.
+    Plain, decision-enabling, no em dashes.
+    """
+
+    open_target = next(
+        (t for t in open_targets if t.source_signal_id == card.refs[0]),
+        None,
+    )
+
+    lines = [f"Open the source for {card.source_display}:"]
+
+    if card.reason_code.startswith("collision"):
+        pr_number = card.scope.get("pr_number")
+        repo = card.scope.get("repo")
+        url = card.scope.get("url")
+        if pr_number is not None and isinstance(repo, str):
+            lines.append(f"  gh pr view {pr_number} --repo {repo}")
+        if isinstance(url, str):
+            lines.append(f"  or open {url}")
+    elif card.reason_code.startswith("gate") or card.reason_code.startswith("criteria"):
+        url = card.scope.get("url")
+        if isinstance(url, str):
+            lines.append(f"  open {url}")
+    elif card.reason_code.startswith("doc"):
+        doc = card.scope.get("doc")
+        if isinstance(doc, str):
+            lines.append(f"  open {doc}")
+
+    availability = open_target.body_availability if open_target is not None else card.source_body
+    if availability == "status_only":
+        lines.append(
+            "  teamctx shows metadata only; the source body is not included"
+            " (status-only by policy)."
+        )
+    elif availability == "blocked":
+        lines.append("  Source body access is blocked by policy.")
+    elif availability == "unavailable":
+        lines.append("  Source body is unavailable.")
+
+    return "\n".join(lines) + "\n"

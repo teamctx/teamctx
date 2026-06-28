@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import click
 
@@ -17,11 +17,21 @@ from teamctx.connectors.github_checks import run_github_checks_probe
 from teamctx.connectors.github_issues import run_github_issues_probe
 from teamctx.contract_render import (
     render_broker_answer,
+    render_open_source,
+    render_why,
 )
-from teamctx.core.broker import broker_answer
+from teamctx.core.broker import BrokerAnswer, broker_answer
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.eval.pack import export_eval_pack
 from teamctx.eval.scenario import EvalScenarioError
+from teamctx.finding_query import (
+    AmbiguousFinding,
+    FindingSelector,
+    FindingSelectorError,
+    NoFindingMatch,
+    match_finding,
+    parse_selector,
+)
 from teamctx.git_context import detect_repo
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
@@ -31,7 +41,7 @@ from teamctx.project_config import (
 )
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
 from teamctx.tokens import resolve_token
-from teamctx.work_start import render_work_start
+from teamctx.work_start import render_work_start, work_start_answer
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -196,6 +206,187 @@ def work_start_command(
         render_work_start(inputs, observed_at=utc_now_iso(), project_root=Path.cwd()),
         nl=False,
     )
+
+
+_SELECTOR_KIND_TO_VERDICT_LABEL: dict[str, str] = {
+    "pr": "Conflict check",
+    "issue": "Criteria check",
+    "doc": "Docs check",
+    "gate": "Gate check",
+}
+
+
+def _raise_no_finding_match(sel: FindingSelector, answer: BrokerAnswer) -> NoReturn:
+    """Distinguish 'could not check' from 'may have cleared' for honest no-match handling.
+
+    When teamctx never reached the underlying source (verdict Unknown), it cannot say whether
+    a finding exists; telling the user 'nothing found' would be a false all-clear. When the
+    check ran and just found nothing for this selector, the finding may have cleared.
+    """
+
+    verdict_label = _SELECTOR_KIND_TO_VERDICT_LABEL.get(sel.kind)
+    if verdict_label:
+        for label, valuation in answer.verdicts:
+            if label == verdict_label and valuation.value == "unknown":
+                raise click.ClickException(
+                    f"teamctx could not check this source ({verdict_label} is Unknown:"
+                    f" {valuation.reason}). It cannot confirm whether the finding exists."
+                    f" Run `teamctx work-start` to see current coverage."
+                )
+    raise click.ClickException(
+        f"No current finding matches `{sel.kind}:{sel.value}`."
+        f" It may have cleared since you last ran work-start."
+        f" Run `teamctx work-start` to check current state."
+    )
+
+
+def _resolve_work_start(
+    *,
+    repo: str | None,
+    paths: tuple[str, ...],
+    branch: str | None,
+    token_env: str,
+    include_title: bool,
+    issues: tuple[str, ...],
+    since: str | None,
+    docs_root: str | None,
+    ref: str | None,
+) -> BrokerAnswer:
+    """Shared resolution + broker run for why/open-source commands."""
+
+    try:
+        inputs = resolve_work_start_inputs(
+            paths=paths,
+            repo=repo,
+            branch=branch,
+            docs_root=docs_root,
+            issues=issues,
+            since=since,
+            ref=ref,
+            include_titles=include_title,
+            token=resolve_token(token_env),
+            root=Path.cwd(),
+        )
+    except (WorkStartResolutionError, ProjectConfigError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    return work_start_answer(inputs, observed_at=utc_now_iso(), project_root=Path.cwd())
+
+
+def _add_work_start_options(func: Any) -> Any:
+    """Apply the shared work-start resolution options to a command (why/open-source)."""
+
+    opts = [
+        click.option(
+            "--github-repo", "repo", default=None,
+            help="GitHub repo owner/name. Auto-detected from git 'origin' or .teamctx/config.json.",
+        ),
+        click.option(
+            "--path", "paths", multiple=True, required=True,
+            help="A path the work is about to touch.",
+        ),
+        click.option("--branch", default=None, help="Current branch name."),
+        click.option(
+            "--token-env", default="GITHUB_TOKEN", show_default=True,
+            help="Name of the env var holding the GitHub token.",
+        ),
+        click.option(
+            "--include-title/--omit-title", "include_title", default=False,
+            help="Allow PR titles in normalized metadata.",
+        ),
+        click.option(
+            "--issue", "issues", multiple=True, help="A linked issue to check (e.g. #42).",
+        ),
+        click.option("--since", default=None, help="ISO timestamp for issue change window."),
+        click.option("--docs-root", default=None, help="Docs root to scan for supersession."),
+        click.option("--ref", default=None, help="Gate ref to read check-runs for."),
+    ]
+    for opt in reversed(opts):
+        func = opt(func)
+    return func
+
+
+@main.command("why")
+@click.argument("selector")
+@_add_work_start_options
+def why_command(
+    selector: str,
+    repo: str | None,
+    paths: tuple[str, ...],
+    branch: str | None,
+    token_env: str,
+    include_title: bool,
+    issues: tuple[str, ...],
+    since: str | None,
+    docs_root: str | None,
+    ref: str | None,
+) -> None:
+    """Show full evidence for one finding (e.g. `teamctx why pr:7`).
+
+    SELECTOR is a typed handle: pr:N, issue:REF, path:X, doc:PATH, or gate:NAME.
+    Runs the live broker and explains why teamctx flagged that specific finding:
+    what it found, why it matters, and what source it came from.
+    """
+
+    try:
+        sel = parse_selector(selector)
+    except FindingSelectorError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    answer = _resolve_work_start(
+        repo=repo, paths=paths, branch=branch, token_env=token_env,
+        include_title=include_title, issues=issues, since=since, docs_root=docs_root, ref=ref,
+    )
+
+    try:
+        card = match_finding(answer.selection.cards, sel)
+    except AmbiguousFinding as exc:
+        raise click.ClickException(str(exc)) from exc
+    except NoFindingMatch:
+        _raise_no_finding_match(sel, answer)
+
+    click.echo(render_why(card), nl=False)
+
+
+@main.command("open-source")
+@click.argument("selector")
+@_add_work_start_options
+def open_source_command(
+    selector: str,
+    repo: str | None,
+    paths: tuple[str, ...],
+    branch: str | None,
+    token_env: str,
+    include_title: bool,
+    issues: tuple[str, ...],
+    since: str | None,
+    docs_root: str | None,
+    ref: str | None,
+) -> None:
+    """Show how to open the source for one finding (e.g. `teamctx open-source pr:7`).
+
+    SELECTOR is a typed handle: pr:N, issue:REF, path:X, doc:PATH, or gate:NAME.
+    Runs the live broker and prints the command or URL to open the underlying source,
+    plus an honest note about body availability.
+    """
+
+    try:
+        sel = parse_selector(selector)
+    except FindingSelectorError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    answer = _resolve_work_start(
+        repo=repo, paths=paths, branch=branch, token_env=token_env,
+        include_title=include_title, issues=issues, since=since, docs_root=docs_root, ref=ref,
+    )
+
+    try:
+        card = match_finding(answer.selection.cards, sel)
+    except AmbiguousFinding as exc:
+        raise click.ClickException(str(exc)) from exc
+    except NoFindingMatch:
+        _raise_no_finding_match(sel, answer)
+
+    click.echo(render_open_source(card, answer.open_targets), nl=False)
 
 
 @dev.command("docs-probe")
