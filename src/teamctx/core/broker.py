@@ -64,10 +64,12 @@ def compose(documents: Iterable[CoreContractDocument]) -> ComposedSources:
 class BrokerAnswer:
     """The broker's complete answer at work-start: the derived selection (cards, certified
     claims, coverage, closure, authority, replay digest) plus one labeled verdict per card
-    kind. ``verdicts`` is ordered to match ``CARD_KINDS``."""
+    kind. ``verdicts`` is ordered to match ``CARD_KINDS``. ``open_targets`` carries every
+    source open target from the composed documents, for use by why/open-source commands."""
 
     selection: ContextSelection
     verdicts: tuple[tuple[str, Valuation], ...]
+    open_targets: tuple[SourceOpenTarget, ...] = ()
 
 
 def broker_answer(
@@ -75,6 +77,8 @@ def broker_answer(
     signals: Iterable[SourceSignal],
     statuses: Iterable[SourceStatus],
     declarations: Iterable[AuthorityDecl] = (),
+    *,
+    open_targets: Iterable[SourceOpenTarget] = (),
 ) -> BrokerAnswer:
     """The one broker entry point. Derives the selection, then evaluates each card kind's
     universal against the certified claims under the coverage closure, so every consumer
@@ -88,7 +92,7 @@ def broker_answer(
         )
         for kind in CARD_KINDS
     )
-    return BrokerAnswer(selection=selection, verdicts=verdicts)
+    return BrokerAnswer(selection=selection, verdicts=verdicts, open_targets=tuple(open_targets))
 
 
 def broker_answer_from_documents(
@@ -100,4 +104,10 @@ def broker_answer_from_documents(
     the MCP server both run several connectors and hand their documents here."""
 
     composed = compose(documents)
-    return broker_answer(request, composed.signals, composed.statuses, declarations)
+    return broker_answer(
+        request,
+        composed.signals,
+        composed.statuses,
+        declarations,
+        open_targets=composed.open_targets,
+    )
