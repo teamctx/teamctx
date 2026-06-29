@@ -1,83 +1,137 @@
 # teamctx
 
-Deterministic ambient context for software teams.
+Before you or your coding agent touch files, teamctx tells you what changed, what conflicts, what
+failed, and what it could not verify, as source-backed evidence you can judge.
 
-`teamctx` is a non-agentic, non-generative context broker for shared engineering
-work. It watches approved work artifacts such as pull requests, issues, docs,
-explicit chat handoffs, and release/process records, then produces small, sourced
-context cards when a
-developer or coding agent needs to know something.
+## Why
 
-It does not monitor people. It does not read private messages. It does not use an
-LLM to infer intent. It does not write to source systems by default.
+When you work through a coding agent, the expensive failures are not slow context gathering. They
+are confident wrong context: the agent edits a file an open pull request is already changing, builds
+on an acceptance criterion that moved, or proceeds on a "green" CI that is actually red. A wrong
+answer delivered through a terminal you trust is worse than no answer.
 
-## Product Thesis
+teamctx keeps you and your agent pinned to the current, source-backed state of the systems your team
+already uses. Its defining property is that there is no LLM in the content path. It normalizes,
+routes, selects, and renders the record, and it never reinterprets what the record means. So facts
+arrive verbatim, source-backed, and the same way every time. A green means checked, not guessed, and
+where teamctx could not look, it says so plainly instead of implying all is well.
 
-Teams already put important facts in GitHub, GitLab, Jira, Confluence, and other
-systems of record. The problem is that those facts are scattered, noisy, and
-usually discovered too late.
+## What it checks
 
-`teamctx` makes useful team context ambient:
+Run it before you start editing. teamctx surfaces:
 
-- An overlapping pull request changed the same file.
-- A linked Jira issue added a constraint.
-- A process document changed after the branch started.
-- A source artifact is unavailable, so absence of context is not a green light.
+- Open pull requests that touch the files you are about to change.
+- Required checks that are failing on your branch.
+- Acceptance criteria that changed on a linked issue since you started.
+- Design or process docs you rely on that have been superseded.
 
-Every card is deterministic, source-backed, permission-aware, and explainable.
+Today that means GitHub (open pull requests, check runs, and linked issues) and design docs declared
+in your repository. It is deliberately narrow. It reads metadata only: it does not read pull request
+bodies, comments, or patches. It speaks only to the structured slice it can actually verify, so it
+does no broad search, no summaries, and nothing fuzzy. More source families are on the roadmap, and a
+source becomes supported only after it proves the same honest-coverage behavior.
 
-## Non-Goals
+## Install
 
-- No LLM.
-- No agent runtime.
-- No autonomous action.
-- No broad enterprise search.
-- No productivity analytics.
-- No presence tracking.
-- No private chat, email, or DM ingestion.
-- No sentiment, performance, or people summaries.
-
-## First Runnable Slice
-
-The current prototype is terminal-first. Initialize one GitHub repo, refresh local
-context, then render it before an agent starts risky work.
+teamctx is pre-release. Install from source:
 
 ```bash
-teamctx init --github-repo org/app --token-env GITHUB_TOKEN
-teamctx refresh --path src/auth/token.py --task "Update token rotation"
-teamctx context
-teamctx why card_github_pr_482_collision
-teamctx open-source card_github_pr_482_collision
+git clone https://github.com/teamctx/teamctx
+cd teamctx
+pip install -e .
 ```
 
-`teamctx init` writes `.teamctx/config.json`. The config stores the token
-environment variable name, not the token value, and `refresh` writes the local
-context document to `.teamctx/context.json` by default. `context`, `why`, and
-`open-source` read that local context path automatically unless you pass an
-explicit fixture or contract file.
+It needs read access to your forge. Set a token in the environment (teamctx never stores the value):
 
-The GitHub probe is intentionally narrow. It reads open PR metadata and changed
-file paths only. It does not read comments, review bodies, raw patches, commit
-bodies, author identity, or broad repository search results. If access is
-missing, `teamctx` writes source status instead of treating missing context as
-confidence.
+```bash
+export GITHUB_TOKEN=ghp_...
+# or point at a file instead:
+export GITHUB_TOKEN_FILE=~/.config/teamctx/token
+```
 
-## Project Contract
+## Quickstart
 
-`teamctx` is built around a deterministic, fixture-first contract: normalize
-approved artifacts, enforce policy, derive relationships, and return sourced
-context cards. Connector families cover forge reviews, work trackers, docs/process systems,
-and explicit chat handoffs. Live connectors only become supported surfaces after
-fixtures, failure-path tests, and source-health behavior prove the same contract.
+```bash
+# 1. Scaffold the project config. It auto-detects the repo from your git 'origin' remote.
+teamctx init
 
-See:
+# 2. Before you edit, ground yourself.
+teamctx work-start --path src/auth/token.py
+```
 
-- [Product Brief](docs/product/product-brief.md)
-- [Product Plan](docs/product/product-plan.md)
-- [Architecture](docs/engineering/architecture.md)
-- [Source Integration Layer](docs/engineering/source-integration-layer.md)
-- [Build Plan](docs/engineering/build-plan.md)
-- [Implementation Plan](docs/engineering/implementation-plan.md)
-- [Security And Privacy](docs/engineering/security-privacy.md)
-- [Quality Bar](docs/engineering/quality-bar.md)
+A clean start reads:
 
+```
+Looks clear to start.
+  Checked: no open PRs touch your files; CI is green; the docs you rely on are current.
+  Not checked: spec changes (no issue is linked to this branch; link one to enable).
+```
+
+When something is in the way:
+
+```
+Before you start, here is what to handle first:
+  • Open PR #7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 7).
+  Also checked: CI is green; the docs you rely on are current.
+```
+
+And when it could not verify something that matters, it says so rather than guessing:
+
+```
+Heads up: I couldn't check the important things:
+  • Open PRs and failing checks: teamctx couldn't reach GitHub. Either it has no access yet (set GITHUB_TOKEN) or it is a temporary connection issue. Until it is back you won't see colliding PRs or red CI on your files.
+```
+
+## Drill into a finding
+
+To audit one finding (its full evidence, or how to open the source):
+
+```bash
+teamctx why pr:7 --path src/auth/token.py
+teamctx open-source pr:7 --path src/auth/token.py
+```
+
+Selectors are the handles you see in the output: `pr:N`, `issue:#N`, `path:X`, `doc:PATH`, `gate:NAME`.
+
+## Make it a reflex (Claude Code)
+
+Grounding you do not run is worthless. teamctx ships an opt-in Claude Code hook that runs the check
+automatically the first time you edit a file in a session, plus a one-line instruction you can give
+any other agent:
+
+```bash
+teamctx install-hook
+```
+
+This adds a project-local PreToolUse hook and prints a snippet to paste into your CLAUDE.md. The hook
+never blocks an edit. It just surfaces what is happening around the file you are about to touch.
+
+## The promise, stated honestly
+
+- A green means checked, not guessed. teamctx never folds a coverage gap into a clear.
+- Where it could not look (no access, a source down, or more results than it could enumerate), it
+  returns Unknown, never a false all-clear.
+- There is no LLM in the content path. teamctx is the reference for what is currently true in the
+  record. It is not the judge of what the right call is (that is your job), and it does not claim to
+  make the record itself correct (it delivers the record faithfully).
+
+## What it is not
+
+teamctx is deliberately bounded:
+
+- No LLM and no agent runtime. It informs; it does not act or decide.
+- No broad enterprise search, summaries, or fuzzy question answering.
+- No productivity analytics and no presence tracking. It reads work artifacts and does not score or
+  summarize people.
+- It does not read private messages, pull request bodies, or patches, and it does not write to your
+  source systems.
+
+## How it works
+
+Each connector reads approved metadata from a source and emits a typed, source-backed contract. A
+deterministic core composes them, derives the findings, and renders one verdict per check under an
+explicit coverage closure. The same code path produces the CLI output, the MCP tool result, and the
+hook signal, so every consumer sees identical facts. Replay the same inputs and you get the same
+verdict every time.
+
+Positioning and design: [reality-grounding strategy](docs/product/vision/reality-grounding-strategy-2026-06.md).
