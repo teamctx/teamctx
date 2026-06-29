@@ -93,12 +93,13 @@ def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
     resolved_docs_root = docs_root if docs_root is not None else _detect_docs_root(root)
 
     config = build_work_start_project_config(repo=resolved_repo, docs_root=resolved_docs_root)
+    config_path = root / DEFAULT_CONFIG_PATH
     try:
-        write_project_config(DEFAULT_CONFIG_PATH, config, overwrite=force, exclude_defaults=True)
+        write_project_config(config_path, config, overwrite=force, exclude_defaults=True)
     except ProjectConfigError as exc:
         raise click.ClickException(f"{exc} Pass --force to overwrite.") from exc
 
-    click.echo(f"Wrote {DEFAULT_CONFIG_PATH} for {resolved_repo}.")
+    click.echo(f"Wrote {config_path} for {resolved_repo}.")
     if resolved_docs_root:
         click.echo(f"  Docs root: {resolved_docs_root} (teamctx will flag superseded docs there).")
     else:
@@ -139,8 +140,10 @@ def github_pr_probe_command(
 ) -> None:
     """Emit Core Contract V0 context from GitHub PR metadata."""
 
-    if parse_github_repo(repo) is None:
+    normalized_repo = parse_github_repo(repo)
+    if normalized_repo is None:
         raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
+    repo = normalized_repo
     document = _github_contract_document(
         repo=repo,
         paths=paths,
@@ -421,8 +424,10 @@ def docs_probe_command(
 ) -> None:
     """Derive doc-superseded context (declared-frontmatter) for the relied-on docs."""
 
-    if parse_github_repo(repo) is None:
+    normalized_repo = parse_github_repo(repo)
+    if normalized_repo is None:
         raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
+    repo = normalized_repo
     observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
@@ -460,8 +465,10 @@ def gate_probe_command(
 ) -> None:
     """Derive missed-gate context from failing GitHub check-runs."""
 
-    if parse_github_repo(repo) is None:
+    normalized_repo = parse_github_repo(repo)
+    if normalized_repo is None:
         raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
+    repo = normalized_repo
     observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
@@ -504,8 +511,10 @@ def issue_probe_command(
 ) -> None:
     """Derive criteria-changed context from GitHub Issue movement."""
 
-    if parse_github_repo(repo) is None:
+    normalized_repo = parse_github_repo(repo)
+    if normalized_repo is None:
         raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
+    repo = normalized_repo
     observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",

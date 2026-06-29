@@ -133,3 +133,10 @@ def test_workstartinputs_accepts_valid_github_slug() -> None:
 def test_workstartinputs_rejects_non_github_repo() -> None:
     with pytest.raises(ValueError, match="GitHub repo"):
         WorkStartInputs(repo="https://gitlab.com/owner/name", paths=("a.py",))
+
+
+def test_workstartinputs_normalizes_github_url() -> None:
+    # A github.com URL passes validation AND is normalized to owner/name, so the connector
+    # never receives a raw URL to interpolate into the api.github.com path.
+    inputs = WorkStartInputs(repo="https://github.com/owner/name.git", paths=("a.py",))
+    assert inputs.repo == "owner/name"

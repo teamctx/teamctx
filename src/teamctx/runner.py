@@ -40,8 +40,10 @@ class WorkStartInputs:
     ref: str | None = None
 
     def __post_init__(self) -> None:
-        if parse_github_repo(self.repo) is None:
+        normalized = parse_github_repo(self.repo)
+        if normalized is None:
             raise ValueError(f"not a valid GitHub repo slug: {self.repo!r}")
+        object.__setattr__(self, "repo", normalized)
 
 
 def build_request_context(inputs: WorkStartInputs, *, observed_at: str) -> RequestContext:

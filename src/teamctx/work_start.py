@@ -22,17 +22,18 @@ def work_start_answer(
     inputs: WorkStartInputs,
     *,
     observed_at: str,
-    authority_path: Path = DEFAULT_AUTHORITY_PATH,
+    authority_path: Path | None = None,
     project_root: Path = Path("."),
 ) -> BrokerAnswer:
     """Run every applicable connector, compose, and evaluate, returning the structured
     broker answer (cards + honest coverage + one verdict per check). Transports render it;
-    the hook maps it to a signal."""
+    the hook maps it to a signal. Authority defaults to ``project_root/.teamctx/authority.json``
+    so it is resolved from the same root as config and docs, never the process cwd."""
 
     request_context, documents = run_work_start_connectors(
         inputs, observed_at=observed_at, project_root=project_root
     )
-    declarations = load_declared_authority(authority_path)
+    declarations = load_declared_authority(authority_path or project_root / DEFAULT_AUTHORITY_PATH)
     return broker_answer_from_documents(request_context, documents, declarations)
 
 
@@ -40,7 +41,7 @@ def render_work_start(
     inputs: WorkStartInputs,
     *,
     observed_at: str,
-    authority_path: Path = DEFAULT_AUTHORITY_PATH,
+    authority_path: Path | None = None,
     project_root: Path = Path("."),
 ) -> str:
     """Render the work-start answer (cards + honest coverage + one verdict per check) as text."""
