@@ -78,7 +78,7 @@ def status() -> None:
     "--docs-root",
     "docs_root",
     default=None,
-    help="Folder of design docs to watch for supersession. Auto-detected from a 'docs' folder.",
+    help="Folder of design docs to watch for supersession (off unless you set it).",
 )
 @click.option("--force", is_flag=True, help="Overwrite an existing project config.")
 def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
@@ -95,7 +95,7 @@ def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
             "Could not determine the repository: this is not a git repo with a recognizable "
             "'origin' remote. Pass --repo owner/name."
         )
-    resolved_docs_root = docs_root if docs_root is not None else _detect_docs_root(root)
+    resolved_docs_root = docs_root  # explicit only; no docs auto-enable (it would over-claim)
 
     config = build_work_start_project_config(repo=resolved_repo, docs_root=resolved_docs_root)
     config_path = root / DEFAULT_CONFIG_PATH
@@ -703,10 +703,6 @@ def _work_start_view(document: CoreContractDocument) -> str:
         declarations,
     )
     return render_broker_answer(answer)
-
-
-def _detect_docs_root(root: Path) -> str | None:
-    return "docs" if (root / "docs").is_dir() else None
 
 
 if __name__ == "__main__":
