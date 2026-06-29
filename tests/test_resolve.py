@@ -90,3 +90,12 @@ def test_resolves_from_a_real_repo_and_config(tmp_path: Path) -> None:
     assert inputs.repo == "acme/widgets"
     assert inputs.branch == "feat"
     assert inputs.docs_root == "docs"
+
+
+def test_resolve_normalizes_request_paths_repo_relative(tmp_path: Path) -> None:
+    # a caller's raw --path (with a ./ prefix) is normalized to repo-relative POSIX so it
+    # matches the broker's signal paths; without this an in-scope doc/PR/gate would be missed.
+    inputs = resolve_work_start_inputs(
+        paths=("./docs/old.md", "src/a.py"), repo="owner/name", root=tmp_path
+    )
+    assert inputs.paths == ("docs/old.md", "src/a.py")

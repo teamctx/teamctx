@@ -32,7 +32,12 @@ from teamctx.finding_query import (
     match_finding,
     parse_selector,
 )
-from teamctx.git_context import detect_repo, parse_github_repo, resolve_project_root
+from teamctx.git_context import (
+    detect_repo,
+    parse_github_repo,
+    repo_relative_path,
+    resolve_project_root,
+)
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     ProjectConfigError,
@@ -435,7 +440,7 @@ def docs_probe_command(
         repo=repo,
         branch=branch,
         task=task,
-        paths=list(paths),
+        paths=_normalized_paths(paths),
         linked_issues=[],
         requested_at=observed_at,
         requesting_principal=None,
@@ -476,7 +481,7 @@ def gate_probe_command(
         repo=repo,
         branch=branch,
         task=task,
-        paths=list(paths),
+        paths=_normalized_paths(paths),
         linked_issues=[],
         requested_at=observed_at,
         requesting_principal=None,
@@ -522,7 +527,7 @@ def issue_probe_command(
         repo=repo,
         branch=branch,
         task=task,
-        paths=list(paths),
+        paths=_normalized_paths(paths),
         linked_issues=list(issues),
         requested_at=observed_at,
         requesting_principal=None,
@@ -651,6 +656,14 @@ def _has_hook_entry(settings: dict[str, Any]) -> bool:
     return False
 
 
+def _normalized_paths(paths: tuple[str, ...]) -> list[str]:
+    """Normalize a dev probe's raw --path values to repo-relative POSIX (same as the work-start
+    resolver), so a caller path matches the broker's repo-relative signal paths."""
+
+    root = resolve_project_root()
+    return [repo_relative_path(root, path) for path in paths]
+
+
 def _github_contract_document(
     *,
     repo: str,
@@ -667,7 +680,7 @@ def _github_contract_document(
         repo=repo,
         branch=branch,
         task=task,
-        paths=list(paths),
+        paths=_normalized_paths(paths),
         linked_issues=[],
         requested_at=observed_at,
         requesting_principal=None,

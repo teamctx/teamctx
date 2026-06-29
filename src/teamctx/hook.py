@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 from teamctx.clock import utc_now_iso
-from teamctx.git_context import resolve_project_root
+from teamctx.git_context import repo_relative_path, resolve_project_root
 
 _EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 
@@ -99,35 +99,6 @@ def _changed_paths(root: Path) -> list[str]:
     return paths
 
 
-def _git_toplevel(root: Path) -> Path | None:
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, check=True, timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    top = result.stdout.strip()
-    return Path(top) if top else None
-
-
-def _repo_relative(root: Path, file_path: str) -> str:
-    """Normalize the edited file to a repo-root-relative POSIX path so it matches the broker's
-    paths (PR changed files, gate files, docs, all repo-relative). Claude Code passes an
-    absolute file_path; without this the triggering file never matches and we'd report a false
-    all-clear on the very file being edited."""
-
-    toplevel = _git_toplevel(root)
-    if toplevel is None:
-        return file_path
-    candidate = Path(file_path)
-    absolute = candidate if candidate.is_absolute() else (root / candidate)
-    try:
-        return absolute.resolve().relative_to(toplevel.resolve()).as_posix()
-    except (OSError, ValueError):
-        return file_path
-
-
 def _ground(root: Path, file_path: str) -> str:
     import socket
 
@@ -136,7 +107,7 @@ def _ground(root: Path, file_path: str) -> str:
     from teamctx.tokens import resolve_github_token
     from teamctx.work_start import work_start_answer
 
-    rel_file = _repo_relative(root, file_path)
+    rel_file = repo_relative_path(root, file_path)
     token = resolve_github_token()
     paths = tuple(dict.fromkeys([rel_file, *_changed_paths(root)]))  # dedup, order-preserving
     inputs = resolve_work_start_inputs(paths=paths, token=token, root=root)

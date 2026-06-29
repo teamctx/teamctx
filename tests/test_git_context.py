@@ -9,6 +9,7 @@ from teamctx.git_context import (
     detect_branch,
     detect_repo,
     parse_github_repo,
+    repo_relative_path,
     resolve_project_root,
 )
 
@@ -106,3 +107,17 @@ def test_resolve_project_root_uses_git_toplevel(tmp_path: Path) -> None:
     sub.mkdir()
     # From a subdirectory, the resolved root is the repo toplevel, not the subdir.
     assert resolve_project_root(start=sub).resolve() == tmp_path.resolve()
+
+
+def test_repo_relative_path_makes_paths_repo_relative(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    # a leading ./ and an absolute path within the repo both normalize to repo-relative POSIX,
+    # so a caller's --path matches the broker's repo-relative signal paths.
+    assert repo_relative_path(tmp_path, "./docs/old.md") == "docs/old.md"
+    assert repo_relative_path(tmp_path, str(tmp_path / "src" / "a.py")) == "src/a.py"
+    assert repo_relative_path(tmp_path, "src/a.py") == "src/a.py"  # idempotent
+
+
+def test_repo_relative_path_cleans_dot_slash_outside_a_repo(tmp_path: Path) -> None:
+    # not a git tree: still clean the leading ./ and never raise.
+    assert repo_relative_path(tmp_path, "./docs/old.md") == "docs/old.md"
