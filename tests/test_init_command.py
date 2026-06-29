@@ -8,6 +8,7 @@ docs/ directory.  All git I/O is monkeypatched; no network, no subprocess.
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from typing import Any, cast
 
@@ -131,6 +132,26 @@ def test_init_docs_root_flag_overrides_detection(
 
     assert result.exit_code == 0, result.output
     assert _config_at(tmp_path)["work_start"]["docs_root"] == "design/docs"
+
+
+def test_init_rejects_non_github_repo(monkeypatch: Any, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(main, ["init", "--repo", "git@gitlab.com:o/n.git"])
+    assert result.exit_code != 0
+    assert "GitHub" in result.output
+
+
+def test_init_writes_config_to_repo_root_from_subdir(monkeypatch: Any, tmp_path: Path) -> None:
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    monkeypatch.setattr("teamctx.cli.detect_repo", lambda root: "acme/widgets")
+    sub = tmp_path / "src"
+    sub.mkdir()
+    monkeypatch.chdir(sub)
+    result = CliRunner().invoke(main, ["init"], catch_exceptions=False)
+    assert result.exit_code == 0, result.output
+    # config is written at the repo ROOT, not the subdirectory we ran from
+    assert (tmp_path / ".teamctx" / "config.json").exists()
+    assert not (sub / ".teamctx" / "config.json").exists()
 
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,7 @@ from teamctx.finding_query import (
     match_finding,
     parse_selector,
 )
-from teamctx.git_context import detect_repo
+from teamctx.git_context import detect_repo, parse_github_repo, resolve_project_root
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     ProjectConfigError,
@@ -40,7 +40,7 @@ from teamctx.project_config import (
     write_project_config,
 )
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
-from teamctx.tokens import resolve_token
+from teamctx.tokens import resolve_github_token
 from teamctx.work_start import render_work_start, work_start_answer
 
 
@@ -79,8 +79,12 @@ def status() -> None:
 def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
     """Scaffold the project-local teamctx config for work-start."""
 
-    root = Path.cwd()
-    resolved_repo = repo or detect_repo(root)
+    root = resolve_project_root()
+    if repo is not None and parse_github_repo(repo) is None:
+        raise click.ClickException(
+            f"{repo!r} is not a GitHub repo (owner/name). teamctx only checks GitHub today."
+        )
+    resolved_repo = parse_github_repo(repo) if repo is not None else detect_repo(root)
     if resolved_repo is None:
         raise click.ClickException(
             "Could not determine the repository: this is not a git repo with a recognizable "
@@ -89,12 +93,13 @@ def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
     resolved_docs_root = docs_root if docs_root is not None else _detect_docs_root(root)
 
     config = build_work_start_project_config(repo=resolved_repo, docs_root=resolved_docs_root)
+    config_path = root / DEFAULT_CONFIG_PATH
     try:
-        write_project_config(DEFAULT_CONFIG_PATH, config, overwrite=force, exclude_defaults=True)
+        write_project_config(config_path, config, overwrite=force, exclude_defaults=True)
     except ProjectConfigError as exc:
         raise click.ClickException(f"{exc} Pass --force to overwrite.") from exc
 
-    click.echo(f"Wrote {DEFAULT_CONFIG_PATH} for {resolved_repo}.")
+    click.echo(f"Wrote {config_path} for {resolved_repo}.")
     if resolved_docs_root:
         click.echo(f"  Docs root: {resolved_docs_root} (teamctx will flag superseded docs there).")
     else:
@@ -135,6 +140,10 @@ def github_pr_probe_command(
 ) -> None:
     """Emit Core Contract V0 context from GitHub PR metadata."""
 
+    normalized_repo = parse_github_repo(repo)
+    if normalized_repo is None:
+        raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
+    repo = normalized_repo
     document = _github_contract_document(
         repo=repo,
         paths=paths,
@@ -186,6 +195,7 @@ def work_start_command(
     gates + linked-issue criteria + relied-on docs), compose, and report cards + honest
     coverage + one verdict per check. Sources not reachable from the inputs stay Unknown."""
 
+    project_root = resolve_project_root()
     try:
         inputs = resolve_work_start_inputs(
             paths=paths,
@@ -197,13 +207,13 @@ def work_start_command(
             since=since,
             ref=ref,
             include_titles=include_title,
-            token=resolve_token(token_env),
-            root=Path.cwd(),
+            token=resolve_github_token(token_env),
+            root=project_root,
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(
-        render_work_start(inputs, observed_at=utc_now_iso(), project_root=Path.cwd()),
+        render_work_start(inputs, observed_at=utc_now_iso(), project_root=project_root),
         nl=False,
     )
 
@@ -263,6 +273,7 @@ def _resolve_work_start(
 ) -> BrokerAnswer:
     """Shared resolution + broker run for why/open-source commands."""
 
+    project_root = resolve_project_root()
     try:
         inputs = resolve_work_start_inputs(
             paths=paths,
@@ -273,12 +284,12 @@ def _resolve_work_start(
             since=since,
             ref=ref,
             include_titles=include_title,
-            token=resolve_token(token_env),
-            root=Path.cwd(),
+            token=resolve_github_token(token_env),
+            root=project_root,
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
         raise click.ClickException(str(exc)) from exc
-    return work_start_answer(inputs, observed_at=utc_now_iso(), project_root=Path.cwd())
+    return work_start_answer(inputs, observed_at=utc_now_iso(), project_root=project_root)
 
 
 def _add_work_start_options(func: Any) -> Any:
@@ -413,6 +424,10 @@ def docs_probe_command(
 ) -> None:
     """Derive doc-superseded context (declared-frontmatter) for the relied-on docs."""
 
+    normalized_repo = parse_github_repo(repo)
+    if normalized_repo is None:
+        raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
+    repo = normalized_repo
     observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
@@ -426,7 +441,8 @@ def docs_probe_command(
         requesting_principal=None,
     )
     document = run_docs_supersession_probe(
-        repo=repo, root=root, request_context=request_context, observed_at=observed_at
+        repo=repo, root=root, request_context=request_context, observed_at=observed_at,
+        base_dir=resolve_project_root(),
     )
     click.echo(_work_start_view(document), nl=False)
 
@@ -449,6 +465,10 @@ def gate_probe_command(
 ) -> None:
     """Derive missed-gate context from failing GitHub check-runs."""
 
+    normalized_repo = parse_github_repo(repo)
+    if normalized_repo is None:
+        raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
+    repo = normalized_repo
     observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
@@ -464,7 +484,7 @@ def gate_probe_command(
     document = run_github_checks_probe(
         repo=repo,
         ref=ref,
-        token=resolve_token(token_env),
+        token=resolve_github_token(token_env),
         request_context=request_context,
         observed_at=observed_at,
     )
@@ -491,6 +511,10 @@ def issue_probe_command(
 ) -> None:
     """Derive criteria-changed context from GitHub Issue movement."""
 
+    normalized_repo = parse_github_repo(repo)
+    if normalized_repo is None:
+        raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
+    repo = normalized_repo
     observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
@@ -507,7 +531,7 @@ def issue_probe_command(
         repo=repo,
         issues=list(issues),
         since=since,
-        token=resolve_token(token_env),
+        token=resolve_github_token(token_env),
         request_context=request_context,
         observed_at=observed_at,
     )
@@ -559,14 +583,14 @@ _CLAUDE_MD_SNIPPET = (
 @click.option(
     "--settings",
     "settings_path",
-    default=Path(".claude/settings.json"),
-    show_default=True,
+    default=None,
     type=click.Path(dir_okay=False, path_type=Path),
-    help="Project-local Claude Code settings file.",
+    help="Project-local Claude Code settings file (defaults to <repo-root>/.claude/settings.json).",
 )
-def install_hook_command(print_only: bool, settings_path: Path) -> None:
+def install_hook_command(print_only: bool, settings_path: Path | None) -> None:
     """Opt in to the teamctx reflex: add the PreToolUse hook and print the portable snippet."""
 
+    settings_path = settings_path or resolve_project_root() / ".claude" / "settings.json"
     settings = _load_settings(settings_path)
     if not _has_hook_entry(settings):
         hooks = settings.get("hooks")
@@ -650,7 +674,7 @@ def _github_contract_document(
     )
     return run_github_pr_probe(
         repo=repo,
-        token=resolve_token(token_env),
+        token=resolve_github_token(token_env),
         request_context=request_context,
         observed_at=observed_at,
         include_titles=include_title,
@@ -658,7 +682,7 @@ def _github_contract_document(
 
 
 def _work_start_view(document: CoreContractDocument) -> str:
-    declarations = load_declared_authority(Path(".teamctx/authority.json"))
+    declarations = load_declared_authority(resolve_project_root() / ".teamctx" / "authority.json")
     answer = broker_answer(
         document.request_context,
         document.source_signals,

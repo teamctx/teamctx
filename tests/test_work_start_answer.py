@@ -30,3 +30,22 @@ def test_render_work_start_still_renders(monkeypatch) -> None:
     # conflict clear (git_hosting fresh, no collisions); other checks not configured
     assert "Looks clear to start." in text
     assert "no open PRs touch your files" in text
+
+
+def test_work_start_answer_loads_authority_from_project_root(monkeypatch, tmp_path) -> None:
+    import json
+
+    import teamctx.connectors.github as gh
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: _EMPTY_FETCH)
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "authority.json").write_text(
+        json.dumps(
+            [{"subject": "rounding-cap", "source": "confluence:Policy", "priority": 10,
+              "value": "3", "fresh": True}]
+        ),
+        encoding="utf-8",
+    )
+    inputs = WorkStartInputs(repo="acme/widgets", paths=("src/x.py",), token="t")
+    # cwd is NOT tmp_path: authority must be loaded relative to project_root, not the process cwd.
+    answer = work_start_answer(inputs, observed_at=OBS, project_root=tmp_path)
+    assert [e.subject for e in answer.selection.authority] == ["rounding-cap"]

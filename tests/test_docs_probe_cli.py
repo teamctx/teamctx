@@ -32,7 +32,7 @@ def test_docs_probe_with_no_supersession_is_clean(tmp_path, monkeypatch) -> None
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(
         main,
-        ["dev", "docs-probe", "--repo", "r", "--root", "docs", "--path", "docs/fine.md"],
+        ["dev", "docs-probe", "--repo", "owner/name", "--root", "docs", "--path", "docs/fine.md"],
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output

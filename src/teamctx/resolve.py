@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from teamctx.git_context import detect_branch, detect_repo
+from teamctx.git_context import detect_branch, detect_repo, parse_github_repo
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     WorkStartConfig,
@@ -48,9 +48,15 @@ def resolve_work_start_inputs(
 ) -> WorkStartInputs:
     config = _load_work_start_config(root, config_path)
 
-    resolved_repo = repo or _config_repo(config) or detect_repo(root)
-    if resolved_repo is None:
+    raw_repo = repo or _config_repo(config) or detect_repo(root)
+    if raw_repo is None:
         raise WorkStartResolutionError(_REPO_UNRESOLVED)
+    resolved_repo = parse_github_repo(raw_repo)
+    if resolved_repo is None:
+        raise WorkStartResolutionError(
+            f"{raw_repo!r} is not a GitHub repo (owner/name). teamctx only checks GitHub today; "
+            "pass a github.com repo with --github-repo or work_start.repo."
+        )
 
     return WorkStartInputs(
         repo=resolved_repo,

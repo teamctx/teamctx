@@ -18,6 +18,7 @@ from teamctx.connectors.github import run_github_pr_probe
 from teamctx.connectors.github_checks import run_github_checks_probe
 from teamctx.connectors.github_issues import run_github_issues_probe
 from teamctx.core.contracts import CoreContractDocument, RequestContext
+from teamctx.git_context import parse_github_repo
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,12 @@ class WorkStartInputs:
     since: str | None = None
     docs_root: str | None = None
     ref: str | None = None
+
+    def __post_init__(self) -> None:
+        normalized = parse_github_repo(self.repo)
+        if normalized is None:
+            raise ValueError(f"not a valid GitHub repo slug: {self.repo!r}")
+        object.__setattr__(self, "repo", normalized)
 
 
 def build_request_context(inputs: WorkStartInputs, *, observed_at: str) -> RequestContext:

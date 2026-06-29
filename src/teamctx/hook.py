@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from teamctx.clock import utc_now_iso
+from teamctx.git_context import resolve_project_root
 
 _EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 
@@ -44,7 +45,7 @@ def _run() -> None:
     # mark before grounding: on error we stay silent rather than retry every edit
     _mark_grounded(session_id)
 
-    text = _ground(Path(cwd), file_path)  # imports the broker lazily
+    text = _ground(resolve_project_root(start=Path(cwd)), file_path)  # imports the broker lazily
     if text:
         _emit(text)
 
@@ -132,11 +133,11 @@ def _ground(root: Path, file_path: str) -> str:
 
     from teamctx.hook_signal import hook_signal
     from teamctx.resolve import resolve_work_start_inputs
-    from teamctx.tokens import resolve_token
+    from teamctx.tokens import resolve_github_token
     from teamctx.work_start import work_start_answer
 
     rel_file = _repo_relative(root, file_path)
-    token = resolve_token()
+    token = resolve_github_token()
     paths = tuple(dict.fromkeys([rel_file, *_changed_paths(root)]))  # dedup, order-preserving
     inputs = resolve_work_start_inputs(paths=paths, token=token, root=root)
 

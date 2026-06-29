@@ -68,6 +68,11 @@ def test_explicit_docs_root_wins_over_config(monkeypatch, tmp_path: Path) -> Non
     assert inputs.docs_root == "from/explicit"
 
 
+def test_resolve_rejects_non_github_explicit_repo(tmp_path: Path) -> None:
+    with pytest.raises(WorkStartResolutionError):
+        resolve_work_start_inputs(paths=("a.py",), repo="https://gitlab.com/o/n", root=tmp_path)
+
+
 def test_resolves_from_a_real_repo_and_config(tmp_path: Path) -> None:
     subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t"], check=True)

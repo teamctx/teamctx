@@ -164,3 +164,27 @@ def test_work_start_errors_on_malformed_config(monkeypatch, tmp_path: Path) -> N
     )
     assert result.exit_code != 0
     assert "config" in result.output.lower()  # clean message, not a traceback
+
+
+def test_work_start_finds_config_from_subdirectory(monkeypatch, tmp_path: Path) -> None:
+    """Run from a subdirectory: the committed config at the repo root is still found, because
+    root resolution uses the git toplevel, not the process cwd."""
+    import json
+
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "config.json").write_text(
+        json.dumps(
+            {"schema_version": "teamctx.project_config.v0", "work_start": {"repo": "owner/name"}}
+        ),
+        encoding="utf-8",
+    )
+    sub = tmp_path / "src"
+    sub.mkdir()
+    monkeypatch.chdir(sub)
+    result = CliRunner().invoke(
+        main,
+        ["work-start", "--path", "src/x.py", "--token-env", "TEAMCTX_DEFINITELY_UNSET_TOKEN"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "could not determine the repository" not in result.output

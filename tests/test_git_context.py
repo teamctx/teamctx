@@ -5,25 +5,47 @@ from pathlib import Path
 
 import pytest
 
-from teamctx.git_context import detect_branch, detect_repo, parse_owner_name
+from teamctx.git_context import (
+    detect_branch,
+    detect_repo,
+    parse_github_repo,
+    resolve_project_root,
+)
 
 
 @pytest.mark.parametrize(
-    ("url", "expected"),
+    ("value", "expected"),
     [
-        ("git@github.com:acme/widgets.git", "acme/widgets"),
-        ("https://github.com/acme/widgets.git", "acme/widgets"),
-        ("https://github.com/acme/widgets", "acme/widgets"),
-        ("ssh://git@github.com/acme/widgets.git", "acme/widgets"),
-        ("https://github.com/acme/widgets/", "acme/widgets"),
-        ("/srv/git/repo", None),
-        ("../sibling", None),
-        ("not-a-url", None),
-        ("", None),
+        ("owner/name", "owner/name"),
+        ("owner/name/", "owner/name"),
+        ("https://github.com/owner/name", "owner/name"),
+        ("https://github.com/owner/name.git", "owner/name"),
+        ("git@github.com:owner/name.git", "owner/name"),
+        ("ssh://git@github.com/owner/name.git", "owner/name"),
+        ("owner/.github", "owner/.github"),
     ],
 )
-def test_parse_owner_name(url: str, expected: str | None) -> None:
-    assert parse_owner_name(url) == expected
+def test_parse_github_repo_accepts_github(value: str, expected: str) -> None:
+    assert parse_github_repo(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https://gitlab.com/owner/name",      # non-github host fails closed
+        "git@gitlab.com:owner/name.git",
+        "ssh://git@gitlab.com/owner/name.git",
+        "owner",                               # one segment
+        "owner/name/extra",                    # three segments
+        "",                                    # empty
+        "https://github.com/owner",            # github but not a full slug
+        "../sibling",                          # path-traversal segment rejected
+        "../name",
+        "owner/na me",                         # invalid character (space)
+    ],
+)
+def test_parse_github_repo_rejects(value: str) -> None:
+    assert parse_github_repo(value) is None
 
 
 def _init_repo(root: Path) -> None:
@@ -65,3 +87,22 @@ def test_detect_branch_none_when_detached(tmp_path: Path) -> None:
     ).stdout.strip()
     subprocess.run(["git", "-C", str(tmp_path), "checkout", "-q", head], check=True)
     assert detect_branch(tmp_path) is None
+
+
+def test_resolve_project_root_prefers_override(tmp_path: Path) -> None:
+    override = tmp_path / "explicit"
+    override.mkdir()
+    assert resolve_project_root(start=tmp_path, override=override) == override
+
+
+def test_resolve_project_root_falls_back_to_start_when_non_git(tmp_path: Path) -> None:
+    # tmp_path is not a git repo, so toplevel is None and we get start back.
+    assert resolve_project_root(start=tmp_path) == tmp_path
+
+
+def test_resolve_project_root_uses_git_toplevel(tmp_path: Path) -> None:
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    sub = tmp_path / "src"
+    sub.mkdir()
+    # From a subdirectory, the resolved root is the repo toplevel, not the subdir.
+    assert resolve_project_root(start=sub).resolve() == tmp_path.resolve()
