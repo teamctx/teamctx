@@ -133,6 +133,13 @@ def test_init_docs_root_flag_overrides_detection(
     assert _config_at(tmp_path)["work_start"]["docs_root"] == "design/docs"
 
 
+def test_init_rejects_non_github_repo(monkeypatch: Any, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(main, ["init", "--repo", "git@gitlab.com:o/n.git"])
+    assert result.exit_code != 0
+    assert "GitHub" in result.output
+
+
 # ---------------------------------------------------------------------------
 # Case 5a: existing config + no --force -> non-zero, hints --force, file unchanged
 # ---------------------------------------------------------------------------

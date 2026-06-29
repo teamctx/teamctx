@@ -32,7 +32,7 @@ from teamctx.finding_query import (
     match_finding,
     parse_selector,
 )
-from teamctx.git_context import detect_repo
+from teamctx.git_context import detect_repo, parse_github_repo
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     ProjectConfigError,
@@ -80,7 +80,11 @@ def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
     """Scaffold the project-local teamctx config for work-start."""
 
     root = Path.cwd()
-    resolved_repo = repo or detect_repo(root)
+    if repo is not None and parse_github_repo(repo) is None:
+        raise click.ClickException(
+            f"{repo!r} is not a GitHub repo (owner/name). teamctx only checks GitHub today."
+        )
+    resolved_repo = parse_github_repo(repo) if repo is not None else detect_repo(root)
     if resolved_repo is None:
         raise click.ClickException(
             "Could not determine the repository: this is not a git repo with a recognizable "
@@ -135,6 +139,8 @@ def github_pr_probe_command(
 ) -> None:
     """Emit Core Contract V0 context from GitHub PR metadata."""
 
+    if parse_github_repo(repo) is None:
+        raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
     document = _github_contract_document(
         repo=repo,
         paths=paths,
@@ -413,6 +419,8 @@ def docs_probe_command(
 ) -> None:
     """Derive doc-superseded context (declared-frontmatter) for the relied-on docs."""
 
+    if parse_github_repo(repo) is None:
+        raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
     observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
@@ -449,6 +457,8 @@ def gate_probe_command(
 ) -> None:
     """Derive missed-gate context from failing GitHub check-runs."""
 
+    if parse_github_repo(repo) is None:
+        raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
     observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
@@ -491,6 +501,8 @@ def issue_probe_command(
 ) -> None:
     """Derive criteria-changed context from GitHub Issue movement."""
 
+    if parse_github_repo(repo) is None:
+        raise click.ClickException(f"{repo!r} is not a GitHub repo (owner/name).")
     observed_at = utc_now_iso()
     request_context = RequestContext(
         schema_version="teamctx.request_context.v0",
