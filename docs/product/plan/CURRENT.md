@@ -103,6 +103,20 @@ deduped into `teamctx.clock.utc_now_iso`.
 read wrong for a single-check diagnostic; give the probes their own headline or suppress not-run
 checks. **Bar:** fresh-actor setup from the README alone, and genuine multi-actor scenarios surfaced
 correctly across terminals.
+**Onboard + runtime-honesty slice (spec `docs/superpowers/specs/2026-06-29-onboard-runtime-honesty.md`,
+hardened over a five-round codex loop): Phase 1 of 3 DONE 2026-06-29 (merged `3ad67c0`, 332 tests +
+ruff + mypy strict green).** Closes the setup/runtime split-brain: a setup command must report exactly
+what the runtime will do. Phase 1 = the shared resolution layer (`resolve_project_root`, host-aware repo
+identity via `parse_github_repo` failing closed on non-github origins, `resolve_github_token` with a
+`gh` fallback on the default env only); a codex diff-review caught three real split-brain P1s before
+merge (`901ca4e`). **Phase 2 = the honesty carrier (spec 1.4 to 1.7), planned and next:** two additive
+v0 coverage states, `pending` (a gate whose checks are still running) and `not_applicable` (a docs root
+scanned with nothing relied-on in scope), carried through `SourceStatusValue` + `Completeness` +
+`assess_completeness` so neither collapses into a false clear or a false "couldn't reach"; plus sweeping
+the unproven word "required" out of gate copy and dropping init's `docs_root` auto-enable. Plan:
+`docs/superpowers/plans/2026-06-29-runtime-honesty-phase2.md`. **Phase 3 = the visible `onboard` command
+(spec 2.x).** Builder/reviewer loop with codex throughout: build as CTO-arbiter, codex adversarially
+reviews the plan and the diffs.
 
 ### Sprint 3: Proof (the numbers)
 Labelled conformance corpus + replay harness → the **E4/E5** numbers protocol v1.2 owes.
