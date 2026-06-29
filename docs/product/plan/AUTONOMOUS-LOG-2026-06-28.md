@@ -71,6 +71,17 @@ must carry open-targets) + the selector UX is a product call. So I designed it (
 surfaced it rather than build it solo at the tail of this run. Spec:
 `docs/superpowers/specs/2026-06-28-c-judge-why-open-source-design.md`. Needs a nod on the selector
 syntax (`pr:7` / `path:` / `issue:#`) and confirmation to keep why/open-source at all.
+**Edgar greenlit 2026-06-28: keep them, build now, `pr:7`. BUILT + SELF-REVIEWED, 309 tests.** Codex
+reviews were dropped mid-slice (Edgar: "not working well") because codex hangs under concurrency in
+this env ([[codex-review-loop]]); I reviewed it myself and caught two real issues, both fixed: the
+`path:` selector said "may have cleared" when the source was actually unreachable (a false clear,
+`0bff1c3`), and `why pr:abc` tracebacked + wasted a broker run instead of failing cleanly (`101a954`).
+The plumbing was lighter than the original design framed: `BrokerAnswer`
+additively carries `open_targets`, and the matcher resolves selectors via the card scope plus
+`refs[0] -> open_target`, so no core card-derivation change was needed. `why` / `open-source` rerun the
+live broker, match the selector, and render the full evidence / the concrete opener. The honest
+no-match handling distinguishes "the check ran clean, it may have cleared" from "the source was
+unreachable, cannot say" by inspecting the matching verdict, so a no-match is never a false clear.
 
 ### Slice E (README): deferred until after C-judge (so it reflects the final command set).
 
