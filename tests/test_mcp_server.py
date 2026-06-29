@@ -31,7 +31,7 @@ def test_work_start_tool_is_directly_callable_and_degrades_without_token(
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     output = work_start(repo="acme/widgets", paths=["src/app/core.py"])
     # no token => conflict unreachable => cant_verify; never a false clear
-    assert "Heads up: I couldn't check the important things:" in output
+    assert "Heads up: I can't confirm the important things yet:" in output
     assert "couldn't reach GitHub" in output
 
 
@@ -85,7 +85,7 @@ def test_call_tool_runs_the_broker_over_mcp(monkeypatch, tmp_path) -> None:
     )
     text = _content_text(result)
     # no token => conflict unreachable => cant_verify
-    assert "Heads up: I couldn't check the important things:" in text
+    assert "Heads up: I can't confirm the important things yet:" in text
     assert "couldn't reach GitHub" in text
 
 

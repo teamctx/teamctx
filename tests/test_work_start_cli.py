@@ -34,7 +34,7 @@ def test_work_start_with_no_token_degrades_honestly(monkeypatch, tmp_path: Path)
 
     assert result.exit_code == 0  # prints, never blocks
     # no token => conflict check unreachable => cant_verify headline
-    assert "Heads up: I couldn't check the important things:" in result.output
+    assert "Heads up: I can't confirm the important things yet:" in result.output
     assert "couldn't reach GitHub" in result.output
     assert "GITHUB_TOKEN" in result.output
 
@@ -112,7 +112,7 @@ def test_work_start_resolves_repo_from_git_without_flag(monkeypatch, tmp_path: P
     )
     assert result.exit_code == 0, result.output
     # repo resolved + no token => both conflict and gate unreachable => cant_verify
-    assert "Heads up: I couldn't check the important things:" in result.output
+    assert "Heads up: I can't confirm the important things yet:" in result.output
     assert "GITHUB_TOKEN" in result.output
 
 

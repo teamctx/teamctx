@@ -99,7 +99,7 @@ def test_non_conflict_finding_has_no_pr_hint_and_clean_punctuation() -> None:
 
 def test_cant_verify_when_github_unreachable() -> None:
     text = render_broker_answer(broker_answer(_request(), [], [_unavailable("git_hosting")]))
-    assert text.startswith("Heads up: I couldn't check the important things:")
+    assert text.startswith("Heads up: I can't confirm the important things yet:")
     assert "couldn't reach GitHub" in text
     assert "GITHUB_TOKEN" in text
     _no_jargon(text)
@@ -145,7 +145,7 @@ def test_cant_verify_gate_only_bullet() -> None:
     text = render_broker_answer(
         broker_answer(_request(), [], [_fresh("git_hosting"), _unavailable("ci_deploy")])
     )
-    assert text.startswith("Heads up: I couldn't check the important things:")
+    assert text.startswith("Heads up: I can't confirm the important things yet:")
     assert "Failing checks:" in text
     assert "Open PRs and failing checks:" not in text
     _no_jargon(text)
@@ -165,3 +165,74 @@ def test_authority_section_surfaces_a_conflict() -> None:
 def test_no_authority_section_without_declarations() -> None:
     text = render_broker_answer(broker_answer(_request(), [], [_fresh("git_hosting")]))
     assert "Authority" not in text
+
+
+def _pending(family: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
+        status="pending", observed_at="2026-06-28T00:00:00Z", safe_user_message="running",
+        visibility="warning_when_relevant", policy_reason="status only",
+    )
+
+
+def _not_applicable(family: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
+        status="not_applicable", observed_at="2026-06-28T00:00:00Z", safe_user_message="n/a",
+        visibility="silent", policy_reason="status only",
+    )
+
+
+def test_cant_verify_pending_gate_shows_still_running() -> None:
+    text = render_broker_answer(broker_answer(_request(), [], [_pending("ci_deploy")]))
+    assert text.startswith("Heads up: I can't confirm the important things yet:")
+    assert "still running" in text.lower()
+    assert "no failing checks found" not in text  # never a false green for a pending gate
+    _no_jargon(text)
+
+
+def test_not_applicable_docs_gets_its_own_line_not_cant_verify() -> None:
+    # docs not_applicable is a non-important coverage state: its own line, never cant_verify.
+    text = render_broker_answer(
+        broker_answer(_request(), [], [_fresh("git_hosting"), _not_applicable("docs")])
+    )
+    assert "Not applicable: docs" in text
+    assert "none of the files in scope are docs you rely on" in text
+    assert "I can't confirm the important things yet" not in text
+    assert "the docs you rely on are current" not in text
+    _no_jargon(text)
+
+
+def test_heads_up_finding_plus_pending_gate_surfaces_still_running() -> None:
+    # a found conflict makes the kind heads_up; the pending gate must still be surfaced once.
+    text = render_broker_answer(
+        broker_answer(
+            _request(), [_collision_signal()], [_fresh("git_hosting"), _pending("ci_deploy")]
+        )
+    )
+    assert text.startswith("Before you start, here is what to handle first:")
+    assert "PR #7" in text
+    assert "Still running:" in text
+    _no_jargon(text)
+
+
+def test_cant_verify_unreachable_conflict_plus_pending_gate_shows_both() -> None:
+    text = render_broker_answer(
+        broker_answer(_request(), [], [_unavailable("git_hosting"), _pending("ci_deploy")])
+    )
+    assert text.startswith("Heads up: I can't confirm the important things yet:")
+    assert "Open PRs:" in text  # the unreachable conflict bullet
+    assert "still running" in text.lower()  # the pending gate bullet, not dropped
+    _no_jargon(text)
+
+
+def test_heads_up_finding_plus_not_applicable_docs() -> None:
+    text = render_broker_answer(
+        broker_answer(
+            _request(), [_collision_signal()], [_fresh("git_hosting"), _not_applicable("docs")]
+        )
+    )
+    assert text.startswith("Before you start, here is what to handle first:")
+    assert "PR #7" in text
+    assert "Not applicable: docs" in text
+    _no_jargon(text)
