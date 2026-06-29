@@ -49,7 +49,9 @@ Freshness = Literal["fresh", "stale", "unavailable", "blocked", "disabled", "ret
 Confidence = Literal["high", "medium", "low"]
 Visibility = Literal["visible", "warning_only", "hidden", "never"]
 SourceBodyState = Literal["openable", "status_only", "blocked", "unavailable", "not_collected"]
-SourceStatusValue = Literal["fresh", "stale", "unavailable", "blocked", "disabled"]
+SourceStatusValue = Literal[
+    "fresh", "stale", "unavailable", "blocked", "disabled", "pending", "not_applicable"
+]
 SourceStatusVisibility = Literal["silent", "warning_when_relevant", "always"]
 GuidanceStatus = Literal["draft", "active", "retired"]
 AgentInstruction = Literal["evidence_only", "verify_before_relying", "apply_when_in_scope"]
