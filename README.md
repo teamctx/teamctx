@@ -18,18 +18,18 @@ where teamctx could not look, it says so plainly instead of implying all is well
 
 ## What it checks
 
-Run it before you start editing. teamctx surfaces:
+Run it before you start editing. From the systems of record your team already uses, teamctx surfaces:
 
 - Open pull requests that touch the files you are about to change.
 - Required checks that are failing on your branch.
 - Acceptance criteria that changed on a linked issue since you started.
 - Design or process docs you rely on that have been superseded.
 
-Today that means GitHub (open pull requests, check runs, and linked issues) and design docs declared
-in your repository. It is deliberately narrow. It reads metadata only: it does not read pull request
-bodies, comments, or patches. It speaks only to the structured slice it can actually verify, so it
-does no broad search, no summaries, and nothing fuzzy. More source families are on the roadmap, and a
-source becomes supported only after it proves the same honest-coverage behavior.
+Live today: GitHub (open pull requests, check runs, and linked issues) and design docs declared in
+your repository. The core is source-agnostic; GitHub is simply the first source wired up, with Jira
+and GitLab next. teamctx reads metadata only (it does not read pull request bodies, comments, or
+patches), speaks only to the structured slice it can actually verify, and does no broad search or
+summaries. A source becomes supported only after it proves the same honest-coverage behavior.
 
 ## Install
 
@@ -41,7 +41,7 @@ cd teamctx
 pip install -e .
 ```
 
-It needs read access to your forge. Set a token in the environment (teamctx never stores the value):
+It needs read access to GitHub. Set a token in the environment (teamctx never stores the value):
 
 ```bash
 export GITHUB_TOKEN=ghp_...
@@ -55,7 +55,7 @@ export GITHUB_TOKEN_FILE=~/.config/teamctx/token
 # 1. Scaffold the project config. It auto-detects the repo from your git 'origin' remote.
 teamctx init
 
-# 2. Before you edit, ground yourself.
+# 2. Before you edit, see what changed around your files.
 teamctx work-start --path src/auth/token.py
 ```
 
@@ -129,9 +129,9 @@ teamctx is deliberately bounded:
 ## How it works
 
 Each connector reads approved metadata from a source and emits a typed, source-backed contract. A
-deterministic core composes them, derives the findings, and renders one verdict per check under an
-explicit coverage closure. The same code path produces the CLI output, the MCP tool result, and the
+deterministic core composes them, derives the findings, and returns one verdict per check with an
+honest account of what it could and could not cover. The same code path produces the CLI output, the MCP tool result, and the
 hook signal, so every consumer sees identical facts. Replay the same inputs and you get the same
 verdict every time.
 
-Positioning and design: [reality-grounding strategy](docs/product/vision/reality-grounding-strategy-2026-06.md).
+Positioning and design: [design and positioning](docs/product/vision/reality-grounding-strategy-2026-06.md).
