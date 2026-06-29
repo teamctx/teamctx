@@ -61,6 +61,18 @@ def test_universal_is_unknown_when_closure_incomplete_and_no_counterexample() ->
     )
 
 
+def test_universal_propagates_the_new_carrier_reasons_verbatim() -> None:
+    # The carrier relies on evaluate passing any non-complete completeness through as the
+    # valuation reason, so the two new states reach the assessment with NO change to evaluate.
+    query = no_conflict_query(_request(("a.py",)))
+    assert evaluate(query, (), _closure("incomplete[pending]")) == Valuation(
+        "unknown", "incomplete[pending]"
+    )
+    assert evaluate(query, (), _closure("not_applicable[out-of-scope]")) == Valuation(
+        "unknown", "not_applicable[out-of-scope]"
+    )
+
+
 def test_universal_is_unknown_when_no_closure_entry_for_the_query() -> None:
     query = no_conflict_query(_request(("a.py",)))
     assert evaluate(query, (), ()) == Valuation("unknown", "incomplete[policy-gap]")
