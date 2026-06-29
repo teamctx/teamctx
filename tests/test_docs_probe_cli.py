@@ -36,3 +36,25 @@ def test_docs_probe_with_no_supersession_is_clean(tmp_path, monkeypatch) -> None
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
+
+
+def test_docs_probe_normalizes_dot_slash_path(tmp_path, monkeypatch) -> None:
+    # a leading ./ on --path must still match the scanned repo-relative doc (normalization).
+    root = tmp_path / "docs" / "superpowers" / "specs"
+    root.mkdir(parents=True)
+    (root / "old.md").write_text(
+        "---\nsuperseded_by: docs/superpowers/research/new.md\n---\n# Old\n", encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        main,
+        [
+            "dev", "docs-probe",
+            "--repo", "tempo-64/model-citizens",
+            "--root", "docs/superpowers",
+            "--path", "./docs/superpowers/specs/old.md",
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    assert "docs/superpowers/research/new.md" in result.output  # the finding still fires

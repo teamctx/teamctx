@@ -58,7 +58,14 @@ def run_docs_supersession_probe(
             safe_user_message="Docs are unavailable at the configured root.",
         )
     superseded = parse_superseded_docs(repo=repo, files=files)
-    return normalize_superseded_docs(request_context, superseded, observed_at=observed_at)
+    scanned_paths = {rel_path for rel_path, _ in files}
+    relied_on_in_scope = bool(scanned_paths & set(request_context.paths))
+    return normalize_superseded_docs(
+        request_context,
+        superseded,
+        observed_at=observed_at,
+        relied_on_doc_in_scope=relied_on_in_scope,
+    )
 
 
 def parse_superseded_docs(

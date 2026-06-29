@@ -45,7 +45,9 @@ def test_normalize_emits_doc_superseded_signal_with_scope() -> None:
         doc="docs/superpowers/specs/old.md",
         superseded_by="docs/superpowers/research/new.md",
     )
-    document = normalize_superseded_docs(_request(), [doc], observed_at="2026-06-20T00:00:00Z")
+    document = normalize_superseded_docs(
+        _request(), [doc], observed_at="2026-06-20T00:00:00Z", relied_on_doc_in_scope=True
+    )
     assert len(document.source_signals) == 1
     signal = document.source_signals[0]
     assert signal.signal_type == "doc_superseded"
@@ -124,3 +126,38 @@ def test_missing_docs_dir_is_unavailable_not_clear(tmp_path) -> None:
     )
     assert document.source_signals == []
     assert document.source_statuses[0].status == "unavailable"
+
+
+def _request_with_paths(paths: list[str]) -> RequestContext:
+    return RequestContext(
+        schema_version="teamctx.request_context.v0", request_id="t",
+        repo="tempo-64/model-citizens", branch=None, task="work", paths=paths,
+        linked_issues=[], requested_at="2026-06-20T00:00:00Z", requesting_principal=None,
+    )
+
+
+def test_normalize_not_applicable_when_no_relied_on_doc_in_scope() -> None:
+    document = normalize_superseded_docs(
+        _request(), [], observed_at="2026-06-20T00:00:00Z", relied_on_doc_in_scope=False
+    )
+    assert document.source_statuses[0].status == "not_applicable"
+
+
+def test_probe_not_applicable_when_scanned_docs_not_in_scope() -> None:
+    # a docs root is scanned, but none of the files in scope are docs we rely on.
+    reader = lambda root: [("docs/guide.md", "# nothing declared\n")]  # noqa: E731
+    document = run_docs_supersession_probe(
+        repo="o/n", root="docs", request_context=_request_with_paths(["src/a.py"]),
+        observed_at="2026-06-20T00:00:00Z", reader=reader,
+    )
+    assert document.source_signals == []
+    assert document.source_statuses[0].status == "not_applicable"
+
+
+def test_probe_fresh_when_a_scanned_doc_is_in_scope() -> None:
+    reader = lambda root: [("docs/guide.md", "# nothing declared\n")]  # noqa: E731
+    document = run_docs_supersession_probe(
+        repo="o/n", root="docs", request_context=_request_with_paths(["docs/guide.md"]),
+        observed_at="2026-06-20T00:00:00Z", reader=reader,
+    )
+    assert document.source_statuses[0].status == "fresh"

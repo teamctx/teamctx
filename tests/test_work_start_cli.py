@@ -61,12 +61,14 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
         lambda **kw: CheckRunsFetch(failing=[], truncated=False, pending=False),
     )
     monkeypatch.setattr(gi, "fetch_issue_changes", lambda **kw: [])
-    # docs probe reads the filesystem; inject an empty reader so no real I/O happens.
+    # docs probe reads the filesystem; inject a reader with one relied-on, non-superseded doc so
+    # docs is in scope and current (no real I/O). With docs_root set but nothing relied-on in
+    # scope, docs would honestly read not_applicable, not "current".
     real_docs_probe = runner_mod.run_docs_supersession_probe
     monkeypatch.setattr(
         runner_mod,
         "run_docs_supersession_probe",
-        lambda **kw: real_docs_probe(reader=lambda root: [], **kw),
+        lambda **kw: real_docs_probe(reader=lambda root: [("docs/guide.md", "# guide\n")], **kw),
     )
     monkeypatch.setenv("GITHUB_TOKEN", "t")
 
@@ -74,7 +76,7 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
         main,
         [
             "work-start", "--github-repo", "acme/widgets",
-            "--path", "src/widgets/core.py",
+            "--path", "src/widgets/core.py", "--path", "docs/guide.md",
             "--branch", "feature", "--issue", "#7", "--since", "2026-06-24T00:00:00Z",
             "--docs-root", "docs",
         ],
