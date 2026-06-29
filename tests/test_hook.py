@@ -41,7 +41,7 @@ def test_first_edit_emits_can_verify_without_token(monkeypatch, capsys, tmp_path
     out = _run(_payload(tmp_path), monkeypatch, capsys)
     data = json.loads(out)
     ctx = data["hookSpecificOutput"]["additionalContext"]
-    assert "GitHub" in ctx and "install-hook" in ctx
+    assert "GitHub" in ctx and "GITHUB_TOKEN" in ctx
     assert "permissionDecision" not in data["hookSpecificOutput"]
 
 
