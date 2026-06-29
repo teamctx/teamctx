@@ -45,10 +45,10 @@ def _cant_verify(token_present: bool) -> str:
     if not token_present:
         return (
             "teamctx couldn't check what else is happening around this file. It doesn't have "
-            "access to GitHub yet. To switch that on, run `teamctx install-hook` and it'll "
-            "walk you through giving it a token. If you'd rather not connect it right now, keep "
-            "working; you just won't get a heads-up about open pull requests on the same files "
-            "or checks that are failing."
+            "access to GitHub yet. To switch that on, set GITHUB_TOKEN in your environment "
+            "(or GITHUB_TOKEN_FILE with a path to a token file). If you'd rather not connect "
+            "it right now, keep working; you just won't get a heads-up about open pull requests "
+            "on the same files or checks that are failing."
         )
     return (
         "teamctx couldn't reach GitHub just now, so it couldn't check for open pull requests or "

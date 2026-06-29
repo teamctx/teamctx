@@ -101,7 +101,7 @@ def test_cant_verify_when_github_unreachable() -> None:
     text = render_broker_answer(broker_answer(_request(), [], [_unavailable("git_hosting")]))
     assert text.startswith("Heads up: I couldn't check the important things:")
     assert "couldn't reach GitHub" in text
-    assert "teamctx install-hook" in text
+    assert "GITHUB_TOKEN" in text
     _no_jargon(text)
 
 

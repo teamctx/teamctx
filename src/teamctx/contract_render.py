@@ -119,8 +119,8 @@ def _cant_verify_bullets(assessment: WorkStartAssessment) -> list[str]:
     conflict = status.get("conflict") == "unreachable"
     gate = status.get("gate") == "unreachable"
     fix = (
-        "teamctx couldn't reach GitHub. Either it has no access yet (run `teamctx install-hook` "
-        "to connect it) or it's a temporary connection issue."
+        "teamctx couldn't reach GitHub. Either it has no access yet (set GITHUB_TOKEN, or "
+        "GITHUB_TOKEN_FILE with a path to a token file) or it's a temporary connection issue."
     )
     if conflict and gate:
         return [f"  • Open PRs and failing checks: {fix} Until it's back you won't see colliding "

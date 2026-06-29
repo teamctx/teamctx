@@ -38,4 +38,4 @@ def test_gate_probe_without_token_degrades_honestly(monkeypatch) -> None:
     # no token => gate unreachable (important check) => cant_verify
     assert "Heads up: I couldn't check the important things:" in result.output
     assert "couldn't reach GitHub" in result.output
-    assert "teamctx install-hook" in result.output
+    assert "GITHUB_TOKEN" in result.output

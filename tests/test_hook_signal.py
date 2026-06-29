@@ -77,7 +77,7 @@ def test_cant_verify_when_github_unreachable_no_token() -> None:
     answer = broker_answer(_request(), [], [_unavailable_status("git_hosting")])
     text = hook_signal(answer, file_path="src/app.py", token_present=False)
     assert "GitHub" in text
-    assert "install-hook" in text
+    assert "GITHUB_TOKEN" in text
     assert "keep working" in text
 
 
