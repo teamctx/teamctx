@@ -65,6 +65,24 @@ def parse_github_repo(value: str) -> str | None:
     return "/".join(segments)
 
 
+def resolve_project_root(start: Path | None = None, override: Path | None = None) -> Path:
+    """The project root every surface agrees on. ``override`` (for example MCP's
+    ``TEAMCTX_PROJECT_ROOT``) wins; else the git toplevel of ``start``; else ``start`` itself
+    (cwd fallback, so a non-git tree still works). ``start`` defaults to the current directory,
+    resolved here rather than as an import-time default argument."""
+
+    if override is not None:
+        return override
+    base = start if start is not None else Path.cwd()
+    toplevel = _git_toplevel(base)
+    return toplevel if toplevel is not None else base
+
+
+def _git_toplevel(root: Path) -> Path | None:
+    out = _run_git(root, "rev-parse", "--show-toplevel")
+    return Path(out) if out is not None else None
+
+
 def _run_git(root: Path, *args: str) -> str | None:
     try:
         result = subprocess.run(
