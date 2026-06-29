@@ -378,9 +378,11 @@ Completeness = Literal[
     "complete",
     "incomplete[dangling]",
     "incomplete[stale-dep]",
+    "incomplete[pending]",
     "incomplete[policy-gap]",
     "incomplete[unbounded]",
     "incomplete[unmodeled-ref]",
+    "not_applicable[out-of-scope]",
 ]
 
 # deps_G: the trusted, mandated source families a proposition's truth depends on. A
@@ -408,9 +410,13 @@ def deps_for(prop: Prop) -> frozenset[str]:
 def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
     """The paper's ``complete?``: is every mandated dependency of ``prop`` observed fresh?
 
-    Returns ``incomplete[policy-gap]`` if a mandated source family is absent from coverage,
-    ``incomplete[stale-dep]`` if present but not fresh, else ``complete``. The reasons
-    ``dangling``/``unbounded``/``unmodeled-ref`` are defined but not yet emitted (they need
+    Precedence: an absent mandated family is ``incomplete[policy-gap]`` (we never looked).
+    Among present families the worst status wins: any stale/unavailable/blocked/disabled, or any
+    unrecognized status, gives ``incomplete[stale-dep]`` (a real unreachable dominates), then
+    ``pending`` gives ``incomplete[pending]``, then a family whose only non-fresh status is
+    ``not_applicable`` gives ``not_applicable[out-of-scope]``, else ``complete``. Treating an
+    unrecognized status as stale-dep preserves the prior "non-fresh means stale-dep" default. The
+    reasons ``dangling``/``unbounded``/``unmodeled-ref`` are defined but not yet emitted (they need
     reference-target / connector-schema structure introduced in later slices).
     """
 
@@ -418,15 +424,19 @@ def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
     for entry in coverage.entries:
         entries_by_family.setdefault(entry.source_family, []).append(entry)
 
-    stale_seen = False
+    statuses: list[str] = []
     for family in sorted(deps_for(prop)):
         family_entries = entries_by_family.get(family, [])
         if not family_entries:
             return "incomplete[policy-gap]"
-        if any(entry.status != "fresh" for entry in family_entries):
-            stale_seen = True
-    if stale_seen:
+        statuses.extend(entry.status for entry in family_entries)
+
+    if any(status not in {"fresh", "pending", "not_applicable"} for status in statuses):
         return "incomplete[stale-dep]"
+    if any(status == "pending" for status in statuses):
+        return "incomplete[pending]"
+    if any(status == "not_applicable" for status in statuses):
+        return "not_applicable[out-of-scope]"
     return "complete"
 
 
