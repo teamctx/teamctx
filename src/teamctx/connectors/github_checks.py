@@ -1,4 +1,4 @@
-"""Narrow GitHub check-runs probe: surface failing required gates for a ref."""
+"""Narrow GitHub check-runs probe: surface failing checks for a ref."""
 
 from __future__ import annotations
 

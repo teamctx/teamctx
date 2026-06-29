@@ -86,7 +86,7 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
     # all four checks clear: they appear in the "Checked:" coverage line
     assert "Looks clear to start." in result.output
     assert "no open PRs touch your files" in result.output
-    assert "CI is green" in result.output
+    assert "no failing checks found" in result.output
     assert "the linked issue's criteria are unchanged" in result.output
     assert "the docs you rely on are current" in result.output
 

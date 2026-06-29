@@ -83,7 +83,7 @@ def no_superseded_docs_query(request: RequestContext) -> Prop:
 
 
 def all_gates_pass_query(request: RequestContext) -> Prop:
-    """The universal a missed-gate card refutes: 'all required gates pass for my change'."""
+    """The universal a missed-gate card refutes: 'all gates pass for my change'."""
 
     return Prop(
         predicate="all_gates_pass",
@@ -270,8 +270,8 @@ def render_missed_gate_claim(claim_card: ClaimCard) -> ContextCard:
     return _render_claim_card(
         claim_card,
         section="Needs attention",
-        why_this_matters=f"a required gate failed on files you are changing: {overlap}.",
-        reason=f"a required gate failed on {overlap}",
+        why_this_matters=f"a check is failing on files you are changing: {overlap}.",
+        reason=f"a check is failing on {overlap}",
         reason_code="gate.failed",
     )
 

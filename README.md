@@ -21,7 +21,7 @@ where teamctx could not look, it says so plainly instead of implying all is well
 Run it before you start editing. From the systems of record your team already uses, teamctx surfaces:
 
 - Open pull requests that touch the files you are about to change.
-- Required checks that are failing on your branch.
+- Checks that are failing on your branch.
 - Acceptance criteria that changed on a linked issue since you started.
 - Design or process docs you rely on that have been superseded.
 
@@ -63,7 +63,7 @@ A clean start reads:
 
 ```
 Looks clear to start.
-  Checked: no open PRs touch your files; CI is green; the docs you rely on are current.
+  Checked: no open PRs touch your files; no failing checks found; the docs you rely on are current.
   Not checked: spec changes (no issue is linked to this branch; link one to enable).
 ```
 
@@ -72,7 +72,7 @@ When something is in the way:
 ```
 Before you start, here is what to handle first:
   • Open PR #7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 7).
-  Also checked: CI is green; the docs you rely on are current.
+  Also checked: no failing checks found; the docs you rely on are current.
 ```
 
 And when it could not verify something that matters, it says so rather than guessing:

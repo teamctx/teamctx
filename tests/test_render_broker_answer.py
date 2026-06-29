@@ -136,7 +136,7 @@ def test_heads_up_uses_also_checked_label_for_remaining_clear_checks() -> None:
         )
     )
     assert text.startswith("Before you start, here is what to handle first:")
-    assert "Also checked: CI is green" in text
+    assert "Also checked: no failing checks found" in text
     _no_jargon(text)
 
 

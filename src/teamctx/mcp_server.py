@@ -25,7 +25,7 @@ mcp = FastMCP("teamctx")
 
 _WORK_START_DESCRIPTION = (
     "Get current team context for a repo BEFORE editing files. Checks, in one call: open "
-    "pull requests that touch your paths (collisions), failing required CI gates, changed "
+    "pull requests that touch your paths (collisions), failing CI checks, changed "
     "acceptance criteria on linked issues, and superseded docs you rely on. Returns cards + "
     "an honest coverage report + one verdict per check (clear / NOT CLEAR / UNKNOWN). It "
     "informs; it does not block. Read it and factor it into your plan. A source the inputs "

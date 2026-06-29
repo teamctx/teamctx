@@ -30,7 +30,7 @@ _SOURCE_FAMILY: SourceFamily = "ci_deploy"
 
 @dataclass(frozen=True)
 class FailingGate:
-    """A required CI gate that is failing. ``files`` are repo-relative POSIX paths the gate
+    """A CI gate that is failing. ``files`` are repo-relative POSIX paths the gate
     covers (v1: the request paths, since the gate is whole-repo)."""
 
     repo: str
@@ -63,7 +63,7 @@ def normalize_failing_gates(
                 signal_type="missed_gate",
                 source_family=_SOURCE_FAMILY,
                 scope=scope,
-                evidence_summary=f"Required gate '{gate.gate_name}' is failing on this branch.",
+                evidence_summary=f"Check '{gate.gate_name}' is failing on this branch.",
                 source_display=f"CI: {gate.gate_name}",
                 freshness="fresh",
                 confidence="high",

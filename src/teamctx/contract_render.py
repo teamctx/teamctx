@@ -24,7 +24,7 @@ _HEADLINE = {
 }
 _CLEAR_PHRASE: dict[CheckId, str] = {
     "conflict": "no open PRs touch your files",
-    "gate": "CI is green",
+    "gate": "no failing checks found",
     "docs": "the docs you rely on are current",
     "criteria": "the linked issue's criteria are unchanged",
 }
