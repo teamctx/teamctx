@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from teamctx.clock import utc_now_iso
+from teamctx.git_context import resolve_project_root
 
 _EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 
@@ -44,7 +45,7 @@ def _run() -> None:
     # mark before grounding: on error we stay silent rather than retry every edit
     _mark_grounded(session_id)
 
-    text = _ground(Path(cwd), file_path)  # imports the broker lazily
+    text = _ground(resolve_project_root(start=Path(cwd)), file_path)  # imports the broker lazily
     if text:
         _emit(text)
 

@@ -15,6 +15,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from teamctx.clock import utc_now_iso
+from teamctx.git_context import resolve_project_root
 from teamctx.project_config import ProjectConfigError
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
 from teamctx.tokens import resolve_token
@@ -70,7 +71,7 @@ def work_start(
 
 def _resolution_root() -> Path:
     override = os.environ.get("TEAMCTX_PROJECT_ROOT")
-    return Path(override) if override else Path.cwd()
+    return resolve_project_root(override=Path(override) if override else None)
 
 
 def main() -> None:
