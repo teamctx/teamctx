@@ -87,10 +87,13 @@ reason (select.py) end to end, so it reads "checked the most recent N open PRs, 
 routing through the M2 render's "couldn't reach GitHub" (touches core closure + assessment + render,
 own slice); (2) path-filtered server-side PR search so very busy repos get a real conflict answer
 instead of UNKNOWN.
-**Remaining slices (ordered):** B `teamctx init` scaffolds the work_start config · C legacy
-retirement (drop `refresh`/`context`, rebuild `why`/`open-source` on the broker) · D packaging
-(pip/uvx) + token-hygiene docs · E README (claims-match-code, **reality-grounding** lead) · then the
-multi-actor dogfood.
+**Sprint-2 build slices ALL DONE 2026-06-28/29:** B `init` (`8784ac3`) · C-surface dev namespace
+(`2054f73`) · C-legacy snapshot retirement (`348c307`) · C-judge `why`/`open-source` on the live
+broker (`16fbc36`) · D packaging (verified buildable via `python -m build`, publish parked) · E
+README rewrite (`95b754a`). Plus both false-clear fixes (PR `df58744`, gate `c9e3e0c`) and token/clock
+hygiene (`7e13ec7`). Autonomous-run trail: `docs/product/plan/AUTONOMOUS-LOG-2026-06-28.md`.
+**Remaining for Sprint 2: the multi-actor dogfood** (Edgar in N terminals as distinct actors; needs a
+human). **Parked for Edgar:** PyPI publish, going public.
 **Carry-forward (non-blocking):** *Closed by M2*: the `gh pr view N` action (conflict findings now
 carry it) and the stale Docs/Criteria honesty gap (now a "Couldn't check:" line). *Closed 2026-06-28
 (`7e13ec7`)*: CLI now honors `{token_env}_FILE` via the shared `resolve_token`, and `_utc_now` is
