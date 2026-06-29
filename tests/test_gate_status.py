@@ -1,10 +1,38 @@
+import json
+
 from teamctx.connectors.gate_status import (
     FailingGate,
     normalize_failing_gates,
+    pending_gates_document,
     unavailable_gates_document,
 )
-from teamctx.connectors.github_checks import parse_failing_check_runs, run_github_checks_probe
+from teamctx.connectors.github_checks import (
+    parse_failing_check_runs,
+    parse_incomplete_check_runs,
+    run_github_checks_probe,
+)
 from teamctx.core.contracts import RequestContext
+
+
+class _Resp:
+    def __init__(self, body: bytes) -> None:
+        self._b = body
+
+    def read(self) -> bytes:
+        return self._b
+
+    def __enter__(self):  # type: ignore[no-untyped-def]
+        return self
+
+    def __exit__(self, *a: object) -> None:
+        return None
+
+
+def _opener_returning(payload: object):  # type: ignore[no-untyped-def]
+    def opener(request):  # type: ignore[no-untyped-def]
+        return _Resp(json.dumps(payload).encode())
+
+    return opener
 
 
 def _request() -> RequestContext:
@@ -91,6 +119,67 @@ def test_probe_without_token_is_unavailable() -> None:
     doc = run_github_checks_probe(
         repo="teamctx/teamctx", ref="build/x", token=None,
         request_context=_request(), observed_at="2026-06-21T00:00:00Z",
+    )
+    assert doc.source_signals == []
+    assert doc.source_statuses[0].status == "unavailable"
+
+
+def test_parse_incomplete_check_runs_true_when_in_progress_present() -> None:
+    payload = {"check_runs": [
+        {"name": "ruff", "status": "completed", "conclusion": "success", "html_url": "u"},
+        {"name": "mypy", "status": "in_progress", "conclusion": None, "html_url": "u2"},
+    ]}
+    assert parse_incomplete_check_runs(payload) is True
+
+
+def test_parse_incomplete_check_runs_false_when_all_completed() -> None:
+    payload = {"check_runs": [
+        {"name": "ruff", "status": "completed", "conclusion": "success", "html_url": "u"},
+    ]}
+    assert parse_incomplete_check_runs(payload) is False
+
+
+def test_pending_gates_document_is_status_only_pending() -> None:
+    doc = pending_gates_document(
+        _request(), repo="teamctx/teamctx", observed_at="2026-06-21T00:00:00Z",
+        safe_user_message="CI checks are still running; the gate is not confirmed green yet.",
+    )
+    assert doc.source_signals == []
+    assert doc.source_statuses[0].status == "pending"
+    assert doc.source_statuses[0].source_family == "ci_deploy"
+
+
+def test_probe_emits_pending_when_only_in_progress() -> None:
+    payload = {"total_count": 1, "check_runs": [
+        {"name": "mypy", "status": "in_progress", "conclusion": None, "html_url": "u"},
+    ]}
+    doc = run_github_checks_probe(
+        repo="teamctx/teamctx", ref="build/x", token="t", request_context=_request(),
+        observed_at="2026-06-21T00:00:00Z", opener=_opener_returning(payload),
+    )
+    assert doc.source_signals == []
+    assert doc.source_statuses[0].status == "pending"
+
+
+def test_probe_found_dominates_pending() -> None:
+    payload = {"total_count": 2, "check_runs": [
+        {"name": "pytest", "status": "completed", "conclusion": "failure", "html_url": "u1"},
+        {"name": "mypy", "status": "in_progress", "conclusion": None, "html_url": "u2"},
+    ]}
+    doc = run_github_checks_probe(
+        repo="teamctx/teamctx", ref="build/x", token="t", request_context=_request(),
+        observed_at="2026-06-21T00:00:00Z", opener=_opener_returning(payload),
+    )
+    # a failing run wins: a missed_gate signal plus a fresh status, never pending.
+    assert any(sig.signal_type == "missed_gate" for sig in doc.source_signals)
+    assert doc.source_statuses[0].status == "fresh"
+
+
+def test_probe_malformed_check_runs_is_unavailable_not_clear() -> None:
+    # check_runs present but not a list is malformed: report unavailable, never a false clear.
+    doc = run_github_checks_probe(
+        repo="teamctx/teamctx", ref="build/x", token="t", request_context=_request(),
+        observed_at="2026-06-21T00:00:00Z", opener=_opener_returning({"check_runs": None}),
     )
     assert doc.source_signals == []
     assert doc.source_statuses[0].status == "unavailable"

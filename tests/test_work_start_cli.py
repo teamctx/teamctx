@@ -58,7 +58,7 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
     from teamctx.connectors.github_checks import CheckRunsFetch
     monkeypatch.setattr(
         gc, "fetch_failing_check_runs",
-        lambda **kw: CheckRunsFetch(failing=[], truncated=False),
+        lambda **kw: CheckRunsFetch(failing=[], truncated=False, pending=False),
     )
     monkeypatch.setattr(gi, "fetch_issue_changes", lambda **kw: [])
     # docs probe reads the filesystem; inject an empty reader so no real I/O happens.

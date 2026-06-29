@@ -46,7 +46,7 @@ def _stub_connectors(
     monkeypatch.setattr(
         gc,
         "fetch_failing_check_runs",
-        lambda **kw: CheckRunsFetch(failing=[], truncated=False),
+        lambda **kw: CheckRunsFetch(failing=[], truncated=False, pending=False),
     )
     monkeypatch.setattr(gi, "fetch_issue_changes", lambda **kw: [])
     real_docs_probe = runner_mod.run_docs_supersession_probe

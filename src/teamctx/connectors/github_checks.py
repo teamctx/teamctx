@@ -8,6 +8,7 @@ from urllib.parse import quote
 from teamctx.connectors.gate_status import (
     FailingGate,
     normalize_failing_gates,
+    pending_gates_document,
     unavailable_gates_document,
 )
 from teamctx.connectors.github import (
@@ -31,10 +32,13 @@ class CheckRunsFetch:
     ``failing`` is the list of (name, url) pairs for completed failing check-runs.
     ``truncated`` is True when the response indicates more check-runs exist than we fetched,
     meaning we cannot assert all gates pass from an empty failing list alone.
+    ``pending`` is True when any run is still queued or in progress, so even with no failing run
+    the gate cannot be asserted green yet.
     """
 
     failing: list[tuple[str, str]]
     truncated: bool
+    pending: bool
 
 
 def run_github_checks_probe(
@@ -66,6 +70,15 @@ def run_github_checks_probe(
         FailingGate(repo=repo, gate_name=name, url=url, files=tuple(request_context.paths))
         for name, url in fetch.failing
     ]
+    if not gates and not fetch.truncated and fetch.pending:
+        # Precedence: found (failing gates) > truncated (stale) > pending. Only emit pending when
+        # there is genuinely nothing worse to report.
+        return pending_gates_document(
+            request_context,
+            repo=repo,
+            observed_at=observed_at,
+            safe_user_message="CI checks are still running; the gate is not confirmed green yet.",
+        )
     return normalize_failing_gates(
         request_context,
         gates,
@@ -83,9 +96,28 @@ def fetch_failing_check_runs(
         f"/commits/{quote(ref)}/check-runs?per_page=100"
     )
     payload = get_json(url, token=token, opener=opener)
+    if not isinstance(payload, dict) or not isinstance(payload.get("check_runs"), list):
+        # A malformed shape must never read as "no failing checks" (a false clear). Routed to
+        # unavailable by the caller's GitHubProbeError handler.
+        raise GitHubProbeError("GitHub check-runs response was malformed")
     failing = parse_failing_check_runs(payload)
     truncated = _detect_truncation(payload)
-    return CheckRunsFetch(failing=failing, truncated=truncated)
+    pending = parse_incomplete_check_runs(payload)
+    return CheckRunsFetch(failing=failing, truncated=truncated, pending=pending)
+
+
+def parse_incomplete_check_runs(payload: object) -> bool:
+    """True when any check-run is still queued or in progress (status != 'completed').
+
+    These runs are not failing (no conclusion yet) but mean the gate cannot be asserted green.
+    """
+
+    if not isinstance(payload, dict):
+        return False
+    runs = payload.get("check_runs")
+    if not isinstance(runs, list):
+        return False
+    return any(isinstance(run, dict) and run.get("status") != "completed" for run in runs)
 
 
 def _detect_truncation(payload: object) -> bool:

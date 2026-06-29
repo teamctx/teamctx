@@ -105,6 +105,41 @@ def normalize_failing_gates(
     )
 
 
+def pending_gates_document(
+    request_context: RequestContext,
+    *,
+    repo: str,
+    observed_at: str,
+    source_id: str = "github_check_runs",
+    safe_user_message: str,
+) -> CoreContractDocument:
+    """A document carrying a single ``pending`` gate status: checks are still running, so this is
+    neither a clear nor an unreachable source. The core carries ``pending`` to a render that says
+    the gate is not confirmed green yet. No signals (nothing is failing)."""
+
+    return CoreContractDocument(
+        schema_version="teamctx.core_contract_document.v0",
+        request_context=request_context,
+        source_signals=[],
+        source_statuses=[
+            source_status(
+                source_id=source_id,
+                source_family=_SOURCE_FAMILY,
+                scope={"repo": request_context.repo},
+                status="pending",
+                observed_at=observed_at,
+                safe_user_message=safe_user_message,
+                visibility="warning_when_relevant",
+                policy_reason=_POLICY_REASON,
+            )
+        ],
+        source_open_targets=[],
+        guidance_records=[],
+        session_context_uses=[],
+        context_cards=[],
+    )
+
+
 def unavailable_gates_document(
     request_context: RequestContext,
     *,
