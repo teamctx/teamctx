@@ -133,11 +133,11 @@ def _ground(root: Path, file_path: str) -> str:
 
     from teamctx.hook_signal import hook_signal
     from teamctx.resolve import resolve_work_start_inputs
-    from teamctx.tokens import resolve_token
+    from teamctx.tokens import resolve_github_token
     from teamctx.work_start import work_start_answer
 
     rel_file = _repo_relative(root, file_path)
-    token = resolve_token()
+    token = resolve_github_token()
     paths = tuple(dict.fromkeys([rel_file, *_changed_paths(root)]))  # dedup, order-preserving
     inputs = resolve_work_start_inputs(paths=paths, token=token, root=root)
 

@@ -40,7 +40,7 @@ from teamctx.project_config import (
     write_project_config,
 )
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
-from teamctx.tokens import resolve_token
+from teamctx.tokens import resolve_github_token
 from teamctx.work_start import render_work_start, work_start_answer
 
 
@@ -204,7 +204,7 @@ def work_start_command(
             since=since,
             ref=ref,
             include_titles=include_title,
-            token=resolve_token(token_env),
+            token=resolve_github_token(token_env),
             root=project_root,
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
@@ -281,7 +281,7 @@ def _resolve_work_start(
             since=since,
             ref=ref,
             include_titles=include_title,
-            token=resolve_token(token_env),
+            token=resolve_github_token(token_env),
             root=project_root,
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
@@ -477,7 +477,7 @@ def gate_probe_command(
     document = run_github_checks_probe(
         repo=repo,
         ref=ref,
-        token=resolve_token(token_env),
+        token=resolve_github_token(token_env),
         request_context=request_context,
         observed_at=observed_at,
     )
@@ -522,7 +522,7 @@ def issue_probe_command(
         repo=repo,
         issues=list(issues),
         since=since,
-        token=resolve_token(token_env),
+        token=resolve_github_token(token_env),
         request_context=request_context,
         observed_at=observed_at,
     )
@@ -665,7 +665,7 @@ def _github_contract_document(
     )
     return run_github_pr_probe(
         repo=repo,
-        token=resolve_token(token_env),
+        token=resolve_github_token(token_env),
         request_context=request_context,
         observed_at=observed_at,
         include_titles=include_title,

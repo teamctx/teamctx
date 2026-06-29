@@ -18,7 +18,7 @@ from teamctx.clock import utc_now_iso
 from teamctx.git_context import resolve_project_root
 from teamctx.project_config import ProjectConfigError
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
-from teamctx.tokens import resolve_token
+from teamctx.tokens import resolve_github_token
 from teamctx.work_start import render_work_start
 
 mcp = FastMCP("teamctx")
@@ -61,7 +61,7 @@ def work_start(
             issues=tuple(issues or ()),
             since=since,
             ref=ref,
-            token=resolve_token(),
+            token=resolve_github_token(),
             root=_resolution_root(),
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
