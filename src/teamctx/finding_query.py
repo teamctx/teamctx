@@ -51,6 +51,10 @@ def parse_selector(text: str) -> FindingSelector:
         raise FindingSelectorError(
             f"Unknown selector kind {kind!r}: allowed forms are {_ALLOWED_FORMS}."
         )
+    if kind == "pr" and not value.isdigit():
+        raise FindingSelectorError(
+            f"pr: selector expects a number, for example pr:7 (got {value!r})."
+        )
     return FindingSelector(kind=kind, value=value)  # type: ignore[arg-type]
 
 

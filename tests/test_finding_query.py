@@ -243,6 +243,21 @@ def test_parse_selector_unknown_kind_raises() -> None:
         parse_selector("branch:main")
 
 
+def test_parse_pr_selector_non_numeric_raises() -> None:
+    # Fail fast at parse time with a clean message, before any broker run.
+    with pytest.raises(FindingSelectorError, match="expects a number"):
+        parse_selector("pr:abc")
+
+
+def test_parse_pr_selector_empty_value_raises() -> None:
+    with pytest.raises(FindingSelectorError, match="expects a number"):
+        parse_selector("pr:")
+
+
+def test_parse_pr_selector_numeric_still_works() -> None:
+    assert parse_selector("pr:7") == FindingSelector(kind="pr", value="7")
+
+
 # ---------------------------------------------------------------------------
 # match_finding tests: build real BrokerAnswers via broker_answer
 # ---------------------------------------------------------------------------

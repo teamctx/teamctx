@@ -203,6 +203,23 @@ def test_bad_selector_unknown_kind_exits_nonzero(
     assert "branch" in result.output or "Unknown" in result.output
 
 
+def test_pr_selector_non_numeric_fails_clean_at_parse(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`why pr:abc` must fail at parse with a clean message, before any broker run. No
+    connectors are stubbed and no token is set: if it reached the broker the no-match path
+    would emit a different message, so the parse-time message proves it short-circuited."""
+
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        main, ["why", "pr:abc"] + _BASE_ARGS
+    )
+    assert result.exit_code != 0
+    assert "expects a number" in result.output
+    # Clean ClickException, not a leaked traceback.
+    assert "Traceback" not in result.output
+
+
 # ---------------------------------------------------------------------------
 # NoFindingMatch: check was clear (may have cleared)
 # ---------------------------------------------------------------------------
