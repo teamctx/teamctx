@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import teamctx.runner as runner
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.runner import WorkStartInputs, build_request_context, run_work_start_connectors
@@ -121,3 +123,13 @@ def test_request_context_shares_paths_and_issues() -> None:
     assert request.paths == ["src/x.py"]
     assert request.linked_issues == ["#42"]
     assert request.task == "do a thing"
+
+
+def test_workstartinputs_accepts_valid_github_slug() -> None:
+    inputs = WorkStartInputs(repo="owner/name", paths=("a.py",))
+    assert inputs.repo == "owner/name"
+
+
+def test_workstartinputs_rejects_non_github_repo() -> None:
+    with pytest.raises(ValueError, match="GitHub repo"):
+        WorkStartInputs(repo="https://gitlab.com/owner/name", paths=("a.py",))
