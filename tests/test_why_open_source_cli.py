@@ -271,6 +271,25 @@ def test_no_match_when_unreachable_open_source_also_honest(
     assert "cleared" not in result.output
 
 
+def test_no_match_path_selector_when_unreachable_says_could_not_check(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A `path:` selector spans the Conflict and Gate checks. With no token both are Unknown,
+    so a no-match must say 'could not check', NOT 'may have cleared'. Without this, path: would
+    fall through to a false all-clear (the gap this fix closes)."""
+
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        main,
+        ["why", "path:src/app.py"] + ["--github-repo", "acme/widgets", "--path", "src/app.py",
+                                       "--token-env", "TEAMCTX_DEFINITELY_UNSET_TOKEN"],
+    )
+    assert result.exit_code != 0
+    assert "could not check" in result.output
+    # Must NOT claim the finding cleared: neither the conflict nor the gate check ran.
+    assert "cleared" not in result.output
+
+
 # ---------------------------------------------------------------------------
 # AmbiguousFinding: two findings match path:X
 # ---------------------------------------------------------------------------

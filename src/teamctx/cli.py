@@ -219,24 +219,33 @@ _SELECTOR_KIND_TO_VERDICT_LABEL: dict[str, str] = {
 def _raise_no_finding_match(sel: FindingSelector, answer: BrokerAnswer) -> NoReturn:
     """Distinguish 'could not check' from 'may have cleared' for honest no-match handling.
 
-    When teamctx never reached the underlying source (verdict Unknown), it cannot say whether
-    a finding exists; telling the user 'nothing found' would be a false all-clear. When the
-    check ran and just found nothing for this selector, the finding may have cleared.
+    When teamctx never reached a relevant source (its verdict is Unknown), it cannot say whether
+    a finding exists; telling the user 'nothing found' would be a false all-clear. Only when every
+    relevant check ran can a no-match honestly mean 'it may have cleared'. `path:` is special: a
+    path can appear in a collision (Conflict check) or a failing gate (Gate check), so both are
+    relevant.
     """
 
-    verdict_label = _SELECTOR_KIND_TO_VERDICT_LABEL.get(sel.kind)
-    if verdict_label:
-        for label, valuation in answer.verdicts:
-            if label == verdict_label and valuation.value == "unknown":
-                raise click.ClickException(
-                    f"teamctx could not check this source ({verdict_label} is Unknown:"
-                    f" {valuation.reason}). It cannot confirm whether the finding exists."
-                    f" Run `teamctx work-start` to see current coverage."
-                )
+    verdicts = {label: val for label, val in answer.verdicts}
+    if sel.kind == "path":
+        relevant = ["Conflict check", "Gate check"]
+    else:
+        label = _SELECTOR_KIND_TO_VERDICT_LABEL.get(sel.kind)
+        relevant = [label] if label else []
+
+    unknown = [lbl for lbl in relevant if lbl in verdicts and verdicts[lbl].value == "unknown"]
+    if unknown:
+        joined = " or ".join(unknown)
+        reason = verdicts[unknown[0]].reason
+        raise click.ClickException(
+            f"teamctx could not check {joined} ({reason}), so it cannot confirm whether a finding"
+            f" for `{sel.kind}:{sel.value}` exists. Run `teamctx work-start --path ...` to see"
+            f" coverage."
+        )
     raise click.ClickException(
         f"No current finding matches `{sel.kind}:{sel.value}`."
         f" It may have cleared since you last ran work-start."
-        f" Run `teamctx work-start` to check current state."
+        f" Run `teamctx work-start --path ...` to check current state."
     )
 
 
