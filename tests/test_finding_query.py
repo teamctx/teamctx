@@ -131,7 +131,7 @@ def _gate_signal(gate_name: str, files: list[str]) -> SourceSignal:
             "url": "https://github.com/acme/widgets/actions/runs/1",
             "files": files,
         },
-        evidence_summary=f"Required gate '{gate_name}' is failing on this branch.",
+        evidence_summary=f"Check '{gate_name}' is failing on this branch.",
         source_display=f"CI: {gate_name}",
         freshness="fresh",
         confidence="high",

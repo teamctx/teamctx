@@ -194,6 +194,29 @@ def test_closure_stale_dep_when_git_hosting_not_fresh() -> None:
     assert assess_completeness(_collision_query(), coverage) == "incomplete[stale-dep]"
 
 
+def test_closure_pending_when_dependency_pending() -> None:
+    coverage = build_coverage([_git_hosting_status("pending")])
+    assert assess_completeness(_collision_query(), coverage) == "incomplete[pending]"
+
+
+def test_closure_not_applicable_when_dependency_out_of_scope() -> None:
+    coverage = build_coverage([_git_hosting_status("not_applicable")])
+    assert assess_completeness(_collision_query(), coverage) == "not_applicable[out-of-scope]"
+
+
+def test_closure_stale_dominates_pending() -> None:
+    # a real unreachable dependency beats a pending one within the same family.
+    coverage = build_coverage([_git_hosting_status("unavailable"), _git_hosting_status("pending")])
+    assert assess_completeness(_collision_query(), coverage) == "incomplete[stale-dep]"
+
+
+def test_closure_pending_dominates_not_applicable() -> None:
+    coverage = build_coverage(
+        [_git_hosting_status("pending"), _git_hosting_status("not_applicable")]
+    )
+    assert assess_completeness(_collision_query(), coverage) == "incomplete[pending]"
+
+
 def test_closure_policy_gap_when_git_hosting_unobserved() -> None:
     # the fixture has only a docs source; the mandated git_hosting source is absent.
     coverage = build_coverage(load_document().source_statuses)

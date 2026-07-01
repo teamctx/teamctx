@@ -41,6 +41,31 @@ def _unavailable_status(family: str) -> SourceStatus:
     )
 
 
+def _pending_status(family: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
+        status="pending", observed_at="2026-06-28T00:00:00Z",
+        safe_user_message="checks still running", visibility="warning_when_relevant",
+        policy_reason="status only",
+    )
+
+
+def test_status_for_maps_the_new_carrier_reasons() -> None:
+    from teamctx.assessment import _status_for
+    from teamctx.core.evaluate import Valuation
+
+    assert _status_for(Valuation("unknown", "incomplete[pending]")) == "pending"
+    assert _status_for(Valuation("unknown", "not_applicable[out-of-scope]")) == "not_applicable"
+
+
+def test_pending_important_gate_is_cant_verify() -> None:
+    # a gate whose checks are still running cannot be asserted green, so it reads cant_verify,
+    # exactly like an unreachable important source. Only the gate can be pending today.
+    a = assess(broker_answer(_request(), [], [_pending_status("ci_deploy")]))
+    assert a.kind == "cant_verify"
+    assert next(c for c in a.checks if c.check == "gate").status == "pending"
+
+
 def test_found_is_heads_up_and_card_grouped_to_conflict() -> None:
     a = assess(broker_answer(_request(), [_collision_signal()], [_fresh_status("git_hosting")]))
     assert a.kind == "heads_up"

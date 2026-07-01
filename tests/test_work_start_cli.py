@@ -34,7 +34,7 @@ def test_work_start_with_no_token_degrades_honestly(monkeypatch, tmp_path: Path)
 
     assert result.exit_code == 0  # prints, never blocks
     # no token => conflict check unreachable => cant_verify headline
-    assert "Heads up: I couldn't check the important things:" in result.output
+    assert "Heads up: I can't confirm the important things yet:" in result.output
     assert "couldn't reach GitHub" in result.output
     assert "GITHUB_TOKEN" in result.output
 
@@ -58,15 +58,17 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
     from teamctx.connectors.github_checks import CheckRunsFetch
     monkeypatch.setattr(
         gc, "fetch_failing_check_runs",
-        lambda **kw: CheckRunsFetch(failing=[], truncated=False),
+        lambda **kw: CheckRunsFetch(failing=[], truncated=False, pending=False),
     )
     monkeypatch.setattr(gi, "fetch_issue_changes", lambda **kw: [])
-    # docs probe reads the filesystem; inject an empty reader so no real I/O happens.
+    # docs probe reads the filesystem; inject a reader with one relied-on, non-superseded doc so
+    # docs is in scope and current (no real I/O). With docs_root set but nothing relied-on in
+    # scope, docs would honestly read not_applicable, not "current".
     real_docs_probe = runner_mod.run_docs_supersession_probe
     monkeypatch.setattr(
         runner_mod,
         "run_docs_supersession_probe",
-        lambda **kw: real_docs_probe(reader=lambda root: [], **kw),
+        lambda **kw: real_docs_probe(reader=lambda root: [("docs/guide.md", "# guide\n")], **kw),
     )
     monkeypatch.setenv("GITHUB_TOKEN", "t")
 
@@ -74,7 +76,7 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
         main,
         [
             "work-start", "--github-repo", "acme/widgets",
-            "--path", "src/widgets/core.py",
+            "--path", "src/widgets/core.py", "--path", "docs/guide.md",
             "--branch", "feature", "--issue", "#7", "--since", "2026-06-24T00:00:00Z",
             "--docs-root", "docs",
         ],
@@ -84,7 +86,7 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
     # all four checks clear: they appear in the "Checked:" coverage line
     assert "Looks clear to start." in result.output
     assert "no open PRs touch your files" in result.output
-    assert "CI is green" in result.output
+    assert "no failing checks found" in result.output
     assert "the linked issue's criteria are unchanged" in result.output
     assert "the docs you rely on are current" in result.output
 
@@ -110,7 +112,7 @@ def test_work_start_resolves_repo_from_git_without_flag(monkeypatch, tmp_path: P
     )
     assert result.exit_code == 0, result.output
     # repo resolved + no token => both conflict and gate unreachable => cant_verify
-    assert "Heads up: I couldn't check the important things:" in result.output
+    assert "Heads up: I can't confirm the important things yet:" in result.output
     assert "GITHUB_TOKEN" in result.output
 
 

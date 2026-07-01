@@ -12,7 +12,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from teamctx.git_context import detect_branch, detect_repo, parse_github_repo
+from teamctx.git_context import (
+    detect_branch,
+    detect_repo,
+    parse_github_repo,
+    repo_relative_path,
+)
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     WorkStartConfig,
@@ -60,7 +65,7 @@ def resolve_work_start_inputs(
 
     return WorkStartInputs(
         repo=resolved_repo,
-        paths=tuple(paths),
+        paths=tuple(repo_relative_path(root, path) for path in paths),
         branch=branch or detect_branch(root),
         task=task,
         token=token,

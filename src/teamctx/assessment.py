@@ -15,7 +15,9 @@ from teamctx.core.contracts import ContextCard
 from teamctx.core.evaluate import Valuation
 
 CheckId = Literal["conflict", "criteria", "docs", "gate"]
-CheckStatus = Literal["clear", "found", "unreachable", "not_configured"]
+CheckStatus = Literal[
+    "clear", "found", "unreachable", "not_configured", "pending", "not_applicable"
+]
 
 # Verdict labels are CARD_KINDS[*].verdict_label in core/select.py. Keep in sync; a mismatch
 # makes verdicts.get(label) miss and the check fall to not_configured (caught by the render tests).
@@ -54,6 +56,10 @@ def _status_for(valuation: Valuation) -> CheckStatus:
         return "found"  # connectors fired and disagree: a finding, not a config gap
     if valuation.reason == "incomplete[stale-dep]":
         return "unreachable"
+    if valuation.reason == "incomplete[pending]":
+        return "pending"
+    if valuation.reason == "not_applicable[out-of-scope]":
+        return "not_applicable"
     return "not_configured"
 
 
@@ -82,7 +88,9 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     kind: Literal["ready", "heads_up", "cant_verify"]
     if any(s.status == "found" for s in states):
         kind = "heads_up"
-    elif any(s.status == "unreachable" and s.check in IMPORTANT_CHECKS for s in states):
+    elif any(
+        s.status in {"unreachable", "pending"} and s.check in IMPORTANT_CHECKS for s in states
+    ):
         kind = "cant_verify"
     else:
         kind = "ready"

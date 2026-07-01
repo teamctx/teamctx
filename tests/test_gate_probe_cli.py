@@ -9,7 +9,9 @@ def test_gate_probe_surfaces_missed_gate_card_and_verdict(monkeypatch) -> None:
     import teamctx.connectors.github_checks as gc
 
     def fake_fetch(*, repo, ref, token, opener=None):  # type: ignore[no-untyped-def]
-        return CheckRunsFetch(failing=[("pytest", "https://gh/run/1")], truncated=False)
+        return CheckRunsFetch(
+            failing=[("pytest", "https://gh/run/1")], truncated=False, pending=False
+        )
 
     monkeypatch.setattr(gc, "fetch_failing_check_runs", fake_fetch)
     monkeypatch.setenv("GITHUB_TOKEN", "t")
@@ -36,6 +38,6 @@ def test_gate_probe_without_token_degrades_honestly(monkeypatch) -> None:
     )
     assert result.exit_code == 0, result.output
     # no token => gate unreachable (important check) => cant_verify
-    assert "Heads up: I couldn't check the important things:" in result.output
+    assert "Heads up: I can't confirm the important things yet:" in result.output
     assert "couldn't reach GitHub" in result.output
     assert "GITHUB_TOKEN" in result.output

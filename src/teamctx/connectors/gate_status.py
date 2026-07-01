@@ -30,7 +30,7 @@ _SOURCE_FAMILY: SourceFamily = "ci_deploy"
 
 @dataclass(frozen=True)
 class FailingGate:
-    """A required CI gate that is failing. ``files`` are repo-relative POSIX paths the gate
+    """A CI gate that is failing. ``files`` are repo-relative POSIX paths the gate
     covers (v1: the request paths, since the gate is whole-repo)."""
 
     repo: str
@@ -63,7 +63,7 @@ def normalize_failing_gates(
                 signal_type="missed_gate",
                 source_family=_SOURCE_FAMILY,
                 scope=scope,
-                evidence_summary=f"Required gate '{gate.gate_name}' is failing on this branch.",
+                evidence_summary=f"Check '{gate.gate_name}' is failing on this branch.",
                 source_display=f"CI: {gate.gate_name}",
                 freshness="fresh",
                 confidence="high",
@@ -98,6 +98,41 @@ def normalize_failing_gates(
         request_context=request_context,
         source_signals=source_signals,
         source_statuses=source_statuses,
+        source_open_targets=[],
+        guidance_records=[],
+        session_context_uses=[],
+        context_cards=[],
+    )
+
+
+def pending_gates_document(
+    request_context: RequestContext,
+    *,
+    repo: str,
+    observed_at: str,
+    source_id: str = "github_check_runs",
+    safe_user_message: str,
+) -> CoreContractDocument:
+    """A document carrying a single ``pending`` gate status: checks are still running, so this is
+    neither a clear nor an unreachable source. The core carries ``pending`` to a render that says
+    the gate is not confirmed green yet. No signals (nothing is failing)."""
+
+    return CoreContractDocument(
+        schema_version="teamctx.core_contract_document.v0",
+        request_context=request_context,
+        source_signals=[],
+        source_statuses=[
+            source_status(
+                source_id=source_id,
+                source_family=_SOURCE_FAMILY,
+                scope={"repo": request_context.repo},
+                status="pending",
+                observed_at=observed_at,
+                safe_user_message=safe_user_message,
+                visibility="warning_when_relevant",
+                policy_reason=_POLICY_REASON,
+            )
+        ],
         source_open_targets=[],
         guidance_records=[],
         session_context_uses=[],

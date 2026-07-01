@@ -1,8 +1,8 @@
 """Tests for the `teamctx init` command (work-start scaffold).
 
-init scaffolds .teamctx/config.json with a work_start section, auto-detects the
-repo from the git origin remote, and auto-detects docs_root from the presence of a
-docs/ directory.  All git I/O is monkeypatched; no network, no subprocess.
+init scaffolds .teamctx/config.json with a work_start section and auto-detects the
+repo from the git origin remote. docs_root is set only by an explicit --docs-root
+(no auto-enable). All git I/O is monkeypatched; no network, no subprocess.
 """
 
 from __future__ import annotations
@@ -77,11 +77,11 @@ def test_init_repo_flag_overrides_auto_detection(
 
 
 # ---------------------------------------------------------------------------
-# Case 3a: docs_root auto-detect -> docs/ present => "docs"
+# Case 3a: docs_root is NOT auto-enabled, even when a docs/ folder exists
 # ---------------------------------------------------------------------------
 
 
-def test_init_detects_docs_root_when_docs_dir_exists(
+def test_init_does_not_auto_enable_docs_root_when_docs_dir_exists(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
     monkeypatch.chdir(tmp_path)
@@ -91,9 +91,10 @@ def test_init_detects_docs_root_when_docs_dir_exists(
     result = CliRunner().invoke(main, ["init"], catch_exceptions=False)
 
     assert result.exit_code == 0, result.output
-    assert _config_at(tmp_path)["work_start"]["docs_root"] == "docs"
-    # output tells the user docs root was found
-    assert "docs" in result.output.lower()
+    # a docs/ folder no longer turns docs on: docs fires only when explicitly set, so init
+    # never promises to watch docs the user did not ask it to.
+    assert _config_at(tmp_path)["work_start"].get("docs_root") is None
+    assert "not set" in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -116,11 +117,11 @@ def test_init_docs_root_none_when_no_docs_dir_output_says_not_set(
 
 
 # ---------------------------------------------------------------------------
-# Case 4: --docs-root overrides detection
+# Case 4: --docs-root is the only way to set docs_root
 # ---------------------------------------------------------------------------
 
 
-def test_init_docs_root_flag_overrides_detection(
+def test_init_docs_root_set_only_by_flag(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
     monkeypatch.chdir(tmp_path)

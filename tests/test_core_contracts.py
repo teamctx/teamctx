@@ -7,7 +7,12 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from teamctx.core.contracts import CoreContractDocument, load_core_contract_document
+from teamctx.core.contracts import (
+    CoreContractDocument,
+    PolicyDecision,
+    SourceStatus,
+    load_core_contract_document,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTRACT_FIXTURE = (
@@ -132,6 +137,37 @@ def test_project_guidance_cards_must_reference_guidance_records() -> None:
 
     with pytest.raises(ValidationError, match="project guidance cards"):
         load_core_contract_document(data)
+
+
+def _metadata_only_policy() -> PolicyDecision:
+    return PolicyDecision(
+        schema_version="teamctx.policy_decision.v0",
+        can_render_to_user=True,
+        can_render_to_agent=True,
+        can_include_source_text=False,
+        requires_review_for_guidance=False,
+        decision_reason="metadata only.",
+    )
+
+
+@pytest.mark.parametrize("status", ["pending", "not_applicable"])
+def test_source_status_accepts_new_coverage_states(status: str) -> None:
+    # The carrier needs two states the v0 core could not represent: a gate whose checks are
+    # still running (pending) and a docs root scanned with nothing relied-on in scope
+    # (not_applicable). Both are valid SourceStatusValue values, neither is "unhealthy".
+    source_status = SourceStatus(
+        schema_version="teamctx.source_status.v0",
+        source_id="github_check_runs",
+        source_family="ci_deploy",
+        scope={"repo": "owner/name"},
+        status=status,  # type: ignore[arg-type]
+        last_checked_at="2026-06-29T00:00:00Z",
+        safe_user_message="probe ran; this is neither a clear nor an unreachable source.",
+        normal_context_visibility="warning_when_relevant",
+        policy=_metadata_only_policy(),
+    )
+
+    assert source_status.status == status
 
 
 def test_core_package_has_no_file_or_runtime_side_effect_imports() -> None:

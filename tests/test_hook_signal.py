@@ -96,3 +96,45 @@ def test_ready_names_the_clear_checks_no_lowstakes_hedge() -> None:
     assert "src/app.py" in text
     assert "pull request" in text.lower()
     assert "couldn't" not in text.lower()
+
+
+def _pending_status(family: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe",
+        source_family=family,
+        scope={"repo": "acme/widgets"},
+        status="pending",
+        observed_at="2026-06-27T00:00:00Z",
+        safe_user_message="running",
+        visibility="warning_when_relevant",
+        policy_reason="status only",
+    )
+
+
+def test_pending_gate_says_checks_running_not_unreachable() -> None:
+    answer = broker_answer(_request(), [], [_pending_status("ci_deploy")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "still running" in text.lower()
+    assert "couldn't reach GitHub" not in text
+
+
+def test_found_conflict_plus_pending_gate_surfaces_both() -> None:
+    answer = broker_answer(
+        _request(),
+        [_collision_signal()],
+        [_fresh_status("git_hosting"), _pending_status("ci_deploy")],
+    )
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "PR #7" in text  # the finding
+    assert "still running" in text.lower()  # the pending gate is not dropped in heads_up
+
+
+def test_unreachable_conflict_plus_pending_gate_mentions_both() -> None:
+    answer = broker_answer(
+        _request(), [], [_unavailable_status("git_hosting"), _pending_status("ci_deploy")]
+    )
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "GitHub" in text  # the unreachable conflict is surfaced
+    assert "still running" in text.lower()  # and the pending gate, not falsely "couldn't check"
+    # the gate is pending, not unreachable: don't claim we couldn't check failing checks.
+    assert "failing checks" not in text

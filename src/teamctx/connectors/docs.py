@@ -58,7 +58,14 @@ def run_docs_supersession_probe(
             safe_user_message="Docs are unavailable at the configured root.",
         )
     superseded = parse_superseded_docs(repo=repo, files=files)
-    return normalize_superseded_docs(request_context, superseded, observed_at=observed_at)
+    scanned_paths = {rel_path for rel_path, _ in files}
+    relied_on_in_scope = bool(scanned_paths & set(request_context.paths))
+    return normalize_superseded_docs(
+        request_context,
+        superseded,
+        observed_at=observed_at,
+        relied_on_doc_in_scope=relied_on_in_scope,
+    )
 
 
 def parse_superseded_docs(
@@ -83,15 +90,26 @@ def default_doc_reader(root: str, *, base_dir: Path = Path(".")) -> list[tuple[s
     """Yield (repo-root-relative POSIX path, text) for every ``*.md`` under ``base_dir/root``.
 
     Paths are emitted relative to ``base_dir`` (the resolution/project root) so they match the
-    ``--path`` a caller passes, regardless of the process working directory. A missing docs
-    directory raises ``FileNotFoundError`` so the probe reports it as unavailable (honest
-    UNKNOWN) rather than a silent all-clear from an empty scan."""
+    repo-relative ``--path`` a caller passes, regardless of how ``root`` is spelled (relative or
+    absolute) or the process working directory. A missing docs directory, or a docs root that
+    resolves OUTSIDE the project root, raises ``FileNotFoundError`` so the probe reports it as
+    unavailable (honest UNKNOWN) rather than a silent all-clear or an unmatchable absolute path."""
 
-    docs_dir = base_dir / root
+    base = base_dir.resolve()
+    docs_dir = (base_dir / root).resolve()
     if not docs_dir.is_dir():
         raise FileNotFoundError(docs_dir)
+    try:
+        docs_dir.relative_to(base)
+    except ValueError as exc:
+        raise FileNotFoundError(docs_dir) from exc
     files: list[tuple[str, str]] = []
     for path in sorted(docs_dir.rglob("*.md")):
-        repo_relative = PurePosixPath(root) / path.relative_to(docs_dir).as_posix()
-        files.append((repo_relative.as_posix(), path.read_text(encoding="utf-8")))
+        try:
+            repo_relative = path.resolve().relative_to(base).as_posix()
+        except ValueError as exc:
+            # a symlinked doc resolving outside the project root cannot be placed repo-relative;
+            # fail closed to unavailable rather than crash or silently drop it.
+            raise FileNotFoundError(path) from exc
+        files.append((repo_relative, path.read_text(encoding="utf-8")))
     return files

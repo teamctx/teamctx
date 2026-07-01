@@ -1,4 +1,4 @@
-"""Narrow GitHub check-runs probe: surface failing required gates for a ref."""
+"""Narrow GitHub check-runs probe: surface failing checks for a ref."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from urllib.parse import quote
 from teamctx.connectors.gate_status import (
     FailingGate,
     normalize_failing_gates,
+    pending_gates_document,
     unavailable_gates_document,
 )
 from teamctx.connectors.github import (
@@ -20,8 +21,23 @@ from teamctx.connectors.github import (
 )
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 
-# A completed check with one of these conclusions is a failing gate.
-FAILING_CONCLUSIONS = frozenset({"failure", "timed_out", "action_required"})
+# A completed check counts as passing only when its conclusion is one of these. Every other
+# completed conclusion (failure, timed_out, action_required, cancelled, stale, startup_failure, an
+# unknown value, or a missing one) is treated as not-clear, so a non-passing or unrecognized
+# conclusion fails closed rather than reading as green.
+PASSING_CONCLUSIONS = frozenset({"success", "neutral", "skipped"})
+
+
+def _is_failing_run(run: dict[str, object]) -> bool:
+    """A completed run whose conclusion is not success-like is a failing gate.
+
+    Guards against a non-string conclusion (null, a number, or a malformed array/object): the
+    membership test runs only for a string, so any other type fails closed to "failing" without a
+    TypeError from an unhashable value."""
+
+    conclusion = run.get("conclusion")
+    passing = isinstance(conclusion, str) and conclusion in PASSING_CONCLUSIONS
+    return run.get("status") == "completed" and not passing
 
 
 @dataclass(frozen=True)
@@ -31,10 +47,13 @@ class CheckRunsFetch:
     ``failing`` is the list of (name, url) pairs for completed failing check-runs.
     ``truncated`` is True when the response indicates more check-runs exist than we fetched,
     meaning we cannot assert all gates pass from an empty failing list alone.
+    ``pending`` is True when any run is still queued or in progress, so even with no failing run
+    the gate cannot be asserted green yet.
     """
 
     failing: list[tuple[str, str]]
     truncated: bool
+    pending: bool
 
 
 def run_github_checks_probe(
@@ -66,6 +85,15 @@ def run_github_checks_probe(
         FailingGate(repo=repo, gate_name=name, url=url, files=tuple(request_context.paths))
         for name, url in fetch.failing
     ]
+    if not gates and not fetch.truncated and fetch.pending:
+        # Precedence: found (failing gates) > truncated (stale) > pending. Only emit pending when
+        # there is genuinely nothing worse to report.
+        return pending_gates_document(
+            request_context,
+            repo=repo,
+            observed_at=observed_at,
+            safe_user_message="CI checks are still running; the gate is not confirmed green yet.",
+        )
     return normalize_failing_gates(
         request_context,
         gates,
@@ -83,9 +111,51 @@ def fetch_failing_check_runs(
         f"/commits/{quote(ref)}/check-runs?per_page=100"
     )
     payload = get_json(url, token=token, opener=opener)
+    _validate_check_runs_payload(payload)
     failing = parse_failing_check_runs(payload)
     truncated = _detect_truncation(payload)
-    return CheckRunsFetch(failing=failing, truncated=truncated)
+    pending = parse_incomplete_check_runs(payload)
+    return CheckRunsFetch(failing=failing, truncated=truncated, pending=pending)
+
+
+def _validate_check_runs_payload(payload: object) -> None:
+    """Fail closed on a malformed check-runs response so nothing reads as a false clear.
+
+    Requires a dict body; a list ``check_runs``; an int ``total_count`` when present; every run an
+    object; and every completed FAILING run carrying a string name and url, so a real failure is
+    never silently dropped for want of a field. The caller's GitHubProbeError handler routes any
+    violation to an honest "unavailable".
+    """
+
+    if not isinstance(payload, dict):
+        raise GitHubProbeError("GitHub check-runs response was not an object")
+    runs = payload.get("check_runs")
+    if not isinstance(runs, list):
+        raise GitHubProbeError("GitHub check-runs response had no check_runs list")
+    total_count = payload.get("total_count")
+    if total_count is not None and not isinstance(total_count, int):
+        raise GitHubProbeError("GitHub check-runs total_count was not an integer")
+    for run in runs:
+        if not isinstance(run, dict):
+            raise GitHubProbeError("GitHub check-runs contained a non-object run")
+        if _is_failing_run(run) and (
+            not isinstance(run.get("name"), str) or not isinstance(run.get("html_url"), str)
+        ):
+            raise GitHubProbeError("a failing check-run was missing its name or url")
+
+
+def parse_incomplete_check_runs(payload: object) -> bool:
+    """True when any check-run is still queued or in progress (status != 'completed').
+
+    These runs are not failing (no conclusion yet) but mean the gate cannot be asserted green.
+    """
+
+    if not isinstance(payload, dict):
+        return False
+    runs = payload.get("check_runs")
+    if not isinstance(runs, list):
+        return False
+    return any(isinstance(run, dict) and run.get("status") != "completed" for run in runs)
 
 
 def _detect_truncation(payload: object) -> bool:
@@ -114,9 +184,7 @@ def parse_failing_check_runs(payload: object) -> list[tuple[str, str]]:
     for run in runs:
         if not isinstance(run, dict):
             continue
-        if run.get("status") != "completed":
-            continue
-        if run.get("conclusion") not in FAILING_CONCLUSIONS:
+        if not _is_failing_run(run):
             continue
         name = run.get("name")
         html_url = run.get("html_url")

@@ -78,6 +78,25 @@ def resolve_project_root(start: Path | None = None, override: Path | None = None
     return toplevel if toplevel is not None else base
 
 
+def repo_relative_path(root: Path, path: str) -> str:
+    """Normalize a caller path to a repo-root-relative POSIX string, so it matches the broker's
+    paths (PR changed files, gate files, docs are all repo-relative). An absolute path is made
+    relative to the git toplevel; a relative path is resolved against ``root`` and re-expressed
+    relative to the toplevel, so './docs/x.md' and 'docs/x.md' agree. If it cannot be made
+    repo-relative (no git tree, or a path outside the repo), the input is returned as a clean
+    POSIX string rather than raising, so a non-git tree still works."""
+
+    candidate = Path(path)
+    toplevel = _git_toplevel(root)
+    if toplevel is None:
+        return candidate.as_posix()
+    absolute = candidate if candidate.is_absolute() else (root / candidate)
+    try:
+        return absolute.resolve().relative_to(toplevel.resolve()).as_posix()
+    except (OSError, ValueError):
+        return candidate.as_posix()
+
+
 def _git_toplevel(root: Path) -> Path | None:
     out = _run_git(root, "rev-parse", "--show-toplevel")
     return Path(out) if out is not None else None

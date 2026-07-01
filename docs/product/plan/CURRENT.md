@@ -103,6 +103,27 @@ deduped into `teamctx.clock.utc_now_iso`.
 read wrong for a single-check diagnostic; give the probes their own headline or suppress not-run
 checks. **Bar:** fresh-actor setup from the README alone, and genuine multi-actor scenarios surfaced
 correctly across terminals.
+**Onboard + runtime-honesty slice (spec `docs/superpowers/specs/2026-06-29-onboard-runtime-honesty.md`,
+hardened over a five-round codex loop): Phase 1 of 3 DONE 2026-06-29 (merged `3ad67c0`, 332 tests +
+ruff + mypy strict green).** Closes the setup/runtime split-brain: a setup command must report exactly
+what the runtime will do. Phase 1 = the shared resolution layer (`resolve_project_root`, host-aware repo
+identity via `parse_github_repo` failing closed on non-github origins, `resolve_github_token` with a
+`gh` fallback on the default env only); a codex diff-review caught three real split-brain P1s before
+merge (`901ca4e`). **Phase 2 = the honesty carrier (spec 1.4 to 1.7): DONE 2026-07-01 (merged to
+main via `feat/runtime-honesty-phase2`, 372 tests + ruff + mypy strict green).** Two additive v0
+coverage states, `pending` (a gate whose checks are still running) and `not_applicable` (a docs root
+scanned with nothing relied-on in scope), carried through `SourceStatusValue` + `Completeness` +
+`assess_completeness` (evaluate/broker needed no change); the gate + docs connectors emit them and the
+CLI render + hook surface them, total over every check so a status is never silently dropped. Plus
+request-path normalization (a `./path` now matches), the "required" copy sweep, "CI is green" -> "no
+failing checks found", init no longer auto-enabling `docs_root`, and a batch of fail-closed hardening
+the codex loop drove: malformed check-runs payloads, non-passing conclusions (cancelled/stale), a
+non-string conclusion, and absolute/symlinked docs roots all now fail closed instead of false-clearing.
+Plan: `docs/superpowers/plans/2026-06-29-runtime-honesty-phase2.md`. **codex adversarially reviewed the
+plan and then the diff across three rounds and found a real P0 (hook dropping a pending gate) plus
+several genuine false-clears (a cancelled check reading green; a malformed payload dropping a failure)
+that were all fixed before merge, which is exactly why the review-before-merge rule stands.** **Phase 3
+= the visible `onboard` command (spec 2.x), next.**
 
 ### Sprint 3: Proof (the numbers)
 Labelled conformance corpus + replay harness → the **E4/E5** numbers protocol v1.2 owes.

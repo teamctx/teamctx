@@ -20,11 +20,11 @@ from teamctx.core.select import ContextSelection
 _HEADLINE = {
     "ready": "Looks clear to start.",
     "heads_up": "Before you start, here is what to handle first:",
-    "cant_verify": "Heads up: I couldn't check the important things:",
+    "cant_verify": "Heads up: I can't confirm the important things yet:",
 }
 _CLEAR_PHRASE: dict[CheckId, str] = {
     "conflict": "no open PRs touch your files",
-    "gate": "CI is green",
+    "gate": "no failing checks found",
     "docs": "the docs you rely on are current",
     "criteria": "the linked issue's criteria are unchanged",
 }
@@ -46,6 +46,29 @@ _FINDING_ACTION: dict[CheckId, str] = {
     "docs": "rely on the current one instead",
     "gate": "fix it or wait for a green build before relying on it",
 }
+_PENDING_PHRASE: dict[CheckId, str] = {
+    "gate": "failing checks (CI still running, not confirmed green yet)",
+}
+_NOT_APPLICABLE_PHRASE: dict[CheckId, str] = {
+    "docs": "docs (a docs root is set, but none of the files in scope are docs you rely on)",
+}
+
+
+def _pending_phrase(check: CheckId) -> str:
+    return _PENDING_PHRASE.get(check, f"{check} (still running, not confirmed yet)")
+
+
+def _not_applicable_phrase(check: CheckId) -> str:
+    return _NOT_APPLICABLE_PHRASE.get(check, f"{check} (not applicable to the files in scope)")
+
+
+def _pending_bullet(check: CheckId) -> str:
+    if check == "gate":
+        return (
+            "  • Failing checks: CI checks are still running, so the gate isn't confirmed "
+            "green yet. Wait for the build or check the run before relying on a green gate."
+        )
+    return f"  • {check}: still running, not confirmed yet."
 
 
 def _authority_line(entry: AuthorityEntry) -> str:
@@ -75,6 +98,12 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
     not_checked = _not_checked_line(assessment)
     if not_checked:
         lines.append(not_checked)
+    still_running = _still_running_line(assessment)
+    if still_running:
+        lines.append(still_running)
+    not_applicable = _not_applicable_line(assessment)
+    if not_applicable:
+        lines.append(not_applicable)
     lines.extend(_authority_block(answer.selection))
     return "\n".join(lines) + "\n"
 
@@ -112,24 +141,32 @@ def _gh_hint(source_display: str) -> str:
 
 
 def _cant_verify_bullets(assessment: WorkStartAssessment) -> list[str]:
-    # Emits the bespoke combined bullet for the important checks (IMPORTANT_CHECKS = conflict,
-    # gate). If that set ever grows, extend this so every important check still gets a bullet,
-    # otherwise _couldnt_check_line will suppress it (in_bullets) and it would surface nowhere.
+    # Every important non-clear check gets a bullet, so none is dropped: the combined
+    # GitHub-unreachable bullet (to avoid repeating the long fix text when both are unreachable),
+    # plus a bullet for each important pending check.
     status = {s.check: s.status for s in assessment.checks}
-    conflict = status.get("conflict") == "unreachable"
-    gate = status.get("gate") == "unreachable"
+    conflict_unreachable = status.get("conflict") == "unreachable"
+    gate_unreachable = status.get("gate") == "unreachable"
     fix = (
         "teamctx couldn't reach GitHub. Either it has no access yet (set GITHUB_TOKEN, or "
         "GITHUB_TOKEN_FILE with a path to a token file) or it's a temporary connection issue."
     )
-    if conflict and gate:
-        return [f"  • Open PRs and failing checks: {fix} Until it's back you won't see colliding "
-                "PRs or red CI on your files."]
-    if conflict:
-        return [f"  • Open PRs: {fix} Until it's back you won't see colliding PRs on your files."]
-    if gate:
-        return [f"  • Failing checks: {fix} Until it's back you won't see red CI on your files."]
-    return []
+    bullets: list[str] = []
+    if conflict_unreachable and gate_unreachable:
+        bullets.append(f"  • Open PRs and failing checks: {fix} Until it's back you won't see "
+                       "colliding PRs or red CI on your files.")
+    elif conflict_unreachable:
+        bullets.append(
+            f"  • Open PRs: {fix} Until it's back you won't see colliding PRs on your files."
+        )
+    elif gate_unreachable:
+        bullets.append(
+            f"  • Failing checks: {fix} Until it's back you won't see red CI on your files."
+        )
+    for state in assessment.checks:
+        if state.status == "pending" and state.check in IMPORTANT_CHECKS:
+            bullets.append(_pending_bullet(state.check))
+    return bullets
 
 
 def _coverage_line(assessment: WorkStartAssessment) -> str:
@@ -162,6 +199,29 @@ def _not_checked_line(assessment: WorkStartAssessment) -> str:
     if not gaps:
         return ""
     return "  Not checked: " + "; ".join(gaps) + "."
+
+
+def _still_running_line(assessment: WorkStartAssessment) -> str:
+    # An important pending check is already bulleted in cant_verify; surface the rest here so a
+    # pending check is never dropped when a found elsewhere made the kind heads_up.
+    in_bullets = assessment.kind == "cant_verify"
+    gaps = [
+        _pending_phrase(s.check)
+        for s in assessment.checks
+        if s.status == "pending" and not (in_bullets and s.check in IMPORTANT_CHECKS)
+    ]
+    if not gaps:
+        return ""
+    return "  Still running: " + "; ".join(gaps) + "."
+
+
+def _not_applicable_line(assessment: WorkStartAssessment) -> str:
+    gaps = [
+        _not_applicable_phrase(s.check) for s in assessment.checks if s.status == "not_applicable"
+    ]
+    if not gaps:
+        return ""
+    return "  Not applicable: " + "; ".join(gaps) + "."
 
 
 def _authority_block(selection: ContextSelection) -> list[str]:

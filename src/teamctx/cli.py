@@ -32,7 +32,12 @@ from teamctx.finding_query import (
     match_finding,
     parse_selector,
 )
-from teamctx.git_context import detect_repo, parse_github_repo, resolve_project_root
+from teamctx.git_context import (
+    detect_repo,
+    parse_github_repo,
+    repo_relative_path,
+    resolve_project_root,
+)
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     ProjectConfigError,
@@ -73,7 +78,7 @@ def status() -> None:
     "--docs-root",
     "docs_root",
     default=None,
-    help="Folder of design docs to watch for supersession. Auto-detected from a 'docs' folder.",
+    help="Folder of design docs to watch for supersession (off unless you set it).",
 )
 @click.option("--force", is_flag=True, help="Overwrite an existing project config.")
 def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
@@ -90,7 +95,7 @@ def init_command(repo: str | None, docs_root: str | None, force: bool) -> None:
             "Could not determine the repository: this is not a git repo with a recognizable "
             "'origin' remote. Pass --repo owner/name."
         )
-    resolved_docs_root = docs_root if docs_root is not None else _detect_docs_root(root)
+    resolved_docs_root = docs_root  # explicit only; no docs auto-enable (it would over-claim)
 
     config = build_work_start_project_config(repo=resolved_repo, docs_root=resolved_docs_root)
     config_path = root / DEFAULT_CONFIG_PATH
@@ -435,7 +440,7 @@ def docs_probe_command(
         repo=repo,
         branch=branch,
         task=task,
-        paths=list(paths),
+        paths=_normalized_paths(paths),
         linked_issues=[],
         requested_at=observed_at,
         requesting_principal=None,
@@ -476,7 +481,7 @@ def gate_probe_command(
         repo=repo,
         branch=branch,
         task=task,
-        paths=list(paths),
+        paths=_normalized_paths(paths),
         linked_issues=[],
         requested_at=observed_at,
         requesting_principal=None,
@@ -522,7 +527,7 @@ def issue_probe_command(
         repo=repo,
         branch=branch,
         task=task,
-        paths=list(paths),
+        paths=_normalized_paths(paths),
         linked_issues=list(issues),
         requested_at=observed_at,
         requesting_principal=None,
@@ -651,6 +656,14 @@ def _has_hook_entry(settings: dict[str, Any]) -> bool:
     return False
 
 
+def _normalized_paths(paths: tuple[str, ...]) -> list[str]:
+    """Normalize a dev probe's raw --path values to repo-relative POSIX (same as the work-start
+    resolver), so a caller path matches the broker's repo-relative signal paths."""
+
+    root = resolve_project_root()
+    return [repo_relative_path(root, path) for path in paths]
+
+
 def _github_contract_document(
     *,
     repo: str,
@@ -667,7 +680,7 @@ def _github_contract_document(
         repo=repo,
         branch=branch,
         task=task,
-        paths=list(paths),
+        paths=_normalized_paths(paths),
         linked_issues=[],
         requested_at=observed_at,
         requesting_principal=None,
@@ -690,10 +703,6 @@ def _work_start_view(document: CoreContractDocument) -> str:
         declarations,
     )
     return render_broker_answer(answer)
-
-
-def _detect_docs_root(root: Path) -> str | None:
-    return "docs" if (root / "docs").is_dir() else None
 
 
 if __name__ == "__main__":
