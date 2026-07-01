@@ -62,30 +62,29 @@ def _heads_up(a: WorkStartAssessment, file_path: str) -> str:
 
 
 def _cant_verify(a: WorkStartAssessment, token_present: bool) -> str:
-    important_unreachable = any(
-        s.status == "unreachable" and s.check in IMPORTANT_CHECKS for s in a.checks
-    )
-    important_pending = any(
-        s.status == "pending" and s.check in IMPORTANT_CHECKS for s in a.checks
-    )
+    unreachable = [
+        s.check for s in a.checks if s.status == "unreachable" and s.check in IMPORTANT_CHECKS
+    ]
+    pending = [s.check for s in a.checks if s.status == "pending" and s.check in IMPORTANT_CHECKS]
     parts: list[str] = []
-    if important_unreachable:
+    if unreachable:
+        # name only the checks that are actually unreachable, so a pending gate is never
+        # mislabeled as "couldn't check failing checks".
+        gaps = " or ".join(_HOOK_GAP.get(check, check) for check in unreachable)
         if not token_present:
             parts.append(
-                "teamctx couldn't check what else is happening around this file. It doesn't "
-                "have access to GitHub yet. To switch that on, set GITHUB_TOKEN in your "
-                "environment (or GITHUB_TOKEN_FILE with a path to a token file). If you'd rather "
-                "not connect it right now, keep working; you just won't get a heads-up about open "
-                "pull requests on the same files or checks that are failing."
+                f"teamctx couldn't check {gaps} around this file. It doesn't have access to "
+                "GitHub yet. To switch that on, set GITHUB_TOKEN in your environment (or "
+                "GITHUB_TOKEN_FILE with a path to a token file). If you'd rather not connect it "
+                f"right now, keep working; you just won't get a heads-up about {gaps}."
             )
         else:
             parts.append(
-                "teamctx couldn't reach GitHub just now, so it couldn't check for open pull "
-                "requests or failing checks on these files. This is likely a transient "
-                "connection issue. You won't get those warnings this session, so glance at "
-                "GitHub yourself if this file is sensitive."
+                f"teamctx couldn't reach GitHub just now, so it couldn't check {gaps} on these "
+                "files. This is likely a transient connection issue. You won't get those warnings "
+                "this session, so glance at GitHub yourself if this file is sensitive."
             )
-    if important_pending:
+    if pending:
         parts.append(
             "teamctx: CI checks on this branch are still running, so it can't confirm the "
             "gate is green yet. If a green build matters for this edit, wait for it or check "

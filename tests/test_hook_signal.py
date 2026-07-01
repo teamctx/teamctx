@@ -136,3 +136,5 @@ def test_unreachable_conflict_plus_pending_gate_mentions_both() -> None:
     text = hook_signal(answer, file_path="src/app.py", token_present=True)
     assert "GitHub" in text  # the unreachable conflict is surfaced
     assert "still running" in text.lower()  # and the pending gate, not falsely "couldn't check"
+    # the gate is pending, not unreachable: don't claim we couldn't check failing checks.
+    assert "failing checks" not in text
