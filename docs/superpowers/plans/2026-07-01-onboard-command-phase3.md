@@ -21,6 +21,191 @@
 - **Transaction model (from 2.2):** additive and idempotent; each file write is atomic (temp + rename); no cross-step rollback. A step that cannot proceed fails only itself with a how-to-fix; later steps still run. A missing token does not abort (config + hook still written; the gap is the reported to-do).
 - **`--yes` open question for Edgar:** it has no behavior today (onboard is already non-interactive). Included as a reserved flag per the spec's flag list; flag at review if you would rather drop it.
 
+## Revisions (rev 2, after the codex plan-review)
+
+A codex adversarial review found one P0 and five P1s, all verified against the code and git
+semantics. Apply these on top of the tasks below; where they conflict, the revision wins.
+
+**R1 (was P0): the CLAUDE.md upsert must refuse malformed or hand-edited marker blocks, never
+overwrite them (Task 8).** Blind `index(START)`/`index(END)` corrupts when an end marker precedes a
+start, or when there are multiple markers, and it would silently replace a user's edits sitting
+inside the markers. Replace the whole `upsert_claude_md_snippet` with a line-parsed version that (a)
+requires exactly one ordered start/end pair, (b) only manages a marked block whose body matches a
+KNOWN teamctx-generated body, and (c) migrates an unmarked legacy block only on an exact single
+occurrence. Anything else is left untouched with a warning:
+
+```python
+_SNIPPET_START = "<!-- teamctx:start -->"
+_SNIPPET_END = "<!-- teamctx:end -->"
+_SNIPPET_HEADING = "## Team context (teamctx)"
+_KNOWN_BODIES = (CLAUDE_MD_SNIPPET, _LEGACY_SNIPPET_BODY)
+
+
+def _marked_block() -> str:
+    return f"{_SNIPPET_START}\n{CLAUDE_MD_SNIPPET}{_SNIPPET_END}\n"
+
+
+def _normalize_ws(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _marker_span(lines: list[str]) -> tuple[int, int] | None:
+    starts = [i for i, ln in enumerate(lines) if ln.strip() == _SNIPPET_START]
+    ends = [i for i, ln in enumerate(lines) if ln.strip() == _SNIPPET_END]
+    if len(starts) != 1 or len(ends) != 1 or ends[0] < starts[0]:
+        return None
+    return starts[0], ends[0]
+
+
+def upsert_claude_md_snippet(root: Path, *, dry_run: bool) -> StepResult:
+    path = root / "CLAUDE.md"
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    lines = existing.splitlines(keepends=True)
+    block = _marked_block()
+    known_norms = {_normalize_ws(b) for b in _KNOWN_BODIES}
+
+    span = _marker_span(lines)
+    if span is None and (_SNIPPET_START in existing or _SNIPPET_END in existing):
+        return StepResult("claude_md", "skipped", "found teamctx markers in CLAUDE.md that aren't a "
+                          "clean single start/end pair; fix or remove them by hand, then re-run.")
+    if span is not None:
+        start_i, end_i = span
+        body = "".join(lines[start_i + 1 : end_i])
+        if _normalize_ws(body) == _normalize_ws(CLAUDE_MD_SNIPPET):
+            return StepResult("claude_md", "already", "CLAUDE.md snippet already current.")
+        if _normalize_ws(body) not in known_norms:
+            return StepResult("claude_md", "skipped", "the teamctx block in CLAUDE.md was hand-edited; "
+                              "left it untouched. Remove it and re-run to let teamctx manage it.")
+        if dry_run:
+            return StepResult("claude_md", "skipped", "--dry-run: would refresh the CLAUDE.md snippet.")
+        _atomic_write(path, "".join(lines[:start_i]) + block + "".join(lines[end_i + 1 :]))
+        return StepResult("claude_md", "wrote", "refreshed the CLAUDE.md snippet in place.")
+
+    if existing.count(_LEGACY_SNIPPET_BODY) == 1:  # exact, single -> confident migration
+        if dry_run:
+            return StepResult("claude_md", "skipped", "--dry-run: would migrate the old CLAUDE.md snippet.")
+        _atomic_write(path, existing.replace(_LEGACY_SNIPPET_BODY, block, 1))
+        return StepResult("claude_md", "wrote", "migrated the old CLAUDE.md snippet to the marked block.")
+
+    if _SNIPPET_HEADING in existing:  # a heading we can't confidently match -> never guess
+        return StepResult("claude_md", "skipped", "found an edited '## Team context (teamctx)' block "
+                          "in CLAUDE.md; left it untouched. Remove it by hand and re-run.")
+
+    if dry_run:
+        return StepResult("claude_md", "skipped", "--dry-run: would add the CLAUDE.md snippet.")
+    prefix = existing if existing == "" or existing.endswith("\n") else existing + "\n"
+    joiner = "" if prefix == "" else "\n"
+    _atomic_write(path, prefix + joiner + block)
+    return StepResult("claude_md", "wrote", "added the teamctx snippet to CLAUDE.md.")
+```
+
+This **supersedes Task 8's implementation and `_replace_normalized_span` entirely** (drop the fixed
+n-line replacer; exact single-occurrence migration is simpler and cannot false-"wrote"/loop). Add
+Task 8 tests: end-marker-before-start (skipped, untouched); two start markers (skipped); a marked
+block with a hand-edited body (skipped, preserved); the existing fresh/idempotent/migrate/edited
+cases still hold.
+
+**R2 (was P1): the gitignore patch must actually override a blanket `.teamctx/` ignore, idempotently
+(Task 7, and use the same stanza in Task 1).** Git cannot re-include a file whose parent dir is
+ignored, so `.teamctx/*` + `!.teamctx/config.json` alone does NOT fix an existing `.teamctx/` rule.
+Append a canonical three-line stanza that un-ignores the dir first, only if not already present, then
+verify and fail closed with a diagnostic:
+
+```python
+_TRACKABLE_STANZA = (
+    "# teamctx (config is tracked; local state is not)\n"
+    "!.teamctx/\n"
+    ".teamctx/*\n"
+    "!.teamctx/config.json\n"
+)
+
+
+def ensure_config_trackable(root: Path, *, dry_run: bool) -> StepResult:
+    if _config_is_trackable(root):
+        return StepResult("gitignore", "already", ".teamctx/config.json is already trackable.")
+    if dry_run:
+        return StepResult("gitignore", "skipped", "--dry-run: would patch .gitignore to track .teamctx/config.json.")
+    gitignore = root / ".gitignore"
+    existing = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
+    if "!.teamctx/config.json" not in existing:  # idempotent: never append the stanza twice
+        prefix = existing if existing == "" or existing.endswith("\n") else existing + "\n"
+        _atomic_write(gitignore, prefix + "\n" + _TRACKABLE_STANZA)
+    if _config_is_trackable(root):
+        return StepResult("gitignore", "wrote", "patched .gitignore so .teamctx/config.json is trackable.")
+    detail = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "-v", "--no-index", ".teamctx/config.json"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    return StepResult("gitignore", "failed", "couldn't make .teamctx/config.json trackable; a broader "
+                      f"rule still ignores it ({detail or 'see .gitignore'}). Edit .gitignore by hand.")
+```
+
+In Task 1 (teamctx's own repo `.gitignore`), replace the `.teamctx/` line with the same stanza
+(`!.teamctx/` then `.teamctx/*` then `!.teamctx/config.json`); the Task 1 test (config trackable,
+state ignored) still holds.
+
+**R3 (was P1): `run_onboard` must set `ok=False` when any step failed (Tasks 9, 10).** A failed
+required step (malformed settings, gitignore not fixable) currently still returns `ok=True`, so the
+CLI exits 0 after a `[FAILED]` line. Fix: `ok = not any(s.status == "failed" for s in steps)`. A
+missing token stays `noted`/`skipped` (not `failed`), so it does not flip `ok` (spec: a missing token
+does not abort).
+
+**R4 (was P1): token resolution is single-sourced (Task 5).** Drop `github_token_source`. Add to
+`tokens.py` a `resolve_github_token_with_source(token_env) -> tuple[str | None, str | None]` (source
+in "env"/"file"/"gh"/None) and make `resolve_github_token` delegate to `[0]` (behavior unchanged,
+test_tokens still holds). `auth_status` and `run_onboard` resolve ONCE via the with-source function
+and pass that same token to `verify_health`, so the gh fallback cannot drift across calls. Interpolate
+`token_env` in the messages so a custom env name is reported correctly (not a hardcoded GITHUB_TOKEN):
+
+```python
+def resolve_github_token_with_source(token_env: str = "GITHUB_TOKEN") -> tuple[str | None, str | None]:
+    token = os.environ.get(token_env)
+    if token:
+        return token, "env"
+    token_file = os.environ.get(f"{token_env}_FILE")
+    if token_file:
+        try:
+            value = Path(token_file).expanduser().read_text(encoding="utf-8").strip() or None
+        except OSError:
+            value = None
+        if value:
+            return value, "file"
+    if token_env == "GITHUB_TOKEN" and not os.environ.get("TEAMCTX_DISABLE_GH_AUTH"):
+        gh = _gh_auth_token()
+        if gh:
+            return gh, "gh"
+    return None, None
+
+
+def resolve_github_token(token_env: str = "GITHUB_TOKEN") -> str | None:
+    return resolve_github_token_with_source(token_env)[0]
+```
+
+`auth_status(token_env)` uses `token, source = resolve_github_token_with_source(token_env)`; messages:
+env -> f"using {token_env} from your environment.", file -> f"using the token file in {token_env}_FILE.",
+gh -> "using your gh CLI login." `run_onboard` calls it once, records the auth step, and passes the
+SAME `token` into `verify_health`.
+
+**R5 (was P1): CLI smoke tests must be network-free (Task 10).** `test_onboard_happy_path` must NOT
+set a real token and invoke the real command (that hits live GitHub in `verify_health`). Instead run
+the CLI tests with NO token (set `TEAMCTX_DISABLE_GH_AUTH=1`, unset `GITHUB_TOKEN`): config, gitignore,
+hook, and snippet still write; auth and health report "not found"/"no credential" without any network.
+Keep found-credential + health coverage in the `run_onboard` unit tests (Task 9) via the injected
+`opener`. The happy-path CLI assertions become: exit 0, config exists, "acme/widgets" in output,
+"work-start" in the next step.
+
+**R6 (was P2, fold in): honest labels and a clearer error.**
+- `run_onboard` uses a `noted` status for the auth and health report steps (they are not writes);
+  add `"noted"` to `StepResult.status` and `_STEP_MARK["noted"] = "checked"`, so it renders
+  `[checked] health: reached GitHub...` not `[already set] health: ...`.
+- `_resolve_repo`: distinguish an invalid `--repo` from an absent one. If `repo_override` is given but
+  `parse_github_repo(repo_override)` is None, the failed detect step says
+  f"{repo_override!r} is not a github.com owner/name; pass --repo owner/name", not "no --repo was given".
+- Add a Task 2 test that `_atomic_write` is failure-atomic: monkeypatch `os.replace` to raise, assert
+  the original file content is unchanged and no `*.tmp` file is left in the directory.
+
+---
+
 ## File map
 
 - Create `src/teamctx/onboard.py`: the seam (`GithubOnboarder`, `ONBOARDERS`), the flow (`run_onboard`, `OnboardResult`, `StepResult`, `AuthStatus`, `HealthReport`), and the write helpers (`_atomic_write`, `ensure_config_trackable`, `upsert_claude_md_snippet`, `CLAUDE_MD_SNIPPET`, `_LEGACY_SNIPPET_BODY`).
