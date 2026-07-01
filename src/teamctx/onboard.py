@@ -209,3 +209,88 @@ class GithubOnboarder:
 
 
 ONBOARDERS: list[GithubOnboarder] = [GithubOnboarder()]
+
+
+_SNIPPET_START = "<!-- teamctx:start -->"
+_SNIPPET_END = "<!-- teamctx:end -->"
+_SNIPPET_HEADING = "## Team context (teamctx)"
+_KNOWN_BODIES = (CLAUDE_MD_SNIPPET, _LEGACY_SNIPPET_BODY)
+
+
+def _marked_block() -> str:
+    return f"{_SNIPPET_START}\n{CLAUDE_MD_SNIPPET}{_SNIPPET_END}\n"
+
+
+def _normalize_ws(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _marker_span(lines: list[str]) -> tuple[int, int] | None:
+    """The single well-formed teamctx marker pair, or None (absent, multiple, or out of order)."""
+
+    starts = [i for i, ln in enumerate(lines) if ln.strip() == _SNIPPET_START]
+    ends = [i for i, ln in enumerate(lines) if ln.strip() == _SNIPPET_END]
+    if len(starts) != 1 or len(ends) != 1 or ends[0] < starts[0]:
+        return None
+    return starts[0], ends[0]
+
+
+def upsert_claude_md_snippet(root: Path, *, dry_run: bool) -> StepResult:
+    """Write or refresh the teamctx snippet in CLAUDE.md, never destroying user content: manage
+    only a single well-formed marker pair whose body teamctx generated, migrate an exact unedited
+    legacy block, and otherwise warn rather than guess a boundary."""
+
+    path = root / "CLAUDE.md"
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    lines = existing.splitlines(keepends=True)
+    block = _marked_block()
+    known_norms = {_normalize_ws(b) for b in _KNOWN_BODIES}
+
+    span = _marker_span(lines)
+    if span is None and (_SNIPPET_START in existing or _SNIPPET_END in existing):
+        return StepResult(
+            "claude_md", "skipped",
+            "found teamctx markers in CLAUDE.md that aren't a clean single start/end pair; fix or "
+            "remove them by hand, then re-run.",
+        )
+    if span is not None:
+        start_i, end_i = span
+        body = "".join(lines[start_i + 1 : end_i])
+        if _normalize_ws(body) == _normalize_ws(CLAUDE_MD_SNIPPET):
+            return StepResult("claude_md", "already", "CLAUDE.md snippet already current.")
+        if _normalize_ws(body) not in known_norms:
+            return StepResult(
+                "claude_md", "skipped",
+                "the teamctx block in CLAUDE.md was hand-edited; left it untouched. Remove it and "
+                "re-run to let teamctx manage it.",
+            )
+        if dry_run:
+            return StepResult(
+                "claude_md", "skipped", "--dry-run: would refresh the CLAUDE.md snippet."
+            )
+        _atomic_write(path, "".join(lines[:start_i]) + block + "".join(lines[end_i + 1 :]))
+        return StepResult("claude_md", "wrote", "refreshed the CLAUDE.md snippet in place.")
+
+    if existing.count(_LEGACY_SNIPPET_BODY) == 1:  # exact, single -> confident migration
+        if dry_run:
+            return StepResult(
+                "claude_md", "skipped", "--dry-run: would migrate the old CLAUDE.md snippet."
+            )
+        _atomic_write(path, existing.replace(_LEGACY_SNIPPET_BODY, block, 1))
+        return StepResult(
+            "claude_md", "wrote", "migrated the old CLAUDE.md snippet to the marked block."
+        )
+
+    if _SNIPPET_HEADING in existing:  # a heading we can't confidently match -> never guess
+        return StepResult(
+            "claude_md", "skipped",
+            "found an edited '## Team context (teamctx)' block in CLAUDE.md; left it untouched. "
+            "Remove it by hand and re-run.",
+        )
+
+    if dry_run:
+        return StepResult("claude_md", "skipped", "--dry-run: would add the CLAUDE.md snippet.")
+    prefix = existing if existing == "" or existing.endswith("\n") else existing + "\n"
+    joiner = "" if prefix == "" else "\n"
+    _atomic_write(path, prefix + joiner + block)
+    return StepResult("claude_md", "wrote", "added the teamctx snippet to CLAUDE.md.")

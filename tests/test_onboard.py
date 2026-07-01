@@ -8,13 +8,18 @@ from pathlib import Path
 import pytest
 
 from teamctx.onboard import (
+    _LEGACY_SNIPPET_BODY,
     CLAUDE_MD_SNIPPET,
     GithubOnboarder,
     HealthReport,
     StepResult,
     _atomic_write,
     ensure_config_trackable,
+    upsert_claude_md_snippet,
 )
+
+_START = "<!-- teamctx:start -->"
+_END = "<!-- teamctx:end -->"
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -192,3 +197,66 @@ def test_ensure_trackable_dry_run_writes_nothing(tmp_path: Path) -> None:
     step = ensure_config_trackable(tmp_path, dry_run=True)
     assert step.status == "skipped"
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == before
+
+
+def test_snippet_fresh_write_wraps_in_markers(tmp_path: Path) -> None:
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    text = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert step.status == "wrote"
+    assert _START in text and _END in text
+    assert "failing checks" in text and "changed specs" not in text
+
+
+def test_snippet_upsert_is_idempotent(tmp_path: Path) -> None:
+    upsert_claude_md_snippet(tmp_path, dry_run=False)
+    first = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "already"
+    assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8") == first
+    assert first.count(_START) == 1  # not duplicated
+
+
+def test_snippet_migrates_unedited_legacy_block(tmp_path: Path) -> None:
+    (tmp_path / "CLAUDE.md").write_text(
+        "# Project\n\n" + _LEGACY_SNIPPET_BODY + "\n## Other\n", encoding="utf-8"
+    )
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    text = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert step.status == "wrote"
+    assert "changed specs" not in text  # legacy body replaced
+    assert _START in text and text.count("## Team context (teamctx)") == 1
+    assert "## Other" in text  # adjacent content preserved
+
+
+def test_snippet_warns_not_deletes_edited_legacy_block(tmp_path: Path) -> None:
+    edited = "## Team context (teamctx)\nMy own custom teamctx note that I edited.\n"
+    (tmp_path / "CLAUDE.md").write_text("# Project\n\n" + edited + "\n## Other\n", encoding="utf-8")
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    text = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert step.status == "skipped"  # did not touch an edited block
+    assert "My own custom teamctx note" in text
+    assert "remove" in step.detail.lower()
+
+
+def test_snippet_malformed_markers_end_before_start_untouched(tmp_path: Path) -> None:
+    content = "# P\n" + _END + "\nstuff\n" + _START + "\n"
+    (tmp_path / "CLAUDE.md").write_text(content, encoding="utf-8")
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "skipped"
+    assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8") == content  # untouched
+
+
+def test_snippet_multiple_start_markers_untouched(tmp_path: Path) -> None:
+    content = _START + "\na\n" + _END + "\n" + _START + "\nb\n" + _END + "\n"
+    (tmp_path / "CLAUDE.md").write_text(content, encoding="utf-8")
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "skipped"
+    assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8") == content
+
+
+def test_snippet_hand_edited_marked_body_preserved(tmp_path: Path) -> None:
+    content = _START + "\n## Team context (teamctx)\nI rewrote this myself.\n" + _END + "\n"
+    (tmp_path / "CLAUDE.md").write_text(content, encoding="utf-8")
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "skipped"
+    assert "I rewrote this myself." in (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
