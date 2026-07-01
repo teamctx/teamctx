@@ -90,15 +90,21 @@ def default_doc_reader(root: str, *, base_dir: Path = Path(".")) -> list[tuple[s
     """Yield (repo-root-relative POSIX path, text) for every ``*.md`` under ``base_dir/root``.
 
     Paths are emitted relative to ``base_dir`` (the resolution/project root) so they match the
-    ``--path`` a caller passes, regardless of the process working directory. A missing docs
-    directory raises ``FileNotFoundError`` so the probe reports it as unavailable (honest
-    UNKNOWN) rather than a silent all-clear from an empty scan."""
+    repo-relative ``--path`` a caller passes, regardless of how ``root`` is spelled (relative or
+    absolute) or the process working directory. A missing docs directory, or a docs root that
+    resolves OUTSIDE the project root, raises ``FileNotFoundError`` so the probe reports it as
+    unavailable (honest UNKNOWN) rather than a silent all-clear or an unmatchable absolute path."""
 
-    docs_dir = base_dir / root
+    base = base_dir.resolve()
+    docs_dir = (base_dir / root).resolve()
     if not docs_dir.is_dir():
         raise FileNotFoundError(docs_dir)
+    try:
+        docs_dir.relative_to(base)
+    except ValueError as exc:
+        raise FileNotFoundError(docs_dir) from exc
     files: list[tuple[str, str]] = []
     for path in sorted(docs_dir.rglob("*.md")):
-        repo_relative = PurePosixPath(root) / path.relative_to(docs_dir).as_posix()
-        files.append((repo_relative.as_posix(), path.read_text(encoding="utf-8")))
+        repo_relative = path.resolve().relative_to(base).as_posix()
+        files.append((repo_relative, path.read_text(encoding="utf-8")))
     return files

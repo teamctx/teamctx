@@ -1,4 +1,7 @@
+import pytest
+
 from teamctx.connectors.docs import (
+    default_doc_reader,
     parse_frontmatter,
     parse_superseded_docs,
     run_docs_supersession_probe,
@@ -160,4 +163,39 @@ def test_probe_fresh_when_a_scanned_doc_is_in_scope() -> None:
         repo="o/n", root="docs", request_context=_request_with_paths(["docs/guide.md"]),
         observed_at="2026-06-20T00:00:00Z", reader=reader,
     )
+    assert document.source_statuses[0].status == "fresh"
+
+
+def test_default_reader_emits_repo_relative_for_absolute_root(tmp_path) -> None:
+    # an absolute docs_root must still emit repo-relative POSIX paths, or the in-scope check and
+    # the card derivation both miss and a relied-on superseded doc reads not_applicable.
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    body = "---\nsuperseded_by: docs/new.md\n---\n"
+    (docs / "old.md").write_text(body, encoding="utf-8")
+    files = default_doc_reader(str(tmp_path / "docs"), base_dir=tmp_path)  # absolute root
+    assert files == [("docs/old.md", body)]
+
+
+def test_default_reader_fails_closed_for_docs_root_outside_base(tmp_path) -> None:
+    outside = tmp_path / "outside" / "docs"
+    outside.mkdir(parents=True)
+    (outside / "x.md").write_text("# x\n", encoding="utf-8")
+    base = tmp_path / "project"
+    base.mkdir()
+    with pytest.raises(FileNotFoundError):
+        default_doc_reader(str(outside), base_dir=base)  # escapes the project root -> fail closed
+
+
+def test_probe_absolute_docs_root_still_finds_superseded_in_scope(tmp_path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "old.md").write_text("---\nsuperseded_by: docs/new.md\n---\n", encoding="utf-8")
+    document = run_docs_supersession_probe(
+        repo="o/n", root=str(tmp_path / "docs"),  # absolute
+        request_context=_request_with_paths(["docs/old.md"]),
+        observed_at="2026-06-20T00:00:00Z", base_dir=tmp_path,
+    )
+    assert len(document.source_signals) == 1
+    assert document.source_signals[0].scope["doc"] == "docs/old.md"
     assert document.source_statuses[0].status == "fresh"
