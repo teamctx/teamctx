@@ -13,7 +13,16 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
+from teamctx.connectors.github import (
+    DEFAULT_OPENER,
+    GITHUB_API_ROOT,
+    GitHubProbeError,
+    HttpOpener,
+    get_json,
+    split_repo,
+)
 from teamctx.git_context import detect_repo
 from teamctx.tokens import resolve_github_token_with_source
 
@@ -61,6 +70,14 @@ class AuthStatus:
     message: str
 
 
+@dataclass(frozen=True)
+class HealthReport:
+    reachable: bool
+    open_pr_count: int | None
+    count_is_floor: bool
+    message: str
+
+
 def _auth_found_message(token_env: str, source: str | None) -> str:
     if source == "env":
         return f"using {token_env} from your environment."
@@ -96,6 +113,40 @@ class GithubOnboarder:
         if token:
             return AuthStatus(True, source, _auth_found_message(token_env, source))
         return AuthStatus(False, None, _auth_missing_message(token_env))
+
+    def verify_health(
+        self, repo: str, *, token: str | None, opener: HttpOpener = DEFAULT_OPENER
+    ) -> HealthReport:
+        """A live reachability check, never a verdict: count open PRs off the first page. A full
+        page (>= 100) is reported as a floor, so the number is never a false exact count."""
+
+        if not token:
+            return HealthReport(
+                False, None, False,
+                "no credential, so I couldn't reach GitHub to count open PRs.",
+            )
+        owner, name = split_repo(repo)
+        url = (
+            f"{GITHUB_API_ROOT}/repos/{quote(owner)}/{quote(name)}/pulls?state=open&per_page=100"
+        )
+        try:
+            payload = get_json(url, token=token, opener=opener)
+        except GitHubProbeError:
+            return HealthReport(
+                False, None, False,
+                "couldn't reach GitHub just now (transient or access); teamctx will say so, "
+                "never a false all-clear.",
+            )
+        if not isinstance(payload, list):
+            return HealthReport(
+                False, None, False,
+                "GitHub returned an unexpected shape for open PRs; reporting it as unreachable "
+                "rather than guessing.",
+            )
+        count = len(payload)
+        if count >= 100:
+            return HealthReport(True, count, True, "reached GitHub: at least 100 open PRs (100+).")
+        return HealthReport(True, count, False, f"reached GitHub: {count} open PRs.")
 
 
 ONBOARDERS: list[GithubOnboarder] = [GithubOnboarder()]

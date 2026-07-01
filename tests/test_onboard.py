@@ -1,14 +1,38 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from teamctx.onboard import CLAUDE_MD_SNIPPET, GithubOnboarder, _atomic_write
+from teamctx.onboard import (
+    CLAUDE_MD_SNIPPET,
+    GithubOnboarder,
+    HealthReport,
+    _atomic_write,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+class _Resp:
+    def __init__(self, body: bytes) -> None:
+        self._b = body
+
+    def read(self) -> bytes:
+        return self._b
+
+    def __enter__(self):  # type: ignore[no-untyped-def]
+        return self
+
+    def __exit__(self, *a: object) -> None:
+        return None
+
+
+def _opener_returning(payload: object):  # type: ignore[no-untyped-def]
+    return lambda request: _Resp(json.dumps(payload).encode())
 
 
 def test_repo_gitignore_allows_tracking_teamctx_config() -> None:
@@ -95,3 +119,29 @@ def test_auth_status_reports_missing_with_fix(monkeypatch) -> None:
     status = GithubOnboarder().auth_status()
     assert status.found is False and status.source is None
     assert "GITHUB_TOKEN" in status.message
+
+
+def test_verify_health_exact_count() -> None:
+    report = GithubOnboarder().verify_health(
+        "acme/widgets", token="t", opener=_opener_returning([{"number": 1}, {"number": 2}])
+    )
+    assert isinstance(report, HealthReport)
+    assert report.reachable is True
+    assert report.open_pr_count == 2 and report.count_is_floor is False
+    assert "2 open" in report.message
+
+
+def test_verify_health_full_page_is_a_floor() -> None:
+    report = GithubOnboarder().verify_health(
+        "acme/widgets", token="t", opener=_opener_returning([{"number": i} for i in range(100)])
+    )
+    assert report.count_is_floor is True
+    assert "100+" in report.message or "at least 100" in report.message
+
+
+def test_verify_health_unreachable_is_honest_not_a_verdict() -> None:
+    report = GithubOnboarder().verify_health(
+        "acme/widgets", token=None, opener=_opener_returning([])
+    )
+    assert report.reachable is False
+    assert "couldn't reach" in report.message.lower() or "no credential" in report.message.lower()
