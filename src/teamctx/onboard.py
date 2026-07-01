@@ -13,6 +13,8 @@ import os
 import tempfile
 from pathlib import Path
 
+from teamctx.git_context import detect_repo
+
 # The honest snippet: only what the hook auto-fires today (open PRs on your files, failing checks).
 # Do NOT claim changed specs / superseded docs until they auto-fire (the next slice).
 CLAUDE_MD_SNIPPET = (
@@ -48,3 +50,19 @@ def _atomic_write(path: Path, text: str) -> None:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
         raise
+
+
+class GithubOnboarder:
+    """The one source onboarder today. Host-aware detection reuses Part 1's ``detect_repo``, which
+    returns owner/name only for a github.com origin (fail-closed on any other host)."""
+
+    provider = "github"
+
+    def detect(self, root: Path) -> str | None:
+        return detect_repo(root)
+
+    def propose_config(self, repo: str) -> dict[str, str]:
+        return {"repo": repo}
+
+
+ONBOARDERS: list[GithubOnboarder] = [GithubOnboarder()]

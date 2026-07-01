@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from teamctx.onboard import CLAUDE_MD_SNIPPET, _atomic_write
+from teamctx.onboard import CLAUDE_MD_SNIPPET, GithubOnboarder, _atomic_write
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -56,3 +56,26 @@ def test_atomic_write_is_failure_atomic(tmp_path: Path, monkeypatch) -> None:
         _atomic_write(target, "new\n")
     assert target.read_text(encoding="utf-8") == "original\n"  # original intact
     assert [p.name for p in target.parent.iterdir()] == ["f.txt"]  # temp cleaned up
+
+
+def _init_repo(root: Path, origin: str) -> None:
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(root), "remote", "add", "origin", origin], check=True)
+
+
+def test_detect_returns_owner_name_for_github_origin(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    assert GithubOnboarder().detect(tmp_path) == "acme/widgets"
+
+
+def test_detect_returns_none_for_non_github_origin(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "git@gitlab.com:acme/widgets.git")
+    assert GithubOnboarder().detect(tmp_path) is None
+
+
+def test_detect_returns_none_outside_a_repo(tmp_path: Path) -> None:
+    assert GithubOnboarder().detect(tmp_path) is None
+
+
+def test_propose_config_is_repo_fragment() -> None:
+    assert GithubOnboarder().propose_config("acme/widgets") == {"repo": "acme/widgets"}
