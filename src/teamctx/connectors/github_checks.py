@@ -21,8 +21,17 @@ from teamctx.connectors.github import (
 )
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 
-# A completed check with one of these conclusions is a failing gate.
-FAILING_CONCLUSIONS = frozenset({"failure", "timed_out", "action_required"})
+# A completed check counts as passing only when its conclusion is one of these. Every other
+# completed conclusion (failure, timed_out, action_required, cancelled, stale, startup_failure, an
+# unknown value, or a missing one) is treated as not-clear, so a non-passing or unrecognized
+# conclusion fails closed rather than reading as green.
+PASSING_CONCLUSIONS = frozenset({"success", "neutral", "skipped"})
+
+
+def _is_failing_run(run: dict[str, object]) -> bool:
+    """A completed run whose conclusion is not success-like is a failing gate."""
+
+    return run.get("status") == "completed" and run.get("conclusion") not in PASSING_CONCLUSIONS
 
 
 @dataclass(frozen=True)
@@ -123,10 +132,7 @@ def _validate_check_runs_payload(payload: object) -> None:
     for run in runs:
         if not isinstance(run, dict):
             raise GitHubProbeError("GitHub check-runs contained a non-object run")
-        is_failing = (
-            run.get("status") == "completed" and run.get("conclusion") in FAILING_CONCLUSIONS
-        )
-        if is_failing and (
+        if _is_failing_run(run) and (
             not isinstance(run.get("name"), str) or not isinstance(run.get("html_url"), str)
         ):
             raise GitHubProbeError("a failing check-run was missing its name or url")
@@ -172,9 +178,7 @@ def parse_failing_check_runs(payload: object) -> list[tuple[str, str]]:
     for run in runs:
         if not isinstance(run, dict):
             continue
-        if run.get("status") != "completed":
-            continue
-        if run.get("conclusion") not in FAILING_CONCLUSIONS:
+        if not _is_failing_run(run):
             continue
         name = run.get("name")
         html_url = run.get("html_url")

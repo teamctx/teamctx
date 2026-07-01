@@ -105,6 +105,11 @@ def default_doc_reader(root: str, *, base_dir: Path = Path(".")) -> list[tuple[s
         raise FileNotFoundError(docs_dir) from exc
     files: list[tuple[str, str]] = []
     for path in sorted(docs_dir.rglob("*.md")):
-        repo_relative = path.resolve().relative_to(base).as_posix()
+        try:
+            repo_relative = path.resolve().relative_to(base).as_posix()
+        except ValueError as exc:
+            # a symlinked doc resolving outside the project root cannot be placed repo-relative;
+            # fail closed to unavailable rather than crash or silently drop it.
+            raise FileNotFoundError(path) from exc
         files.append((repo_relative, path.read_text(encoding="utf-8")))
     return files

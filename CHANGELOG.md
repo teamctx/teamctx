@@ -31,7 +31,10 @@ may change while the product is hardened.
 ### Fixed
 
 - A malformed GitHub check-runs response now fails closed to an honest "unavailable" instead of a
-  false all-clear.
+  false all-clear (non-object runs, a failing run missing its name or url, or a non-integer
+  total_count).
 - In-progress CI runs are no longer silently skipped: a branch whose checks are still running no
   longer reads as green.
+- A completed check whose conclusion is not success-like (cancelled, stale, or any value other
+  than success/neutral/skipped) is now surfaced as not-clear instead of reading as green.
 

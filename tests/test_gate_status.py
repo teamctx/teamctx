@@ -218,3 +218,29 @@ def test_probe_non_int_total_count_is_unavailable() -> None:
     )
     assert doc.source_signals == []
     assert doc.source_statuses[0].status == "unavailable"
+
+
+def test_probe_cancelled_run_is_surfaced_not_clear() -> None:
+    # a completed run that is not success-like (cancelled) is NOT green; surface it, never clear.
+    payload = {"total_count": 1, "check_runs": [
+        {"name": "e2e", "status": "completed", "conclusion": "cancelled", "html_url": "u"}
+    ]}
+    doc = run_github_checks_probe(
+        repo="teamctx/teamctx", ref="build/x", token="t", request_context=_request(),
+        observed_at="2026-06-21T00:00:00Z", opener=_opener_returning(payload),
+    )
+    assert any(sig.signal_type == "missed_gate" for sig in doc.source_signals)
+
+
+def test_probe_skipped_and_neutral_runs_are_clear() -> None:
+    # skipped and neutral are success-like per GitHub; they do not falsify the gate.
+    payload = {"total_count": 2, "check_runs": [
+        {"name": "lint", "status": "completed", "conclusion": "skipped", "html_url": "u1"},
+        {"name": "opt", "status": "completed", "conclusion": "neutral", "html_url": "u2"},
+    ]}
+    doc = run_github_checks_probe(
+        repo="teamctx/teamctx", ref="build/x", token="t", request_context=_request(),
+        observed_at="2026-06-21T00:00:00Z", opener=_opener_returning(payload),
+    )
+    assert doc.source_signals == []
+    assert doc.source_statuses[0].status == "fresh"

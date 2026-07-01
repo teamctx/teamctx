@@ -199,3 +199,17 @@ def test_probe_absolute_docs_root_still_finds_superseded_in_scope(tmp_path) -> N
     assert len(document.source_signals) == 1
     assert document.source_signals[0].scope["doc"] == "docs/old.md"
     assert document.source_statuses[0].status == "fresh"
+
+
+def test_default_reader_fails_closed_for_symlink_escaping_base(tmp_path) -> None:
+    base = tmp_path / "project"
+    docs = base / "docs"
+    docs.mkdir(parents=True)
+    outside = tmp_path / "outside.md"  # inside tmp_path but OUTSIDE the project root
+    outside.write_text("---\nsuperseded_by: x\n---\n", encoding="utf-8")
+    try:
+        (docs / "escape.md").symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not supported here")
+    with pytest.raises(FileNotFoundError):
+        default_doc_reader("docs", base_dir=base)  # a doc resolving outside base -> fail closed
