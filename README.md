@@ -63,8 +63,8 @@ A clean start reads:
 
 ```
 Looks clear to start.
-  Checked: no open PRs touch your files; no failing checks found; the docs you rely on are current.
-  Not checked: spec changes (no issue is linked to this branch; link one to enable).
+  Checked: no open PRs touch your files; no failing checks found.
+  Not checked: spec changes (no issue is linked to this branch; link one to enable); docs (no docs root is configured; set work_start.docs_root to enable).
 ```
 
 When something is in the way:
@@ -72,7 +72,8 @@ When something is in the way:
 ```
 Before you start, here is what to handle first:
   • Open PR #7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 7).
-  Also checked: no failing checks found; the docs you rely on are current.
+  Also checked: no failing checks found.
+  Not checked: spec changes (no issue is linked to this branch; link one to enable); docs (no docs root is configured; set work_start.docs_root to enable).
 ```
 
 And when it could not verify something that matters, it says so rather than guessing:
