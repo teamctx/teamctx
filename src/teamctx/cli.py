@@ -38,7 +38,7 @@ from teamctx.git_context import (
     repo_relative_path,
     resolve_project_root,
 )
-from teamctx.onboard import CLAUDE_MD_SNIPPET
+from teamctx.onboard import CLAUDE_MD_SNIPPET, _atomic_write
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     ProjectConfigError,
@@ -588,34 +588,55 @@ def install_hook_command(print_only: bool, settings_path: Path | None) -> None:
     """Opt in to the teamctx reflex: add the PreToolUse hook and print the portable snippet."""
 
     settings_path = settings_path or resolve_project_root() / ".claude" / "settings.json"
-    settings = _load_settings(settings_path)
-    if not _has_hook_entry(settings):
-        hooks = settings.get("hooks")
-        if "hooks" in settings and not isinstance(hooks, dict):
-            raise click.ClickException(
-                f"{settings_path}: its 'hooks' value isn't a JSON object. "
-                "Fix or remove that key and re-run."
-            )
-        pre = (hooks or {}).get("PreToolUse")
-        if pre is not None and not isinstance(pre, list):
-            raise click.ClickException(
-                f"{settings_path}: 'hooks.PreToolUse' isn't a list. Fix or remove it and re-run."
-            )
-        settings.setdefault("hooks", {}).setdefault("PreToolUse", []).append(
-            copy.deepcopy(_HOOK_ENTRY)
-        )
-
     if print_only:
+        settings, _ = _settings_with_hook(settings_path)
         click.echo(json.dumps(settings, indent=2))
         click.echo("\nAdd this to your CLAUDE.md:\n")
         click.echo(CLAUDE_MD_SNIPPET)
         return
 
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-    click.echo(f"Installed the teamctx reflex hook in {settings_path}.")
+    wrote = install_hook_into_settings(settings_path)
+    if wrote:
+        click.echo(f"Installed the teamctx reflex hook in {settings_path}.")
+    else:
+        click.echo(f"The teamctx reflex hook is already present in {settings_path}.")
     click.echo("\nAdd this to your CLAUDE.md:\n")
     click.echo(CLAUDE_MD_SNIPPET)
+
+
+def _settings_with_hook(settings_path: Path) -> tuple[dict[str, Any], bool]:
+    """Load ``settings_path`` and return (settings-with-the-hook, added), without writing. Raises
+    click.ClickException on a malformed settings shape. ``added`` is False when already present."""
+
+    settings = _load_settings(settings_path)
+    if _has_hook_entry(settings):
+        return settings, False
+    hooks = settings.get("hooks")
+    if "hooks" in settings and not isinstance(hooks, dict):
+        raise click.ClickException(
+            f"{settings_path}: its 'hooks' value isn't a JSON object. "
+            "Fix or remove that key and re-run."
+        )
+    pre = (hooks or {}).get("PreToolUse")
+    if pre is not None and not isinstance(pre, list):
+        raise click.ClickException(
+            f"{settings_path}: 'hooks.PreToolUse' isn't a list. Fix or remove it and re-run."
+        )
+    settings.setdefault("hooks", {}).setdefault("PreToolUse", []).append(
+        copy.deepcopy(_HOOK_ENTRY)
+    )
+    return settings, True
+
+
+def install_hook_into_settings(settings_path: Path) -> bool:
+    """Add the teamctx PreToolUse hook to ``settings_path`` if absent, atomically. Returns True if
+    it wrote a change, False if the hook was already present. Raises click.ClickException on a
+    malformed settings file (the caller decides whether that aborts). Reused by ``onboard``."""
+
+    settings, added = _settings_with_hook(settings_path)
+    if added:
+        _atomic_write(settings_path, json.dumps(settings, indent=2) + "\n")
+    return added
 
 
 def _load_settings(path: Path) -> dict[str, Any]:

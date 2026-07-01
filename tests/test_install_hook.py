@@ -59,3 +59,13 @@ def test_malformed_settings_error_paths(tmp_path, monkeypatch) -> None:
     p.write_text(json.dumps({"hooks": None}), encoding="utf-8")  # hooks explicitly null
     r = CliRunner().invoke(main, ["install-hook"])
     assert r.exit_code != 0 and "Fix or remove" in r.output
+
+
+def test_install_hook_into_settings_is_idempotent(tmp_path) -> None:
+    from teamctx.cli import install_hook_into_settings
+
+    settings_path = tmp_path / ".claude" / "settings.json"
+    assert install_hook_into_settings(settings_path) is True
+    assert settings_path.exists()
+    # second call is a no-op (hook already present):
+    assert install_hook_into_settings(settings_path) is False
