@@ -244,3 +244,17 @@ def test_probe_skipped_and_neutral_runs_are_clear() -> None:
     )
     assert doc.source_signals == []
     assert doc.source_statuses[0].status == "fresh"
+
+
+def test_probe_non_string_conclusion_does_not_crash_and_is_not_clear() -> None:
+    # a malformed conclusion of any JSON type (list/object/number/null) must never crash the probe
+    # or read as clear; with a name and url present it is surfaced as a failing gate.
+    for bad in ([], {}, 1, None):
+        payload = {"total_count": 1, "check_runs": [
+            {"name": "x", "status": "completed", "conclusion": bad, "html_url": "u"}
+        ]}
+        doc = run_github_checks_probe(
+            repo="teamctx/teamctx", ref="build/x", token="t", request_context=_request(),
+            observed_at="2026-06-21T00:00:00Z", opener=_opener_returning(payload),
+        )
+        assert any(sig.signal_type == "missed_gate" for sig in doc.source_signals), bad

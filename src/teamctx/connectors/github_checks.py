@@ -29,9 +29,15 @@ PASSING_CONCLUSIONS = frozenset({"success", "neutral", "skipped"})
 
 
 def _is_failing_run(run: dict[str, object]) -> bool:
-    """A completed run whose conclusion is not success-like is a failing gate."""
+    """A completed run whose conclusion is not success-like is a failing gate.
 
-    return run.get("status") == "completed" and run.get("conclusion") not in PASSING_CONCLUSIONS
+    Guards against a non-string conclusion (null, a number, or a malformed array/object): the
+    membership test runs only for a string, so any other type fails closed to "failing" without a
+    TypeError from an unhashable value."""
+
+    conclusion = run.get("conclusion")
+    passing = isinstance(conclusion, str) and conclusion in PASSING_CONCLUSIONS
+    return run.get("status") == "completed" and not passing
 
 
 @dataclass(frozen=True)
