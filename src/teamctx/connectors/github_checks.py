@@ -96,14 +96,40 @@ def fetch_failing_check_runs(
         f"/commits/{quote(ref)}/check-runs?per_page=100"
     )
     payload = get_json(url, token=token, opener=opener)
-    if not isinstance(payload, dict) or not isinstance(payload.get("check_runs"), list):
-        # A malformed shape must never read as "no failing checks" (a false clear). Routed to
-        # unavailable by the caller's GitHubProbeError handler.
-        raise GitHubProbeError("GitHub check-runs response was malformed")
+    _validate_check_runs_payload(payload)
     failing = parse_failing_check_runs(payload)
     truncated = _detect_truncation(payload)
     pending = parse_incomplete_check_runs(payload)
     return CheckRunsFetch(failing=failing, truncated=truncated, pending=pending)
+
+
+def _validate_check_runs_payload(payload: object) -> None:
+    """Fail closed on a malformed check-runs response so nothing reads as a false clear.
+
+    Requires a dict body; a list ``check_runs``; an int ``total_count`` when present; every run an
+    object; and every completed FAILING run carrying a string name and url, so a real failure is
+    never silently dropped for want of a field. The caller's GitHubProbeError handler routes any
+    violation to an honest "unavailable".
+    """
+
+    if not isinstance(payload, dict):
+        raise GitHubProbeError("GitHub check-runs response was not an object")
+    runs = payload.get("check_runs")
+    if not isinstance(runs, list):
+        raise GitHubProbeError("GitHub check-runs response had no check_runs list")
+    total_count = payload.get("total_count")
+    if total_count is not None and not isinstance(total_count, int):
+        raise GitHubProbeError("GitHub check-runs total_count was not an integer")
+    for run in runs:
+        if not isinstance(run, dict):
+            raise GitHubProbeError("GitHub check-runs contained a non-object run")
+        is_failing = (
+            run.get("status") == "completed" and run.get("conclusion") in FAILING_CONCLUSIONS
+        )
+        if is_failing and (
+            not isinstance(run.get("name"), str) or not isinstance(run.get("html_url"), str)
+        ):
+            raise GitHubProbeError("a failing check-run was missing its name or url")
 
 
 def parse_incomplete_check_runs(payload: object) -> bool:

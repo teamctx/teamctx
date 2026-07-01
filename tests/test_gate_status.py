@@ -183,3 +183,38 @@ def test_probe_malformed_check_runs_is_unavailable_not_clear() -> None:
     )
     assert doc.source_signals == []
     assert doc.source_statuses[0].status == "unavailable"
+
+
+def test_probe_non_object_run_element_is_unavailable() -> None:
+    # a run that is not an object is malformed; never read it as "no failing checks".
+    doc = run_github_checks_probe(
+        repo="teamctx/teamctx", ref="build/x", token="t", request_context=_request(),
+        observed_at="2026-06-21T00:00:00Z",
+        opener=_opener_returning({"total_count": 1, "check_runs": [1]}),
+    )
+    assert doc.source_signals == []
+    assert doc.source_statuses[0].status == "unavailable"
+
+
+def test_probe_failing_run_missing_url_is_unavailable_not_clear() -> None:
+    # a completed FAILING run missing its url must not be silently dropped (a false clear).
+    payload = {"total_count": 1, "check_runs": [
+        {"name": "pytest", "status": "completed", "conclusion": "failure"}
+    ]}
+    doc = run_github_checks_probe(
+        repo="teamctx/teamctx", ref="build/x", token="t", request_context=_request(),
+        observed_at="2026-06-21T00:00:00Z", opener=_opener_returning(payload),
+    )
+    assert doc.source_signals == []
+    assert doc.source_statuses[0].status == "unavailable"
+
+
+def test_probe_non_int_total_count_is_unavailable() -> None:
+    # total_count present but not an int means we cannot trust the coverage; fail closed.
+    doc = run_github_checks_probe(
+        repo="teamctx/teamctx", ref="build/x", token="t", request_context=_request(),
+        observed_at="2026-06-21T00:00:00Z",
+        opener=_opener_returning({"total_count": "1", "check_runs": []}),
+    )
+    assert doc.source_signals == []
+    assert doc.source_statuses[0].status == "unavailable"
