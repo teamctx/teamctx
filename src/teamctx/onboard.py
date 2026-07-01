@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import contextlib
 import os
+import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote
 
 from teamctx.connectors.github import (
@@ -76,6 +78,63 @@ class HealthReport:
     open_pr_count: int | None
     count_is_floor: bool
     message: str
+
+
+@dataclass(frozen=True)
+class StepResult:
+    name: str
+    status: Literal["wrote", "already", "skipped", "failed", "noted"]
+    detail: str
+
+
+# Un-ignore the .teamctx directory first (git can't re-include a file whose parent dir is ignored),
+# then re-ignore its contents, then re-include config.json. Overrides a blanket `.teamctx/` rule.
+_TRACKABLE_STANZA = (
+    "# teamctx (config is tracked; local state is not)\n"
+    "!.teamctx/\n"
+    ".teamctx/*\n"
+    "!.teamctx/config.json\n"
+)
+
+
+def _config_is_trackable(root: Path) -> bool:
+    # git check-ignore exits 1 when the path is NOT ignored (i.e. trackable), 0 when ignored.
+    result = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "--no-index", ".teamctx/config.json"],
+        capture_output=True, text=True,
+    )
+    return result.returncode == 1
+
+
+def ensure_config_trackable(root: Path, *, dry_run: bool) -> StepResult:
+    """Make .teamctx/config.json trackable in the user repo, idempotently, verified by
+    git check-ignore. Fails closed (with a diagnostic) if a broader rule still ignores it."""
+
+    if _config_is_trackable(root):
+        return StepResult("gitignore", "already", ".teamctx/config.json is already trackable.")
+    if dry_run:
+        return StepResult(
+            "gitignore", "skipped",
+            "--dry-run: would patch .gitignore to track .teamctx/config.json.",
+        )
+    gitignore = root / ".gitignore"
+    existing = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
+    if "!.teamctx/config.json" not in existing:  # idempotent: never append the stanza twice
+        prefix = existing if existing == "" or existing.endswith("\n") else existing + "\n"
+        _atomic_write(gitignore, prefix + "\n" + _TRACKABLE_STANZA)
+    if _config_is_trackable(root):
+        return StepResult(
+            "gitignore", "wrote", "patched .gitignore so .teamctx/config.json is trackable."
+        )
+    detail = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "-v", "--no-index", ".teamctx/config.json"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    return StepResult(
+        "gitignore", "failed",
+        "couldn't make .teamctx/config.json trackable; a broader rule still ignores it "
+        f"({detail or 'see .gitignore'}). Edit .gitignore by hand.",
+    )
 
 
 def _auth_found_message(token_env: str, source: str | None) -> str:

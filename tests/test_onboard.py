@@ -11,7 +11,9 @@ from teamctx.onboard import (
     CLAUDE_MD_SNIPPET,
     GithubOnboarder,
     HealthReport,
+    StepResult,
     _atomic_write,
+    ensure_config_trackable,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -145,3 +147,48 @@ def test_verify_health_unreachable_is_honest_not_a_verdict() -> None:
     )
     assert report.reachable is False
     assert "couldn't reach" in report.message.lower() or "no credential" in report.message.lower()
+
+
+def _git_init(root: Path) -> None:
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+
+
+def _is_trackable(root: Path) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "--no-index", ".teamctx/config.json"],
+        capture_output=True, text=True,
+    ).returncode == 1
+
+
+def test_ensure_trackable_patches_a_blanket_ignore(tmp_path: Path) -> None:
+    _git_init(tmp_path)
+    (tmp_path / ".gitignore").write_text(".teamctx/\n", encoding="utf-8")  # blanket dir ignore
+    step = ensure_config_trackable(tmp_path, dry_run=False)
+    assert isinstance(step, StepResult)
+    assert step.status == "wrote"
+    assert _is_trackable(tmp_path)  # the un-ignore stanza overrides the blanket .teamctx/
+
+
+def test_ensure_trackable_already_when_nothing_ignores_it(tmp_path: Path) -> None:
+    _git_init(tmp_path)  # no .gitignore -> config.json already trackable
+    step = ensure_config_trackable(tmp_path, dry_run=False)
+    assert step.status == "already"
+
+
+def test_ensure_trackable_is_idempotent(tmp_path: Path) -> None:
+    _git_init(tmp_path)
+    (tmp_path / ".gitignore").write_text(".teamctx/\n", encoding="utf-8")
+    ensure_config_trackable(tmp_path, dry_run=False)
+    body_after_first = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    second = ensure_config_trackable(tmp_path, dry_run=False)
+    assert second.status == "already"
+    assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == body_after_first  # no dup
+
+
+def test_ensure_trackable_dry_run_writes_nothing(tmp_path: Path) -> None:
+    _git_init(tmp_path)
+    (tmp_path / ".gitignore").write_text(".teamctx/\n", encoding="utf-8")
+    before = (tmp_path / ".gitignore").read_text(encoding="utf-8")
+    step = ensure_config_trackable(tmp_path, dry_run=True)
+    assert step.status == "skipped"
+    assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == before
