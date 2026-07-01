@@ -79,3 +79,19 @@ def test_detect_returns_none_outside_a_repo(tmp_path: Path) -> None:
 
 def test_propose_config_is_repo_fragment() -> None:
     assert GithubOnboarder().propose_config("acme/widgets") == {"repo": "acme/widgets"}
+
+
+def test_auth_status_reports_found_source(monkeypatch) -> None:
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    status = GithubOnboarder().auth_status()
+    assert status.found is True and status.source == "env"
+    assert "GITHUB_TOKEN" in status.message
+
+
+def test_auth_status_reports_missing_with_fix(monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN_FILE", raising=False)
+    monkeypatch.setenv("TEAMCTX_DISABLE_GH_AUTH", "1")
+    status = GithubOnboarder().auth_status()
+    assert status.found is False and status.source is None
+    assert "GITHUB_TOKEN" in status.message

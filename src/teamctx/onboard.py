@@ -11,9 +11,11 @@ from __future__ import annotations
 import contextlib
 import os
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from teamctx.git_context import detect_repo
+from teamctx.tokens import resolve_github_token_with_source
 
 # The honest snippet: only what the hook auto-fires today (open PRs on your files, failing checks).
 # Do NOT claim changed specs / superseded docs until they auto-fire (the next slice).
@@ -52,6 +54,31 @@ def _atomic_write(path: Path, text: str) -> None:
         raise
 
 
+@dataclass(frozen=True)
+class AuthStatus:
+    found: bool
+    source: str | None
+    message: str
+
+
+def _auth_found_message(token_env: str, source: str | None) -> str:
+    if source == "env":
+        return f"using {token_env} from your environment."
+    if source == "file":
+        return f"using the token file in {token_env}_FILE."
+    if source == "gh":
+        return "using your gh CLI login."
+    return "credential found."
+
+
+def _auth_missing_message(token_env: str) -> str:
+    return (
+        f"no GitHub credential found. Set {token_env} in your environment (or {token_env}_FILE "
+        "with a path to a token file), or run `gh auth login`. Until then teamctx can't check "
+        "open PRs or failing checks and will say so, never a false all-clear."
+    )
+
+
 class GithubOnboarder:
     """The one source onboarder today. Host-aware detection reuses Part 1's ``detect_repo``, which
     returns owner/name only for a github.com origin (fail-closed on any other host)."""
@@ -63,6 +90,12 @@ class GithubOnboarder:
 
     def propose_config(self, repo: str) -> dict[str, str]:
         return {"repo": repo}
+
+    def auth_status(self, token_env: str = "GITHUB_TOKEN") -> AuthStatus:
+        token, source = resolve_github_token_with_source(token_env)
+        if token:
+            return AuthStatus(True, source, _auth_found_message(token_env, source))
+        return AuthStatus(False, None, _auth_missing_message(token_env))
 
 
 ONBOARDERS: list[GithubOnboarder] = [GithubOnboarder()]

@@ -78,3 +78,26 @@ def test_github_token_gh_skipped_when_disabled(monkeypatch) -> None:
     monkeypatch.setenv("TEAMCTX_DISABLE_GH_AUTH", "1")
     monkeypatch.setattr("teamctx.tokens._gh_auth_token", lambda: "ghtok")
     assert resolve_github_token() is None
+
+
+def test_resolve_github_token_with_source_env(monkeypatch) -> None:
+    from teamctx.tokens import resolve_github_token_with_source
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    assert resolve_github_token_with_source() == ("x", "env")
+
+
+def test_resolve_github_token_with_source_file(monkeypatch, tmp_path) -> None:
+    from teamctx.tokens import resolve_github_token_with_source
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    f = tmp_path / "t"
+    f.write_text("secret\n", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN_FILE", str(f))
+    assert resolve_github_token_with_source() == ("secret", "file")
+
+
+def test_resolve_github_token_with_source_none(monkeypatch) -> None:
+    from teamctx.tokens import resolve_github_token_with_source
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN_FILE", raising=False)
+    monkeypatch.setenv("TEAMCTX_DISABLE_GH_AUTH", "1")
+    assert resolve_github_token_with_source() == (None, None)
