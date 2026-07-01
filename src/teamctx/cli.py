@@ -38,6 +38,7 @@ from teamctx.git_context import (
     repo_relative_path,
     resolve_project_root,
 )
+from teamctx.onboard import CLAUDE_MD_SNIPPET
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     ProjectConfigError,
@@ -569,15 +570,6 @@ def eval_export_command(scenarios_dir: Path, output_dir: Path) -> None:
 
 _HOOK_MATCHER = "Edit|Write|MultiEdit"
 _HOOK_ENTRY = {"matcher": _HOOK_MATCHER, "hooks": [{"type": "command", "command": "teamctx-hook"}]}
-_CLAUDE_MD_SNIPPET = (
-    "## Team context (teamctx)\n"
-    "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
-    "into your plan. It surfaces open PRs touching your files, failing checks, changed specs, and "
-    "superseded docs. Tell your human collaborator anything relevant in plain terms so they can "
-    "decide.\n"
-)
-
-
 @main.command("install-hook")
 @click.option(
     "--print",
@@ -616,14 +608,14 @@ def install_hook_command(print_only: bool, settings_path: Path | None) -> None:
     if print_only:
         click.echo(json.dumps(settings, indent=2))
         click.echo("\nAdd this to your CLAUDE.md:\n")
-        click.echo(_CLAUDE_MD_SNIPPET)
+        click.echo(CLAUDE_MD_SNIPPET)
         return
 
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
     click.echo(f"Installed the teamctx reflex hook in {settings_path}.")
     click.echo("\nAdd this to your CLAUDE.md:\n")
-    click.echo(_CLAUDE_MD_SNIPPET)
+    click.echo(CLAUDE_MD_SNIPPET)
 
 
 def _load_settings(path: Path) -> dict[str, Any]:
