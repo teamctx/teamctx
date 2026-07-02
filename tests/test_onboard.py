@@ -12,9 +12,11 @@ from teamctx.onboard import (
     CLAUDE_MD_SNIPPET,
     GithubOnboarder,
     HealthReport,
+    OnboardResult,
     StepResult,
     _atomic_write,
     ensure_config_trackable,
+    run_onboard,
     upsert_claude_md_snippet,
 )
 
@@ -260,3 +262,82 @@ def test_snippet_hand_edited_marked_body_preserved(tmp_path: Path) -> None:
     step = upsert_claude_md_snippet(tmp_path, dry_run=False)
     assert step.status == "skipped"
     assert "I rewrote this myself." in (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+
+
+def _github_origin(root: Path) -> None:
+    _init_repo(root, "git@github.com:acme/widgets.git")
+
+
+def test_run_onboard_happy_path_writes_everything(tmp_path: Path, monkeypatch) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    assert isinstance(result, OnboardResult)
+    assert result.ok is True
+    assert (tmp_path / ".teamctx" / "config.json").exists()
+    assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8").count(_START) == 1
+    names = {s.name for s in result.steps}
+    assert {"config", "gitignore", "auth", "hook", "claude_md", "health"} <= names
+
+
+def test_run_onboard_dry_run_writes_nothing(tmp_path: Path, monkeypatch) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=True, opener=_opener_returning([])
+    )
+    assert not (tmp_path / ".teamctx" / "config.json").exists()
+    assert not (tmp_path / "CLAUDE.md").exists()
+    assert not (tmp_path / ".claude").exists()
+    # no write step reports having written anything (skipped, or already-satisfied):
+    writes = [s for s in result.steps if s.name in {"config", "gitignore", "claude_md", "hook"}]
+    assert all(s.status in {"skipped", "already"} for s in writes)
+
+
+def test_run_onboard_no_repo_stops_writing_nothing(tmp_path: Path) -> None:
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)  # no origin
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    assert result.ok is False
+    assert not (tmp_path / ".teamctx").exists()
+    assert "repo" in result.steps[0].detail.lower()
+
+
+def test_run_onboard_existing_config_needs_force(tmp_path: Path, monkeypatch) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    again = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    config_step = next(s for s in again.steps if s.name == "config")
+    assert config_step.status == "already" and "force" in config_step.detail.lower()
+
+
+def test_run_onboard_failed_step_sets_ok_false(tmp_path: Path, monkeypatch) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text('{"hooks": "not a dict"}', encoding="utf-8")  # malformed
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    hook_step = next(s for s in result.steps if s.name == "hook")
+    assert hook_step.status == "failed"
+    assert result.ok is False  # a failed step flips ok
+
+
+def test_run_onboard_invalid_repo_override(tmp_path: Path) -> None:
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    result = run_onboard(
+        tmp_path, repo_override="not-a-repo", force=False, dry_run=False,
+        opener=_opener_returning([]),
+    )
+    assert result.ok is False
+    assert "not-a-repo" in result.steps[0].detail

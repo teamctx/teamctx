@@ -9,6 +9,7 @@ the flow returns structured results the CLI renders. No LLM, no verdicts here.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import subprocess
 import tempfile
@@ -25,7 +26,8 @@ from teamctx.connectors.github import (
     get_json,
     split_repo,
 )
-from teamctx.git_context import detect_repo
+from teamctx.git_context import detect_repo, parse_github_repo
+from teamctx.project_config import build_work_start_project_config
 from teamctx.tokens import resolve_github_token_with_source
 
 # The honest snippet: only what the hook auto-fires today (open PRs on your files, failing checks).
@@ -294,3 +296,99 @@ def upsert_claude_md_snippet(root: Path, *, dry_run: bool) -> StepResult:
     joiner = "" if prefix == "" else "\n"
     _atomic_write(path, prefix + joiner + block)
     return StepResult("claude_md", "wrote", "added the teamctx snippet to CLAUDE.md.")
+
+
+@dataclass(frozen=True)
+class OnboardResult:
+    ok: bool
+    steps: tuple[StepResult, ...]
+    next_step: str
+
+
+def _resolve_repo(root: Path, repo_override: str | None) -> tuple[str | None, bool]:
+    """Return (repo owner/name or None, whether an override was given). An explicit override is
+    validated as a github.com slug; detection is host-aware via the onboarder."""
+
+    if repo_override is not None:
+        return parse_github_repo(repo_override), True
+    return ONBOARDERS[0].detect(root), False
+
+
+def _write_config_step(root: Path, repo: str, *, force: bool, dry_run: bool) -> StepResult:
+    path = root / ".teamctx" / "config.json"
+    if path.exists() and not force:
+        return StepResult("config", "already", f"{path} exists; pass --force to overwrite.")
+    if dry_run:
+        return StepResult("config", "skipped", "--dry-run: would write .teamctx/config.json.")
+    config = build_work_start_project_config(repo=repo)
+    _atomic_write(
+        path, json.dumps(config.model_dump(mode="json", exclude_defaults=True), indent=2) + "\n"
+    )
+    return StepResult("config", "wrote", str(path))
+
+
+def _install_hook_step(root: Path, *, dry_run: bool) -> StepResult:
+    from teamctx.cli import (
+        install_hook_into_settings,  # local: cli imports onboard, break the cycle
+    )
+
+    settings_path = root / ".claude" / "settings.json"
+    if dry_run:
+        return StepResult("hook", "skipped", "--dry-run: would install the PreToolUse reflex hook.")
+    try:
+        wrote = install_hook_into_settings(settings_path)
+    except Exception as exc:  # a malformed settings file: fail only this step, keep going
+        return StepResult("hook", "failed", f"could not update {settings_path}: {exc}")
+    return StepResult("hook", "wrote" if wrote else "already", str(settings_path))
+
+
+def run_onboard(
+    root: Path,
+    *,
+    repo_override: str | None,
+    force: bool,
+    dry_run: bool,
+    token_env: str = "GITHUB_TOKEN",
+    opener: HttpOpener = DEFAULT_OPENER,
+) -> OnboardResult:
+    """Scaffold teamctx in ``root``. Additive and idempotent; each write atomic; a failed step
+    fails only itself (and flips ``ok``); a missing token is reported, not fatal."""
+
+    repo, override_given = _resolve_repo(root, repo_override)
+    if repo is None:
+        if override_given:
+            detail = f"{repo_override!r} is not a github.com owner/name; pass --repo owner/name."
+        else:
+            detail = (
+                "could not determine a GitHub repo: this is not a git repo with a github.com "
+                "'origin', and no --repo was given. Re-run with --repo owner/name."
+            )
+        return OnboardResult(
+            False, (StepResult("detect", "failed", detail),), "re-run with --repo owner/name"
+        )
+
+    # Resolve the credential ONCE, so the reported source and the health check use the same token
+    # (the gh fallback is not re-evaluated) and cannot drift.
+    token, source = resolve_github_token_with_source(token_env)
+    auth_found = token is not None
+    auth_message = (
+        _auth_found_message(token_env, source) if auth_found else _auth_missing_message(token_env)
+    )
+    health = ONBOARDERS[0].verify_health(repo, token=token, opener=opener)
+
+    steps: list[StepResult] = [
+        _write_config_step(root, repo, force=force, dry_run=dry_run),
+        ensure_config_trackable(root, dry_run=dry_run),
+        StepResult("auth", "noted", auth_message),
+        _install_hook_step(root, dry_run=dry_run),
+        upsert_claude_md_snippet(root, dry_run=dry_run),
+        StepResult("health", "noted", health.message),
+    ]
+
+    ok = not any(step.status == "failed" for step in steps)
+    next_step = (
+        "Run `teamctx work-start --path <a file you're about to edit>` to see it work."
+        if auth_found
+        else "Set a GitHub credential (see the auth line above), then run `teamctx work-start`."
+    )
+    return OnboardResult(ok, tuple(steps), next_step)
