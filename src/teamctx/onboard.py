@@ -27,7 +27,12 @@ from teamctx.connectors.github import (
     split_repo,
 )
 from teamctx.git_context import detect_repo, parse_github_repo
-from teamctx.project_config import build_work_start_project_config
+from teamctx.project_config import (
+    ProjectConfig,
+    ProjectConfigError,
+    build_work_start_project_config,
+    load_project_config,
+)
 from teamctx.tokens import resolve_github_token_with_source
 
 # The honest snippet: only what the hook auto-fires today (open PRs on your files, failing checks).
@@ -192,7 +197,9 @@ class GithubOnboarder:
         )
         try:
             payload = get_json(url, token=token, opener=opener)
-        except GitHubProbeError:
+        except (GitHubProbeError, OSError, ValueError):
+            # any network, HTTP, or decode failure: an honest unreachable report, never a crash and
+            # never a false all-clear (this is a reachability check, not a verdict).
             return HealthReport(
                 False, None, False,
                 "couldn't reach GitHub just now (transient or access); teamctx will say so, "
@@ -305,26 +312,64 @@ class OnboardResult:
     next_step: str
 
 
-def _resolve_repo(root: Path, repo_override: str | None) -> tuple[str | None, bool]:
-    """Return (repo owner/name or None, whether an override was given). An explicit override is
-    validated as a github.com slug; detection is host-aware via the onboarder."""
+def _load_existing_config(path: Path) -> tuple[ProjectConfig | None, str | None]:
+    """(config, None) if a valid config exists, (None, error) if it exists but is malformed, or
+    (None, None) if absent."""
 
-    if repo_override is not None:
-        return parse_github_repo(repo_override), True
-    return ONBOARDERS[0].detect(root), False
+    if not path.exists():
+        return None, None
+    try:
+        return load_project_config(path), None
+    except ProjectConfigError as exc:
+        return None, str(exc)
 
 
-def _write_config_step(root: Path, repo: str, *, force: bool, dry_run: bool) -> StepResult:
-    path = root / ".teamctx" / "config.json"
-    if path.exists() and not force:
-        return StepResult("config", "already", f"{path} exists; pass --force to overwrite.")
+def _config_step(
+    path: Path,
+    *,
+    override_repo: str | None,
+    detected: str | None,
+    existing: ProjectConfig | None,
+    error: str | None,
+    force: bool,
+    dry_run: bool,
+) -> StepResult:
+    if error is not None and not force:
+        return StepResult(
+            "config", "failed",
+            f"{path} exists but is not valid teamctx config ({error}); fix it or pass --force to "
+            "overwrite.",
+        )
+    if existing is not None and not force:
+        existing_repo = existing.work_start.repo if existing.work_start is not None else None
+        if existing_repo is None:
+            return StepResult(
+                "config", "already",
+                f"{path} exists but has no work_start.repo; pass --force to write one.",
+            )
+        detail = f"{path} already configures {existing_repo}; pass --force to overwrite."
+        if override_repo is not None and override_repo != existing_repo:
+            detail = (
+                f"{path} already configures {existing_repo}, not {override_repo}; pass --force to "
+                "change it."
+            )
+        return StepResult("config", "already", detail)
+    write_repo = override_repo or detected
+    if write_repo is None:
+        return StepResult(
+            "config", "failed",
+            "can't determine a repo to write: not a git repo with a github.com 'origin', and no "
+            "--repo. Pass --repo owner/name.",
+        )
     if dry_run:
-        return StepResult("config", "skipped", "--dry-run: would write .teamctx/config.json.")
-    config = build_work_start_project_config(repo=repo)
+        return StepResult(
+            "config", "skipped", f"--dry-run: would write .teamctx/config.json for {write_repo}."
+        )
+    config = build_work_start_project_config(repo=write_repo)
     _atomic_write(
         path, json.dumps(config.model_dump(mode="json", exclude_defaults=True), indent=2) + "\n"
     )
-    return StepResult("config", "wrote", f"{path} (repo {repo})")
+    return StepResult("config", "wrote", f"{path} (repo {write_repo})")
 
 
 def _install_hook_step(root: Path, *, dry_run: bool) -> StepResult:
@@ -354,17 +399,40 @@ def run_onboard(
     """Scaffold teamctx in ``root``. Additive and idempotent; each write atomic; a failed step
     fails only itself (and flips ``ok``); a missing token is reported, not fatal."""
 
-    repo, override_given = _resolve_repo(root, repo_override)
-    if repo is None:
-        if override_given:
-            detail = f"{repo_override!r} is not a github.com owner/name; pass --repo owner/name."
-        else:
-            detail = (
-                "could not determine a GitHub repo: this is not a git repo with a github.com "
-                "'origin', and no --repo was given. Re-run with --repo owner/name."
-            )
+    override_repo = parse_github_repo(repo_override) if repo_override is not None else None
+    if repo_override is not None and override_repo is None:
         return OnboardResult(
-            False, (StepResult("detect", "failed", detail),), "re-run with --repo owner/name"
+            False,
+            (StepResult(
+                "detect", "failed",
+                f"{repo_override!r} is not a github.com owner/name; pass --repo owner/name.",
+            ),),
+            "re-run with --repo owner/name",
+        )
+
+    config_path = root / ".teamctx" / "config.json"
+    existing, config_error = _load_existing_config(config_path)
+    detected = detect_repo(root)
+    # The repo work-start will actually use (explicit > config > git-detect), so the health check
+    # and report match runtime and can't be a setup/runtime split-brain. A kept valid config wins;
+    # otherwise the newly written config (override or git-detect) is what runtime will see.
+    keeping_existing = existing is not None and not force
+    config_repo = (
+        existing.work_start.repo
+        if existing is not None and existing.work_start is not None
+        else None
+    )
+    effective_repo = config_repo if keeping_existing else (override_repo or detected)
+
+    if effective_repo is None and config_error is None:
+        return OnboardResult(
+            False,
+            (StepResult(
+                "detect", "failed",
+                "could not determine a GitHub repo: not a git repo with a github.com 'origin', no "
+                ".teamctx/config.json, and no --repo. Re-run with --repo owner/name.",
+            ),),
+            "re-run with --repo owner/name",
         )
 
     # Resolve the credential ONCE, so the reported source and the health check use the same token
@@ -374,15 +442,22 @@ def run_onboard(
     auth_message = (
         _auth_found_message(token_env, source) if auth_found else _auth_missing_message(token_env)
     )
-    health = ONBOARDERS[0].verify_health(repo, token=token, opener=opener)
+    if effective_repo is not None:
+        health = ONBOARDERS[0].verify_health(effective_repo, token=token, opener=opener)
+        health_message = health.message
+    else:
+        health_message = "no valid repo resolved, so no reachability check was run."
 
     steps: list[StepResult] = [
-        _write_config_step(root, repo, force=force, dry_run=dry_run),
+        _config_step(
+            config_path, override_repo=override_repo, detected=detected,
+            existing=existing, error=config_error, force=force, dry_run=dry_run,
+        ),
         ensure_config_trackable(root, dry_run=dry_run),
         StepResult("auth", "noted", auth_message),
         _install_hook_step(root, dry_run=dry_run),
         upsert_claude_md_snippet(root, dry_run=dry_run),
-        StepResult("health", "noted", health.message),
+        StepResult("health", "noted", health_message),
     ]
 
     ok = not any(step.status == "failed" for step in steps)

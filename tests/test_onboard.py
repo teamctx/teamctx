@@ -341,3 +341,76 @@ def test_run_onboard_invalid_repo_override(tmp_path: Path) -> None:
     )
     assert result.ok is False
     assert "not-a-repo" in result.steps[0].detail
+
+
+def _capturing_opener(urls: list):  # type: ignore[no-untyped-def]
+    def opener(request):  # type: ignore[no-untyped-def]
+        urls.append(request.full_url)
+        return _Resp(b"[]")
+
+    return opener
+
+
+def test_run_onboard_existing_config_health_uses_runtime_repo(tmp_path: Path, monkeypatch) -> None:
+    # git origin is acme/widgets, but an existing config points at other/project. work-start uses
+    # the config (config > git-detect), so onboard's health MUST check other/project, not the
+    # git-detected repo. This is the setup/runtime split-brain the whole slice refuses.
+    _github_origin(tmp_path)  # origin git@github.com:acme/widgets.git
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "config.json").write_text(
+        json.dumps(
+            {"schema_version": "teamctx.project_config.v0", "work_start": {"repo": "other/project"}}
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    urls: list[str] = []
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_capturing_opener(urls)
+    )
+    config_step = next(s for s in result.steps if s.name == "config")
+    assert config_step.status == "already" and "other/project" in config_step.detail
+    assert urls and "other/project" in urls[0] and "acme/widgets" not in urls[0]
+
+
+def test_run_onboard_malformed_config_fails(tmp_path: Path) -> None:
+    _github_origin(tmp_path)
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "config.json").write_text("{ not valid json", encoding="utf-8")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    config_step = next(s for s in result.steps if s.name == "config")
+    assert config_step.status == "failed"
+    assert result.ok is False
+
+
+def test_snippet_start_without_end_untouched(tmp_path: Path) -> None:
+    content = "# P\n" + _START + "\nbody\n"
+    (tmp_path / "CLAUDE.md").write_text(content, encoding="utf-8")
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "skipped"
+    assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8") == content
+
+
+def test_snippet_empty_file_appends(tmp_path: Path) -> None:
+    (tmp_path / "CLAUDE.md").write_text("", encoding="utf-8")
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "wrote"
+    assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8").count(_START) == 1
+
+
+def test_snippet_legacy_twice_is_left_alone(tmp_path: Path) -> None:
+    content = "# P\n" + _LEGACY_SNIPPET_BODY + "\n" + _LEGACY_SNIPPET_BODY + "\n"
+    (tmp_path / "CLAUDE.md").write_text(content, encoding="utf-8")
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "skipped"  # two matches -> not confident -> never guess
+    assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8") == content
+
+
+def test_snippet_eof_no_newline_appends_cleanly(tmp_path: Path) -> None:
+    (tmp_path / "CLAUDE.md").write_text("# Project no newline", encoding="utf-8")
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "wrote"
+    text = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "# Project no newline" in text and _START in text
