@@ -38,7 +38,7 @@ from teamctx.git_context import (
     repo_relative_path,
     resolve_project_root,
 )
-from teamctx.onboard import CLAUDE_MD_SNIPPET, _atomic_write
+from teamctx.onboard import CLAUDE_MD_SNIPPET, _atomic_write, run_onboard
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     ProjectConfigError,
@@ -637,6 +637,36 @@ def install_hook_into_settings(settings_path: Path) -> bool:
     if added:
         _atomic_write(settings_path, json.dumps(settings, indent=2) + "\n")
     return added
+
+
+_STEP_MARK = {
+    "wrote": "wrote", "already": "already set", "skipped": "skipped",
+    "failed": "FAILED", "noted": "checked",
+}
+
+
+@main.command("onboard")
+@click.option(
+    "--repo", "repo", default=None, help="GitHub repo owner/name. Overrides git 'origin' detection."
+)
+@click.option("--force", is_flag=True, help="Overwrite an existing .teamctx/config.json.")
+@click.option("--dry-run", "dry_run", is_flag=True, help="Preview every step; write nothing.")
+@click.option(
+    "--yes", is_flag=True, help="Assume non-interactive (accepted; onboard does not prompt today)."
+)
+def onboard_command(repo: str | None, force: bool, dry_run: bool, yes: bool) -> None:
+    """Set up teamctx in this repo: config, reflex hook, CLAUDE.md snippet, and an honest
+    credential and reachability report. Idempotent; re-run any time."""
+
+    result = run_onboard(
+        resolve_project_root(), repo_override=repo, force=force, dry_run=dry_run
+    )
+    click.echo("teamctx onboard:" + (" (dry run, nothing written)" if dry_run else ""))
+    for step in result.steps:
+        click.echo(f"  [{_STEP_MARK[step.status]}] {step.name}: {step.detail}")
+    click.echo(f"\nNext: {result.next_step}")
+    if not result.ok:
+        raise SystemExit(1)
 
 
 def _load_settings(path: Path) -> dict[str, Any]:

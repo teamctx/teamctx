@@ -324,7 +324,7 @@ def _write_config_step(root: Path, repo: str, *, force: bool, dry_run: bool) -> 
     _atomic_write(
         path, json.dumps(config.model_dump(mode="json", exclude_defaults=True), indent=2) + "\n"
     )
-    return StepResult("config", "wrote", str(path))
+    return StepResult("config", "wrote", f"{path} (repo {repo})")
 
 
 def _install_hook_step(root: Path, *, dry_run: bool) -> StepResult:
