@@ -523,3 +523,34 @@ def test_onboard_effective_repo_matches_runtime_exactly(tmp_path: Path, monkeypa
     )
     runtime = resolve_work_start_inputs(paths=("x.py",), root=tmp_path)
     assert urls and f"repos/{runtime.repo}/" in urls[0]
+
+
+@pytest.mark.parametrize(
+    ("origin", "config_repo"),
+    [
+        ("acme/widgets", None),                          # git origin only
+        ("acme/widgets", "other/project"),              # config wins over git
+        (None, "other/project"),                         # config in a non-git tree
+        ("acme/widgets", "https://github.com/o/p.git"),  # config as a URL, normalized
+        ("acme/widgets", ""),                            # empty config repo -> git fallback
+    ],
+)
+def test_onboard_health_matches_runtime_repo(
+    tmp_path: Path, monkeypatch, origin, config_repo
+) -> None:
+    # regression net: onboard's health target must equal resolve_work_start_inputs's repo for every
+    # explicit/config/git combination, since both go through the one resolve_github_repo.
+    from teamctx.resolve import resolve_work_start_inputs
+    if origin is not None:
+        _init_repo(tmp_path, f"git@github.com:{origin}.git")
+    else:
+        subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    if config_repo is not None:
+        _write_config(tmp_path, config_repo)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    urls: list[str] = []
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_capturing_opener(urls)
+    )
+    runtime = resolve_work_start_inputs(paths=("x.py",), root=tmp_path)
+    assert urls and f"repos/{runtime.repo}/" in urls[0]
