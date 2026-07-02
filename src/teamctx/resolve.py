@@ -36,6 +36,27 @@ class WorkStartResolutionError(ValueError):
     """Raised when a required work-start input (the repository) cannot be resolved."""
 
 
+def resolve_github_repo(
+    explicit: str | None, config_repo: str | None, detected: str | None
+) -> tuple[str | None, str | None]:
+    """The github.com owner/name to use, by the one precedence every surface shares:
+    explicit > config > git-detect (truthy, so an empty string is treated as absent), validated via
+    ``parse_github_repo``. Returns ``(repo, None)`` or ``(None, error_message)``. This is THE single
+    source of repo resolution, so a setup command (onboard) cannot drift from what work-start
+    resolves; both call this with their own explicit/config/detected inputs."""
+
+    raw_repo = explicit or config_repo or detected
+    if not raw_repo:
+        return None, _REPO_UNRESOLVED
+    normalized = parse_github_repo(raw_repo)
+    if normalized is None:
+        return None, (
+            f"{raw_repo!r} is not a GitHub repo (owner/name). teamctx only checks GitHub today; "
+            "pass a github.com repo with --github-repo or work_start.repo."
+        )
+    return normalized, None
+
+
 def resolve_work_start_inputs(
     *,
     paths: tuple[str, ...],
@@ -53,15 +74,9 @@ def resolve_work_start_inputs(
 ) -> WorkStartInputs:
     config = _load_work_start_config(root, config_path)
 
-    raw_repo = repo or _config_repo(config) or detect_repo(root)
-    if raw_repo is None:
-        raise WorkStartResolutionError(_REPO_UNRESOLVED)
-    resolved_repo = parse_github_repo(raw_repo)
+    resolved_repo, repo_error = resolve_github_repo(repo, _config_repo(config), detect_repo(root))
     if resolved_repo is None:
-        raise WorkStartResolutionError(
-            f"{raw_repo!r} is not a GitHub repo (owner/name). teamctx only checks GitHub today; "
-            "pass a github.com repo with --github-repo or work_start.repo."
-        )
+        raise WorkStartResolutionError(repo_error or _REPO_UNRESOLVED)
 
     return WorkStartInputs(
         repo=resolved_repo,

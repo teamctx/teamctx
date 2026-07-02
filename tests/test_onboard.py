@@ -463,3 +463,63 @@ def test_run_onboard_config_without_repo_falls_back_to_git(tmp_path: Path, monke
     assert urls and "repos/acme/widgets/" in urls[0]
     config_step = next(s for s in result.steps if s.name == "config")
     assert config_step.status == "already" and "acme/widgets" in config_step.detail
+
+
+def test_run_onboard_non_git_with_config_skips_gitignore(tmp_path: Path, monkeypatch) -> None:
+    # a non-git dir with a valid config: work-start works from config, so onboard skips gitignore
+    # (git check-ignore would error) rather than failing.
+    _write_config(tmp_path, "acme/widgets")  # no git init
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    urls: list[str] = []
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_capturing_opener(urls)
+    )
+    gi = next(s for s in result.steps if s.name == "gitignore")
+    assert gi.status == "skipped" and result.ok is True
+    assert urls and "repos/acme/widgets/" in urls[0]
+
+
+def test_run_onboard_non_git_config_without_repo_fails(tmp_path: Path) -> None:
+    _write_config(tmp_path, None)  # non-git, config has no repo -> runtime raises -> onboard fails
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    assert next(s for s in result.steps if s.name == "config").status == "failed"
+    assert result.ok is False
+
+
+def test_run_onboard_broken_config_does_not_health_check(tmp_path: Path, monkeypatch) -> None:
+    # a malformed OR invalid-repo config: runtime rejects before resolving a repo, so onboard must
+    # health-check NOTHING (not the git origin).
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    invalid_repo = json.dumps(
+        {"schema_version": "teamctx.project_config.v0", "work_start": {"repo": "nope"}}
+    )
+    for body in ("{ bad json", invalid_repo):
+        _github_origin(tmp_path)
+        (tmp_path / ".teamctx").mkdir(exist_ok=True)
+        (tmp_path / ".teamctx" / "config.json").write_text(body, encoding="utf-8")
+        urls: list[str] = []
+        result = run_onboard(
+            tmp_path, repo_override=None, force=False, dry_run=False,
+            opener=_capturing_opener(urls),
+        )
+        assert result.ok is False, body
+        assert urls == [], body  # never health-checks a repo runtime would reject
+        subprocess.run(
+            ["rm", "-rf", str(tmp_path / ".git"), str(tmp_path / ".teamctx")], check=True
+        )
+
+
+def test_onboard_effective_repo_matches_runtime_exactly(tmp_path: Path, monkeypatch) -> None:
+    # the parity guarantee: onboard health-checks EXACTLY the repo work-start resolves.
+    from teamctx.resolve import resolve_work_start_inputs
+    _github_origin(tmp_path)  # git origin acme/widgets
+    _write_config(tmp_path, "other/project")  # config wins at runtime
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    urls: list[str] = []
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_capturing_opener(urls)
+    )
+    runtime = resolve_work_start_inputs(paths=("x.py",), root=tmp_path)
+    assert urls and f"repos/{runtime.repo}/" in urls[0]

@@ -33,6 +33,7 @@ from teamctx.project_config import (
     build_work_start_project_config,
     load_project_config,
 )
+from teamctx.resolve import resolve_github_repo
 from teamctx.tokens import resolve_github_token_with_source
 
 # The honest snippet: only what the hook auto-fires today (open PRs on your files, failing checks).
@@ -104,6 +105,13 @@ _TRACKABLE_STANZA = (
 )
 
 
+def _is_git_repo(root: Path) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+        capture_output=True, text=True,
+    ).returncode == 0
+
+
 def _config_is_trackable(root: Path) -> bool:
     # git check-ignore exits 1 when the path is NOT ignored (i.e. trackable), 0 when ignored.
     result = subprocess.run(
@@ -115,8 +123,13 @@ def _config_is_trackable(root: Path) -> bool:
 
 def ensure_config_trackable(root: Path, *, dry_run: bool) -> StepResult:
     """Make .teamctx/config.json trackable in the user repo, idempotently, verified by
-    git check-ignore. Fails closed (with a diagnostic) if a broader rule still ignores it."""
+    git check-ignore. In a non-git tree there is nothing to track (git check-ignore errors), so it
+    is skipped, not failed, matching that work-start still works from config alone."""
 
+    if not _is_git_repo(root):
+        return StepResult(
+            "gitignore", "skipped", "not a git repo, so there is nothing to make trackable yet."
+        )
     if _config_is_trackable(root):
         return StepResult("gitignore", "already", ".teamctx/config.json is already trackable.")
     if dry_run:
@@ -340,50 +353,48 @@ def _config_step_and_effective_repo(
     ``effective_repo`` is None when nothing resolves; a config that names a non-github repo is a
     failure here just as it is at runtime."""
 
+    # A malformed existing config: runtime raises before it resolves any repo, so there is nothing
+    # to health-check (effective None) and it is a failure.
     if error is not None and not force:
-        # malformed config is the headline; detect is a best-effort repo for the health line.
         return (
             StepResult(
                 "config", "failed",
                 f"{path} exists but is not valid teamctx config ({error}); fix it or pass --force "
                 "to overwrite.",
             ),
-            detected,
+            None,
         )
+    # Keeping a valid existing config: the repo is whatever runtime resolves from it, via the ONE
+    # shared resolver (config.repo normalized, else git-detect), and rejected exactly as runtime
+    # rejects it. No drift.
     if existing is not None and not force:
-        raw = existing.work_start.repo if existing.work_start is not None else None
-        normalized = parse_github_repo(raw) if raw is not None else None
-        if raw is not None and normalized is None:
-            # runtime resolves config.repo through parse_github_repo and rejects a non-github value;
-            # report the same failure instead of a false "already".
+        config_raw = existing.work_start.repo if existing.work_start is not None else None
+        effective, repo_error = resolve_github_repo(None, config_raw, detected)
+        if repo_error is not None:
             return (
                 StepResult(
                     "config", "failed",
-                    f"{path} configures {raw!r}, which is not a github.com owner/name; work-start "
-                    "will reject it. Fix it or pass --force to overwrite.",
+                    f"{path} configures a repo work-start can't use: {repo_error} Fix it or pass "
+                    "--force to overwrite.",
                 ),
-                detected,
+                None,
             )
-        effective = normalized or detected  # runtime: config.repo, else git-detect
-        if normalized is not None:
-            detail = f"{path} already configures {normalized}; pass --force to overwrite."
-            if override_repo is not None and override_repo != normalized:
+        if config_raw:
+            detail = f"{path} already configures {effective}; pass --force to overwrite."
+            if override_repo is not None and override_repo != effective:
                 detail = (
-                    f"{path} already configures {normalized}, not {override_repo}; pass --force to "
+                    f"{path} already configures {effective}, not {override_repo}; pass --force to "
                     "change it."
                 )
-        elif detected is not None:
-            detail = (
-                f"{path} exists with no repo set; work-start will use the git origin {detected}."
-            )
         else:
             detail = (
-                f"{path} exists with no repo set and there is no git origin; add work_start.repo "
-                "or pass --force with --repo."
+                f"{path} exists with no repo set; work-start will use the git origin {effective}."
             )
         return StepResult("config", "already", detail), effective
-    write_repo = override_repo or detected
-    if write_repo is None:
+    # Writing a new config: the written repo is explicit-or-git-detect, resolved the same way, so
+    # the config we write is exactly what runtime will read back.
+    write_repo, repo_error = resolve_github_repo(override_repo, None, detected)
+    if repo_error is not None or write_repo is None:
         return (
             StepResult(
                 "config", "failed",
@@ -434,8 +445,10 @@ def run_onboard(
     """Scaffold teamctx in ``root``. Additive and idempotent; each write atomic; a failed step
     fails only itself (and flips ``ok``); a missing token is reported, not fatal."""
 
-    override_repo = parse_github_repo(repo_override) if repo_override is not None else None
-    if repo_override is not None and override_repo is None:
+    # An empty --repo is treated as absent (falls back to config/git), exactly as runtime treats a
+    # falsy explicit repo; only a truthy-but-invalid --repo is an error.
+    override_repo = parse_github_repo(repo_override) if repo_override else None
+    if repo_override and override_repo is None:
         return OnboardResult(
             False,
             (StepResult(

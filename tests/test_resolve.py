@@ -99,3 +99,16 @@ def test_resolve_normalizes_request_paths_repo_relative(tmp_path: Path) -> None:
         paths=("./docs/old.md", "src/a.py"), repo="owner/name", root=tmp_path
     )
     assert inputs.paths == ("docs/old.md", "src/a.py")
+
+
+def test_resolve_github_repo_shared_precedence_and_normalization() -> None:
+    from teamctx.resolve import resolve_github_repo
+    assert resolve_github_repo("a/b", "c/d", "e/f") == ("a/b", None)  # explicit wins
+    assert resolve_github_repo(None, "c/d", "e/f") == ("c/d", None)  # then config
+    assert resolve_github_repo(None, None, "e/f") == ("e/f", None)  # then git-detect
+    assert resolve_github_repo("", "", "e/f") == ("e/f", None)  # empty strings are absent
+    assert resolve_github_repo("https://github.com/o/p.git", None, None)[0] == "o/p"  # normalized
+    repo, err = resolve_github_repo("not-a-repo", None, None)
+    assert repo is None and err is not None  # invalid -> error
+    repo, err = resolve_github_repo(None, None, None)
+    assert repo is None and err is not None  # nothing resolves -> error
