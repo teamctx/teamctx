@@ -414,3 +414,52 @@ def test_snippet_eof_no_newline_appends_cleanly(tmp_path: Path) -> None:
     assert step.status == "wrote"
     text = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
     assert "# Project no newline" in text and _START in text
+
+
+def _write_config(root: Path, repo: str | None) -> None:
+    (root / ".teamctx").mkdir(exist_ok=True)
+    ws = {"repo": repo} if repo is not None else {}
+    body: dict = {"schema_version": "teamctx.project_config.v0"}
+    if repo is not None:
+        body["work_start"] = ws
+    (root / ".teamctx" / "config.json").write_text(json.dumps(body), encoding="utf-8")
+
+
+def test_run_onboard_url_config_repo_normalized_for_health(tmp_path: Path, monkeypatch) -> None:
+    # runtime normalizes a config repo through parse_github_repo; onboard health must target the
+    # SAME normalized owner/name, not the raw URL (else a split-brain + a malformed request).
+    _github_origin(tmp_path)
+    _write_config(tmp_path, "https://github.com/other/project.git")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    urls: list[str] = []
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_capturing_opener(urls)
+    )
+    assert urls and "repos/other/project/" in urls[0]
+    # no raw URL artifacts leaked into the api path (the bug was repos/https%3A//.../project.git):
+    assert "project.git" not in urls[0] and "%2F" not in urls[0]
+
+
+def test_run_onboard_invalid_config_repo_fails(tmp_path: Path) -> None:
+    _github_origin(tmp_path)
+    _write_config(tmp_path, "not-a-repo")  # runtime would reject this
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    config_step = next(s for s in result.steps if s.name == "config")
+    assert config_step.status == "failed" and "not-a-repo" in config_step.detail
+    assert result.ok is False
+
+
+def test_run_onboard_config_without_repo_falls_back_to_git(tmp_path: Path, monkeypatch) -> None:
+    # a valid config with no work_start.repo -> runtime uses git-detect; onboard must too.
+    _github_origin(tmp_path)  # git origin acme/widgets
+    _write_config(tmp_path, None)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    urls: list[str] = []
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_capturing_opener(urls)
+    )
+    assert urls and "repos/acme/widgets/" in urls[0]
+    config_step = next(s for s in result.steps if s.name == "config")
+    assert config_step.status == "already" and "acme/widgets" in config_step.detail
