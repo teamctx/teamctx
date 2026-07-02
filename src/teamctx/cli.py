@@ -38,6 +38,7 @@ from teamctx.git_context import (
     repo_relative_path,
     resolve_project_root,
 )
+from teamctx.onboard import CLAUDE_MD_SNIPPET, _atomic_write, run_onboard
 from teamctx.project_config import (
     DEFAULT_CONFIG_PATH,
     ProjectConfigError,
@@ -569,15 +570,6 @@ def eval_export_command(scenarios_dir: Path, output_dir: Path) -> None:
 
 _HOOK_MATCHER = "Edit|Write|MultiEdit"
 _HOOK_ENTRY = {"matcher": _HOOK_MATCHER, "hooks": [{"type": "command", "command": "teamctx-hook"}]}
-_CLAUDE_MD_SNIPPET = (
-    "## Team context (teamctx)\n"
-    "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
-    "into your plan. It surfaces open PRs touching your files, failing checks, changed specs, and "
-    "superseded docs. Tell your human collaborator anything relevant in plain terms so they can "
-    "decide.\n"
-)
-
-
 @main.command("install-hook")
 @click.option(
     "--print",
@@ -596,34 +588,85 @@ def install_hook_command(print_only: bool, settings_path: Path | None) -> None:
     """Opt in to the teamctx reflex: add the PreToolUse hook and print the portable snippet."""
 
     settings_path = settings_path or resolve_project_root() / ".claude" / "settings.json"
-    settings = _load_settings(settings_path)
-    if not _has_hook_entry(settings):
-        hooks = settings.get("hooks")
-        if "hooks" in settings and not isinstance(hooks, dict):
-            raise click.ClickException(
-                f"{settings_path}: its 'hooks' value isn't a JSON object. "
-                "Fix or remove that key and re-run."
-            )
-        pre = (hooks or {}).get("PreToolUse")
-        if pre is not None and not isinstance(pre, list):
-            raise click.ClickException(
-                f"{settings_path}: 'hooks.PreToolUse' isn't a list. Fix or remove it and re-run."
-            )
-        settings.setdefault("hooks", {}).setdefault("PreToolUse", []).append(
-            copy.deepcopy(_HOOK_ENTRY)
-        )
-
     if print_only:
+        settings, _ = _settings_with_hook(settings_path)
         click.echo(json.dumps(settings, indent=2))
         click.echo("\nAdd this to your CLAUDE.md:\n")
-        click.echo(_CLAUDE_MD_SNIPPET)
+        click.echo(CLAUDE_MD_SNIPPET)
         return
 
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-    click.echo(f"Installed the teamctx reflex hook in {settings_path}.")
+    wrote = install_hook_into_settings(settings_path)
+    if wrote:
+        click.echo(f"Installed the teamctx reflex hook in {settings_path}.")
+    else:
+        click.echo(f"The teamctx reflex hook is already present in {settings_path}.")
     click.echo("\nAdd this to your CLAUDE.md:\n")
-    click.echo(_CLAUDE_MD_SNIPPET)
+    click.echo(CLAUDE_MD_SNIPPET)
+
+
+def _settings_with_hook(settings_path: Path) -> tuple[dict[str, Any], bool]:
+    """Load ``settings_path`` and return (settings-with-the-hook, added), without writing. Raises
+    click.ClickException on a malformed settings shape. ``added`` is False when already present."""
+
+    settings = _load_settings(settings_path)
+    if _has_hook_entry(settings):
+        return settings, False
+    hooks = settings.get("hooks")
+    if "hooks" in settings and not isinstance(hooks, dict):
+        raise click.ClickException(
+            f"{settings_path}: its 'hooks' value isn't a JSON object. "
+            "Fix or remove that key and re-run."
+        )
+    pre = (hooks or {}).get("PreToolUse")
+    if pre is not None and not isinstance(pre, list):
+        raise click.ClickException(
+            f"{settings_path}: 'hooks.PreToolUse' isn't a list. Fix or remove it and re-run."
+        )
+    settings.setdefault("hooks", {}).setdefault("PreToolUse", []).append(
+        copy.deepcopy(_HOOK_ENTRY)
+    )
+    return settings, True
+
+
+def install_hook_into_settings(settings_path: Path) -> bool:
+    """Add the teamctx PreToolUse hook to ``settings_path`` if absent, atomically. Returns True if
+    it wrote a change, False if the hook was already present. Raises click.ClickException on a
+    malformed settings file (the caller decides whether that aborts). Reused by ``onboard``."""
+
+    settings, added = _settings_with_hook(settings_path)
+    if added:
+        _atomic_write(settings_path, json.dumps(settings, indent=2) + "\n")
+    return added
+
+
+_STEP_MARK = {
+    "wrote": "wrote", "already": "already set", "skipped": "skipped",
+    "failed": "FAILED", "noted": "checked",
+}
+
+
+@main.command("onboard")
+@click.option(
+    "--repo", "repo", default=None, help="GitHub repo owner/name. Overrides git 'origin' detection."
+)
+@click.option("--force", is_flag=True, help="Overwrite an existing .teamctx/config.json.")
+@click.option("--dry-run", "dry_run", is_flag=True, help="Preview every step; write nothing.")
+@click.option(
+    "--yes", is_flag=True, help="Assume non-interactive (accepted; onboard does not prompt today)."
+)
+def onboard_command(repo: str | None, force: bool, dry_run: bool, yes: bool) -> None:
+    """Set up teamctx in this repo: config, reflex hook, CLAUDE.md snippet, and an honest
+    credential and reachability report. Idempotent; re-run any time."""
+
+    result = run_onboard(
+        resolve_project_root(), repo_override=repo, force=force, dry_run=dry_run
+    )
+    click.echo("teamctx onboard:" + (" (dry run, nothing written)" if dry_run else ""))
+    for step in result.steps:
+        click.echo(f"  [{_STEP_MARK[step.status]}] {step.name}: {step.detail}")
+    click.echo(f"\nNext: {result.next_step}")
+    if not result.ok:
+        raise SystemExit(1)
 
 
 def _load_settings(path: Path) -> dict[str, Any]:

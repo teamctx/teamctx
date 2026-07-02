@@ -123,7 +123,19 @@ Plan: `docs/superpowers/plans/2026-06-29-runtime-honesty-phase2.md`. **codex adv
 plan and then the diff across three rounds and found a real P0 (hook dropping a pending gate) plus
 several genuine false-clears (a cancelled check reading green; a malformed payload dropping a failure)
 that were all fixed before merge, which is exactly why the review-before-merge rule stands.** **Phase 3
-= the visible `onboard` command (spec 2.x), next.**
+= the visible `onboard` command (spec 2.x): DONE 2026-07-02 (merged to main via `feat/onboard-command`,
+428 tests + ruff + mypy strict green), which COMPLETES the onboard + runtime-honesty slice.** `teamctx
+onboard` scaffolds a repo with zero flags and zero false confidence: detect the GitHub repo, write a
+trackable `.teamctx/config.json`, install the reflex hook, write an honest CLAUDE.md snippet (managed
+between markers, migration-safe, never overwriting hand-edited content), report the real credential
+path, and print a live open-PR reachability check that is never a verdict. **A single
+`resolve_github_repo` is now shared by onboard and `resolve_work_start_inputs`, so the setup command
+cannot report a different repo than the runtime resolves (the split-brain this slice refuses).** codex
+adversarially reviewed the plan and then the diff across five rounds and found the marker-corruption P0,
+the gitignore-parent-dir rule, and the onboard split-brain (repo-resolution parity), all fixed before
+merge. **Next slice: auto-discovery (linked issue and `since` from branch/PR, the docs path-gating fix,
+and expanding the snippet to claim all four checks); then GitLab and Jira plug the detect/registry
+seam.**
 
 ### Sprint 3: Proof (the numbers)
 Labelled conformance corpus + replay harness → the **E4/E5** numbers protocol v1.2 owes.

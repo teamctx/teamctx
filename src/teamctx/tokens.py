@@ -32,14 +32,32 @@ def resolve_github_token(token_env: str = "GITHUB_TOKEN") -> str | None:
     'force the no-token path with a custom unset env var' behavior is preserved. The ``gh`` step
     is also skipped when ``TEAMCTX_DISABLE_GH_AUTH`` is set (test isolation)."""
 
-    token = resolve_token(token_env)
+    return resolve_github_token_with_source(token_env)[0]
+
+
+def resolve_github_token_with_source(
+    token_env: str = "GITHUB_TOKEN",
+) -> tuple[str | None, str | None]:
+    """Like ``resolve_github_token`` but also reports which source produced the credential
+    ("env", "file", or "gh"), or ``(None, None)``. One resolution, so a reporter (onboard) and the
+    runtime cannot disagree and the ``gh`` fallback is evaluated exactly once."""
+
+    token = os.environ.get(token_env)
     if token:
-        return token
-    if token_env != "GITHUB_TOKEN":
-        return None
-    if os.environ.get("TEAMCTX_DISABLE_GH_AUTH"):
-        return None
-    return _gh_auth_token()
+        return token, "env"
+    token_file = os.environ.get(f"{token_env}_FILE")
+    if token_file:
+        try:
+            value = Path(token_file).expanduser().read_text(encoding="utf-8").strip() or None
+        except OSError:
+            value = None
+        if value:
+            return value, "file"
+    if token_env == "GITHUB_TOKEN" and not os.environ.get("TEAMCTX_DISABLE_GH_AUTH"):
+        gh = _gh_auth_token()
+        if gh:
+            return gh, "gh"
+    return None, None
 
 
 def _gh_auth_token() -> str | None:

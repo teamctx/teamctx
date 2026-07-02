@@ -9,6 +9,12 @@ may change while the product is hardened.
 
 ### Added
 
+- `teamctx onboard`: a single command to set up a repo with zero flags and zero false confidence.
+  It detects the GitHub repo, writes a trackable `.teamctx/config.json`, installs the reflex hook,
+  writes an honest CLAUDE.md snippet (managed between markers, migration-safe, never overwriting
+  hand-edited content), reports the real credential path, and prints a live open-PR reachability
+  check that is never a verdict. Additive and idempotent, every write atomic; `--dry-run`,
+  `--force`, and `--repo` supported. A missing credential is reported, never fatal.
 - Initial product, architecture, security/privacy, and build-plan documents.
 - Python package skeleton with CLI entrypoint.
 - Initial project metadata and executable metadata tests.
