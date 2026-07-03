@@ -211,10 +211,11 @@ def test_request_context_shares_paths_and_issues() -> None:
 def test_workstartinputs_accepts_valid_github_slug() -> None:
     inputs = WorkStartInputs(repo="owner/name", paths=("a.py",))
     assert inputs.repo == "owner/name"
+    assert inputs.forge == "github"
 
 
 def test_workstartinputs_rejects_non_github_repo() -> None:
-    with pytest.raises(ValueError, match="GitHub repo"):
+    with pytest.raises(ValueError, match="github repo"):
         WorkStartInputs(repo="https://gitlab.com/owner/name", paths=("a.py",))
 
 
@@ -223,6 +224,26 @@ def test_workstartinputs_normalizes_github_url() -> None:
     # never receives a raw URL to interpolate into the api.github.com path.
     inputs = WorkStartInputs(repo="https://github.com/owner/name.git", paths=("a.py",))
     assert inputs.repo == "owner/name"
+
+
+def test_workstartinputs_accepts_valid_gitlab_slug() -> None:
+    inputs = WorkStartInputs(repo="group/sub/project", forge="gitlab", paths=("a.py",))
+    assert inputs.repo == "group/sub/project"
+    assert inputs.forge == "gitlab"
+
+
+def test_workstartinputs_normalizes_gitlab_url() -> None:
+    inputs = WorkStartInputs(
+        repo="https://gitlab.com/group/sub/project.git",
+        forge="gitlab",
+        paths=("a.py",),
+    )
+    assert inputs.repo == "group/sub/project"
+
+
+def test_workstartinputs_validates_repo_under_forge() -> None:
+    with pytest.raises(ValueError, match="github repo"):
+        WorkStartInputs(repo="group/sub/project", forge="github", paths=("a.py",))
 
 
 def _status_for_source(documents: list[CoreContractDocument], source_id: str):

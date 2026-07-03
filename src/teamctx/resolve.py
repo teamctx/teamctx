@@ -15,9 +15,11 @@ from pathlib import Path
 from teamctx.clock import parse_since
 from teamctx.discover import derive_issues, derive_since
 from teamctx.git_context import (
+    ForgeProvider,
     detect_branch,
-    detect_repo,
+    detect_forge_repo,
     parse_github_repo,
+    parse_gitlab_repo,
     repo_relative_path,
 )
 from teamctx.project_config import (
@@ -47,16 +49,35 @@ def resolve_github_repo(
     source of repo resolution, so a setup command (onboard) cannot drift from what work-start
     resolves; both call this with their own explicit/config/detected inputs."""
 
-    raw_repo = explicit or config_repo or detected
+    detected_forge: tuple[str, ForgeProvider] | None = (detected, "github") if detected else None
+    resolved, error = resolve_forge_repo(explicit, config_repo, "github", detected_forge)
+    if resolved is None:
+        return None, error
+    return resolved[0], None
+
+
+def resolve_forge_repo(
+    explicit: str | None,
+    config_repo: str | None,
+    config_forge: ForgeProvider | None,
+    detected: tuple[str, ForgeProvider] | None,
+) -> tuple[tuple[str, ForgeProvider] | None, str | None]:
+    """Provider-aware repo resolution.
+
+    Repo precedence stays ``explicit > config > git-detect``. Forge precedence is independent:
+    ``config.forge > detected-forge > github``. The selected repo string is then parsed under the
+    resolved forge, so a committed forge setting is authoritative even when the git origin host
+    differs.
+    """
+
+    resolved_forge = config_forge or (detected[1] if detected is not None else "github")
+    raw_repo = explicit or config_repo or (detected[0] if detected is not None else None)
     if not raw_repo:
         return None, _REPO_UNRESOLVED
-    normalized = parse_github_repo(raw_repo)
+    normalized = _parse_repo_for_forge(raw_repo, resolved_forge)
     if normalized is None:
-        return None, (
-            f"{raw_repo!r} is not a GitHub repo (owner/name). teamctx only checks GitHub today; "
-            "pass a github.com repo with --github-repo or work_start.repo."
-        )
-    return normalized, None
+        return None, _repo_parse_error(raw_repo, resolved_forge)
+    return (normalized, resolved_forge), None
 
 
 def resolve_work_start_inputs(
@@ -76,9 +97,15 @@ def resolve_work_start_inputs(
 ) -> WorkStartInputs:
     config = _load_work_start_config(root, config_path)
 
-    resolved_repo, repo_error = resolve_github_repo(repo, _config_repo(config), detect_repo(root))
-    if resolved_repo is None:
+    resolved, repo_error = resolve_forge_repo(
+        repo,
+        _config_repo(config),
+        _config_forge(config),
+        detect_forge_repo(root),
+    )
+    if resolved is None:
         raise WorkStartResolutionError(repo_error or _REPO_UNRESOLVED)
+    resolved_repo, resolved_forge = resolved
 
     resolved_issues = tuple(issues)
     resolved_since = since
@@ -115,6 +142,7 @@ def resolve_work_start_inputs(
         derived_issues_capped=issues_capped,
         docs_root=docs_root or _config_docs_root(config),
         ref=ref,
+        forge=resolved_forge,
     )
 
 
@@ -128,5 +156,27 @@ def _config_repo(config: WorkStartConfig | None) -> str | None:
     return config.repo if config is not None else None
 
 
+def _config_forge(config: WorkStartConfig | None) -> ForgeProvider | None:
+    return config.forge if config is not None else None
+
+
 def _config_docs_root(config: WorkStartConfig | None) -> str | None:
     return config.docs_root if config is not None else None
+
+
+def _parse_repo_for_forge(repo: str, forge: ForgeProvider) -> str | None:
+    if forge == "github":
+        return parse_github_repo(repo)
+    return parse_gitlab_repo(repo)
+
+
+def _repo_parse_error(raw_repo: str, forge: ForgeProvider) -> str:
+    if forge == "github":
+        return (
+            f"{raw_repo!r} is not a GitHub repo (owner/name). teamctx only checks GitHub today; "
+            "pass a github.com repo with --github-repo or work_start.repo."
+        )
+    return (
+        f"{raw_repo!r} is not a GitLab repo (group/project). Pass a gitlab.com repo with "
+        "work_start.repo and work_start.forge."
+    )

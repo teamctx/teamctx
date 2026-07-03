@@ -20,7 +20,7 @@ from teamctx.connectors.github import run_github_pr_probe
 from teamctx.connectors.github_checks import run_github_checks_probe
 from teamctx.connectors.github_issues import run_github_issues_probe
 from teamctx.core.contracts import CoreContractDocument, RequestContext, SourceFamily
-from teamctx.git_context import parse_github_repo
+from teamctx.git_context import ForgeProvider, parse_github_repo, parse_gitlab_repo
 
 _CRITERIA_NO_ISSUE = (
     "spec changes (no issue could be derived from your branch or commits; name one with --issue)"
@@ -52,12 +52,13 @@ class WorkStartInputs:
     derived_issues_capped: bool = False
     docs_root: str | None = None
     ref: str | None = None
+    forge: ForgeProvider = "github"
     profile: Literal["full", "reflex"] = "full"
 
     def __post_init__(self) -> None:
-        normalized = parse_github_repo(self.repo)
+        normalized = _parse_repo_for_forge(self.repo, self.forge)
         if normalized is None:
-            raise ValueError(f"not a valid GitHub repo slug: {self.repo!r}")
+            raise ValueError(f"not a valid {self.forge} repo slug: {self.repo!r}")
         object.__setattr__(self, "repo", normalized)
 
 
@@ -198,3 +199,9 @@ def _criteria_disabled_message(inputs: WorkStartInputs) -> str:
     if inputs.derived_issues_capped:
         message = f"{message[:-1]}; {_CAP_NOTE})"
     return message
+
+
+def _parse_repo_for_forge(repo: str, forge: ForgeProvider) -> str | None:
+    if forge == "github":
+        return parse_github_repo(repo)
+    return parse_gitlab_repo(repo)

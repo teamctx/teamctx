@@ -22,30 +22,33 @@ def _write_config(root: Path, **work_start: str) -> None:
 
 def test_explicit_repo_wins_over_config_and_git(monkeypatch, tmp_path: Path) -> None:
     _write_config(tmp_path, repo="from/config")
-    monkeypatch.setattr(resolve_mod, "detect_repo", lambda root: "from/git")
+    monkeypatch.setattr(resolve_mod, "detect_forge_repo", lambda root: ("from/git", "github"))
     monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: None)
     inputs = resolve_work_start_inputs(paths=("src/x.py",), repo="from/explicit", root=tmp_path)
     assert inputs.repo == "from/explicit"
+    assert inputs.forge == "github"
 
 
 def test_config_repo_wins_over_git(monkeypatch, tmp_path: Path) -> None:
     _write_config(tmp_path, repo="from/config")
-    monkeypatch.setattr(resolve_mod, "detect_repo", lambda root: "from/git")
+    monkeypatch.setattr(resolve_mod, "detect_forge_repo", lambda root: ("from/git", "github"))
     monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: None)
     inputs = resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
     assert inputs.repo == "from/config"
+    assert inputs.forge == "github"
 
 
 def test_git_used_when_no_explicit_or_config(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(resolve_mod, "detect_repo", lambda root: "from/git")
+    monkeypatch.setattr(resolve_mod, "detect_forge_repo", lambda root: ("from/git", "github"))
     monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: "feature")
     inputs = resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
     assert inputs.repo == "from/git"
+    assert inputs.forge == "github"
     assert inputs.branch == "feature"
 
 
 def test_missing_repo_raises(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(resolve_mod, "detect_repo", lambda root: None)
+    monkeypatch.setattr(resolve_mod, "detect_forge_repo", lambda root: None)
     monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: None)
     with pytest.raises(WorkStartResolutionError):
         resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
@@ -53,7 +56,7 @@ def test_missing_repo_raises(monkeypatch, tmp_path: Path) -> None:
 
 def test_branch_from_git_not_config_and_docs_root_from_config(monkeypatch, tmp_path: Path) -> None:
     _write_config(tmp_path, repo="from/config", docs_root="docs")
-    monkeypatch.setattr(resolve_mod, "detect_repo", lambda root: None)
+    monkeypatch.setattr(resolve_mod, "detect_forge_repo", lambda root: None)
     monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: "detected")
     inputs = resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
     assert inputs.branch == "detected"
@@ -62,7 +65,7 @@ def test_branch_from_git_not_config_and_docs_root_from_config(monkeypatch, tmp_p
 
 def test_explicit_docs_root_wins_over_config(monkeypatch, tmp_path: Path) -> None:
     _write_config(tmp_path, repo="from/config", docs_root="from/config")
-    monkeypatch.setattr(resolve_mod, "detect_repo", lambda root: None)
+    monkeypatch.setattr(resolve_mod, "detect_forge_repo", lambda root: None)
     monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: None)
     inputs = resolve_work_start_inputs(
         paths=("src/x.py",), docs_root="from/explicit", root=tmp_path
@@ -90,6 +93,7 @@ def test_resolves_from_a_real_repo_and_config(tmp_path: Path) -> None:
     _write_config(tmp_path, docs_root="docs")
     inputs = resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
     assert inputs.repo == "acme/widgets"
+    assert inputs.forge == "github"
     assert inputs.branch == "feat"
     assert inputs.docs_root == "docs"
 
@@ -116,8 +120,71 @@ def test_resolve_github_repo_shared_precedence_and_normalization() -> None:
     assert repo is None and err is not None  # nothing resolves -> error
 
 
+def test_resolve_forge_repo_shared_precedence_and_normalization() -> None:
+    from teamctx.resolve import resolve_forge_repo
+
+    assert resolve_forge_repo("a/b", "c/d", "github", ("e/f", "gitlab")) == (
+        ("a/b", "github"), None,
+    )
+    assert resolve_forge_repo(None, "group/sub/project", "gitlab", ("e/f", "github")) == (
+        ("group/sub/project", "gitlab"), None,
+    )
+    assert resolve_forge_repo(None, None, None, ("group/sub/project", "gitlab")) == (
+        ("group/sub/project", "gitlab"), None,
+    )
+    assert resolve_forge_repo("https://github.com/o/p.git", None, None, None) == (
+        ("o/p", "github"), None,
+    )
+    resolved, err = resolve_forge_repo(None, "group/sub/project", "github", None)
+    assert resolved is None and err is not None
+
+
+@pytest.mark.parametrize(
+    ("config_repo", "config_forge", "detected", "expected"),
+    [
+        (None, None, ("from/git", "github"), ("from/git", "github")),
+        (None, None, ("group/sub/project", "gitlab"), ("group/sub/project", "gitlab")),
+        ("from/config", "github", ("group/sub/project", "gitlab"), ("from/config", "github")),
+        (
+            "group/sub/project",
+            "gitlab",
+            ("from/git", "github"),
+            ("group/sub/project", "gitlab"),
+        ),
+        (
+            "https://gitlab.com/group/sub/project.git",
+            "gitlab",
+            None,
+            ("group/sub/project", "gitlab"),
+        ),
+        ("acme/widgets", "gitlab", ("acme/widgets", "github"), ("acme/widgets", "gitlab")),
+    ],
+)
+def test_resolve_work_start_inputs_parity_matrix_includes_forge(
+    monkeypatch,
+    tmp_path: Path,
+    config_repo: str | None,
+    config_forge: str | None,
+    detected: tuple[str, str] | None,
+    expected: tuple[str, str],
+) -> None:
+    if config_repo is not None or config_forge is not None:
+        fields = {}
+        if config_repo is not None:
+            fields["repo"] = config_repo
+        if config_forge is not None:
+            fields["forge"] = config_forge
+        _write_config(tmp_path, **fields)
+    monkeypatch.setattr(resolve_mod, "detect_forge_repo", lambda root: detected)
+    monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: None)
+
+    inputs = resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
+
+    assert (inputs.repo, inputs.forge) == expected
+
+
 def test_resolve_derives_issues_since_and_provenance(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(resolve_mod, "detect_repo", lambda root: "from/git")
+    monkeypatch.setattr(resolve_mod, "detect_forge_repo", lambda root: ("from/git", "github"))
     monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: "feature")
     monkeypatch.setattr(
         resolve_mod,
