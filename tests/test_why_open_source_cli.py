@@ -16,6 +16,8 @@ from click.testing import CliRunner
 
 from teamctx.cli import main
 
+_EM_DASH = chr(0x2014)
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -446,7 +448,7 @@ def test_render_why_has_no_em_dashes() -> None:
 
     card = _make_collision_card()
     output = render_why(card)  # type: ignore[arg-type]
-    assert "—" not in output
+    assert _EM_DASH not in output
 
 
 def test_render_open_source_includes_gh_command() -> None:
@@ -538,4 +540,4 @@ def test_render_open_source_has_no_em_dashes() -> None:
         policy=metadata_only_policy("pr metadata"),
     )
     output = render_open_source(card, (open_target,))  # type: ignore[arg-type]
-    assert "—" not in output
+    assert _EM_DASH not in output

@@ -169,6 +169,16 @@ def parse_github_pull_requests(
         changed_paths = parse_changed_paths(files_payload)
         labels = parse_label_names(raw_pr.get("labels"))
         title = raw_pr.get("title") if include_titles else None
+        head = raw_pr.get("head")
+        head_ref: str | None = None
+        head_repo: str | None = None
+        if isinstance(head, dict):
+            ref = head.get("ref")
+            head_ref = ref if isinstance(ref, str) else None
+            head_repo_obj = head.get("repo")
+            if isinstance(head_repo_obj, dict):
+                full_name = head_repo_obj.get("full_name")
+                head_repo = full_name if isinstance(full_name, str) else None
         pull_requests.append(
             ForgeReviewPullRequest(
                 provider="github",
@@ -184,6 +194,8 @@ def parse_github_pull_requests(
                     raw_pr.get("merged_at") if isinstance(raw_pr.get("merged_at"), str) else None
                 ),
                 labels=tuple(labels),
+                head_ref=head_ref,
+                head_repo=head_repo,
             )
         )
     return pull_requests

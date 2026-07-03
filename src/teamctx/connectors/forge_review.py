@@ -47,6 +47,8 @@ class ForgeReviewPullRequest:
     updated_at: str
     merged_at: str | None = None
     labels: tuple[str, ...] = ()
+    head_ref: str | None = None
+    head_repo: str | None = None
 
 
 def normalize_forge_review_prs(
