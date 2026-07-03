@@ -124,21 +124,27 @@ def _finding_bullets(assessment: WorkStartAssessment) -> list[str]:
 def _finding_text(state: CheckState, card: ContextCard) -> str:
     action = _FINDING_ACTION.get(state.check, "")
     base = f"{card.text.rstrip('.')}: {action}" if action else card.text
-    pr = _gh_hint(card.source_display) if state.check == "conflict" else ""
+    pr = _gh_hint(card) if state.check == "conflict" else ""
     return f"{base}{pr}"
 
 
-def _gh_hint(source_display: str) -> str:
-    marker = source_display.rfind("#")
+def _gh_hint(card: ContextCard) -> str:
+    marker = card.source_display.rfind("#")
     if marker == -1:
         return ""
     digits = ""
-    for ch in source_display[marker + 1:]:
+    for ch in card.source_display[marker + 1:]:
         if ch.isdigit():
             digits += ch
         else:
             break
-    return f" (gh pr view {digits})" if digits else ""
+    if not digits:
+        return ""
+    repo = card.scope.get("repo")
+    # carry --repo so the command works from any directory (and matches open-source)
+    if isinstance(repo, str) and repo:
+        return f" (gh pr view {digits} --repo {repo})"
+    return f" (gh pr view {digits})"
 
 
 def _cant_verify_bullets(assessment: WorkStartAssessment) -> list[str]:
