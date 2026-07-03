@@ -131,12 +131,11 @@ def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
     present family whose entries are all ``disabled`` is also ``incomplete[policy-gap]`` (we knew
     the connector exists but did not have the required input). Among present, non-disabled
     families the worst status wins: any stale/unavailable/blocked, or any unrecognized status,
-    gives ``incomplete[stale-dep]`` (a real unreachable dominates), then ``pending`` gives
-    ``incomplete[pending]``, then a family whose only non-fresh status is ``not_applicable`` gives
-    ``not_applicable[out-of-scope]``, else ``complete``. Treating an unrecognized status as
-    stale-dep preserves the prior "non-fresh means stale-dep" default. The reasons
-    ``dangling``/``unbounded``/``unmodeled-ref`` are defined but not yet emitted (they need
-    reference-target / connector-schema structure introduced in later slices).
+    gives ``incomplete[stale-dep]`` (a real unreachable dominates), then ``unbounded`` gives
+    ``incomplete[unbounded]``, then ``pending`` gives ``incomplete[pending]``, then a family
+    whose only non-fresh status is ``not_applicable`` gives ``not_applicable[out-of-scope]``,
+    else ``complete``. Treating an unrecognized status as stale-dep preserves the prior
+    "non-fresh means stale-dep" default.
     """
 
     entries_by_family: dict[str, list[CoverageEntry]] = {}
@@ -153,8 +152,13 @@ def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
             return "incomplete[policy-gap]"
         statuses.extend(family_statuses)
 
-    if any(status not in {"fresh", "pending", "not_applicable", "disabled"} for status in statuses):
+    if any(
+        status not in {"fresh", "pending", "not_applicable", "disabled", "unbounded"}
+        for status in statuses
+    ):
         return "incomplete[stale-dep]"
+    if any(status == "unbounded" for status in statuses):
+        return "incomplete[unbounded]"
     if any(status == "pending" for status in statuses):
         return "incomplete[pending]"
     if any(status == "not_applicable" for status in statuses):

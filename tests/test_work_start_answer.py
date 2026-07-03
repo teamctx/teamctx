@@ -7,7 +7,7 @@ from teamctx.work_start import render_work_start, work_start_answer
 
 OBS = "2026-06-27T00:00:00Z"
 
-_EMPTY_FETCH = ForgeReviewFetch(pull_requests=[], truncated=False)
+_EMPTY_FETCH = ForgeReviewFetch(pull_requests=[])
 
 
 def test_work_start_answer_returns_broker_answer(monkeypatch) -> None:

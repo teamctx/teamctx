@@ -198,6 +198,22 @@ def test_closure_stale_dep_when_git_hosting_not_fresh() -> None:
     assert assess_completeness(_collision_query(), coverage) == "incomplete[stale-dep]"
 
 
+def test_closure_stale_dep_dominates_unbounded() -> None:
+    coverage = build_coverage([_git_hosting_status("stale"), _git_hosting_status("unbounded")])
+    assert assess_completeness(_collision_query(), coverage) == "incomplete[stale-dep]"
+
+
+@pytest.mark.parametrize(
+    "other_status",
+    ["fresh", "disabled", "pending", "not_applicable"],
+)
+def test_closure_unbounded_dominates_non_stale_statuses(other_status: str) -> None:
+    coverage = build_coverage(
+        [_git_hosting_status(other_status), _git_hosting_status("unbounded")]
+    )
+    assert assess_completeness(_collision_query(), coverage) == "incomplete[unbounded]"
+
+
 def test_closure_policy_gap_when_dependency_is_only_disabled() -> None:
     coverage = build_coverage([_git_hosting_status("disabled")])
     assert assess_completeness(_collision_query(), coverage) == "incomplete[policy-gap]"

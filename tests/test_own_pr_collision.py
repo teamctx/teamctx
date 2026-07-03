@@ -9,50 +9,10 @@ from teamctx.connectors.forge_review import (
     ForgeReviewPullRequest,
     normalize_forge_review_prs,
 )
-from teamctx.connectors.github import parse_github_pull_requests, run_github_pr_probe
+from teamctx.connectors.github import run_github_pr_probe
 from teamctx.contract_render import render_broker_answer
 from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import RequestContext
-
-
-def _raw_pr(number: int = 12, head: object = None) -> dict[str, object]:
-    pr: dict[str, object] = {
-        "number": number,
-        "html_url": f"https://github.com/o/r/pull/{number}",
-        "state": "open",
-        "created_at": "2026-07-01T00:00:00Z",
-        "updated_at": "2026-07-02T00:00:00Z",
-    }
-    if head is not None:
-        pr["head"] = head
-    return pr
-
-
-def test_parse_extracts_head_ref_and_head_repo() -> None:
-    payload = [_raw_pr(head={"ref": "feat/x", "repo": {"full_name": "o/r"}})]
-    prs = parse_github_pull_requests(repo="o/r", pulls_payload=payload, files_by_pr={})
-    assert prs[0].head_ref == "feat/x"
-    assert prs[0].head_repo == "o/r"
-
-
-def test_parse_missing_head_yields_none() -> None:
-    prs = parse_github_pull_requests(repo="o/r", pulls_payload=[_raw_pr()], files_by_pr={})
-    assert prs[0].head_ref is None
-    assert prs[0].head_repo is None
-
-
-def test_parse_deleted_fork_null_repo_yields_none_repo() -> None:
-    payload = [_raw_pr(head={"ref": "feat/x", "repo": None})]
-    prs = parse_github_pull_requests(repo="o/r", pulls_payload=payload, files_by_pr={})
-    assert prs[0].head_ref == "feat/x"
-    assert prs[0].head_repo is None
-
-
-def test_parse_malformed_head_types_yield_none() -> None:
-    payload = [_raw_pr(head={"ref": 7, "repo": {"full_name": 3}})]
-    prs = parse_github_pull_requests(repo="o/r", pulls_payload=payload, files_by_pr={})
-    assert prs[0].head_ref is None
-    assert prs[0].head_repo is None
 
 
 def _request(branch: str | None = "feat/x") -> RequestContext:
@@ -128,17 +88,31 @@ def test_missing_head_data_never_matches_own() -> None:
     assert len(doc.source_signals) == 1
 
 
-def test_truncated_and_own_pr_keeps_truncation_precedence() -> None:
+def test_unbounded_list_and_own_pr_keeps_unbounded_precedence() -> None:
     doc = normalize_forge_review_prs(
         _request(),
         [_pr(12, "feat/x", "o/r")],
         observed_at="2026-07-03T00:00:00Z",
-        coverage_truncated=True,
+        coverage_unbounded_list=True,
     )
     status = doc.source_statuses[0]
-    assert status.status == "stale"
-    assert "most recent 100" in status.safe_user_message
+    assert status.status == "unbounded"
+    assert "most recently updated open PRs" in status.safe_user_message
     assert "#12" in status.safe_user_message
+
+
+def test_own_branch_pr_with_unbounded_files_never_makes_source_unbounded() -> None:
+    doc = normalize_forge_review_prs(
+        _request(),
+        [_pr(12, "feat/x", "o/r")],
+        observed_at="2026-07-03T00:00:00Z",
+        unbounded_files_prs=[12],
+    )
+
+    status = doc.source_statuses[0]
+    assert status.status == "fresh"
+    assert "changes more files than teamctx checked" not in status.safe_user_message
+    assert "Your own open PR #12" in status.safe_user_message
 
 
 class _FakeResponse:
@@ -156,19 +130,32 @@ class _FakeResponse:
 
 
 def _own_pr_opener(request: Request) -> _FakeResponse:
-    url = request.full_url
-    if url.endswith("/pulls?state=open&per_page=100"):
-        return _FakeResponse(
-            [
-                _raw_pr(
-                    7,
-                    head={"ref": "feat/x", "repo": {"full_name": "o/r"}},
-                )
-            ]
-        )
-    if url.endswith("/pulls/7/files?per_page=100"):
-        return _FakeResponse([{"filename": "src/a.py", "status": "modified"}])
-    raise AssertionError(f"unexpected URL in test opener: {url}")
+    assert request.full_url == "https://api.github.com/graphql"
+    return _FakeResponse(
+        {
+            "data": {
+                "repository": {
+                    "pullRequests": {
+                        "nodes": [
+                            {
+                                "number": 7,
+                                "url": "https://github.com/o/r/pull/7",
+                                "createdAt": "2026-07-01T00:00:00Z",
+                                "updatedAt": "2026-07-02T00:00:00Z",
+                                "headRefName": "feat/x",
+                                "headRepository": {"nameWithOwner": "o/r"},
+                                "files": {
+                                    "nodes": [{"path": "src/a.py"}],
+                                    "pageInfo": {"hasNextPage": False},
+                                },
+                            }
+                        ],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        }
+    )
 
 
 def test_end_to_end_own_pr_is_clear_with_fyi() -> None:

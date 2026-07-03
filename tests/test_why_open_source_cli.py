@@ -43,7 +43,7 @@ def _stub_connectors(
     monkeypatch.setattr(
         gh,
         "fetch_github_pull_requests",
-        lambda **kw: ForgeReviewFetch(pull_requests=prs or [], truncated=False),
+        lambda **kw: ForgeReviewFetch(pull_requests=prs or []),
     )
     monkeypatch.setattr(
         gc,

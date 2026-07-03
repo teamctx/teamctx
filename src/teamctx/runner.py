@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from teamctx.connectors._contract import unavailable_document
 from teamctx.connectors.docs import run_docs_supersession_probe
@@ -51,6 +52,7 @@ class WorkStartInputs:
     derived_issues_capped: bool = False
     docs_root: str | None = None
     ref: str | None = None
+    profile: Literal["full", "reflex"] = "full"
 
     def __post_init__(self) -> None:
         normalized = parse_github_repo(self.repo)
@@ -87,6 +89,7 @@ def run_work_start_connectors(
     rather than a false all-clear."""
 
     request_context = build_request_context(inputs, observed_at=observed_at)
+    max_pages = 1 if inputs.profile == "reflex" else 3
     documents: list[CoreContractDocument] = [
         run_github_pr_probe(
             repo=inputs.repo,
@@ -94,6 +97,7 @@ def run_work_start_connectors(
             request_context=request_context,
             observed_at=observed_at,
             include_titles=inputs.include_titles,
+            max_pages=max_pages,
         )
     ]
 

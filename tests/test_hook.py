@@ -66,7 +66,6 @@ def test_heads_up_surfaces_a_collision(monkeypatch, capsys, tmp_path) -> None:
                 url="https://github.com/acme/widgets/pull/7", title=None,
                 changed_paths=("src/app.py",), created_at="2026-06-27T10:00:00Z",
                 updated_at="2026-06-27T11:00:00Z")],
-            truncated=False,
         ),
     )
     monkeypatch.setenv("GITHUB_TOKEN", "t")
@@ -118,7 +117,7 @@ def test_absolute_file_path_still_matches_collision(monkeypatch, capsys, tmp_pat
             url="https://github.com/acme/widgets/pull/7", title=None,
             changed_paths=("src/app.py",), created_at="2026-06-27T10:00:00Z",
             updated_at="2026-06-27T11:00:00Z")],
-        truncated=False,
+        unbounded_list=False,
     ))
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     monkeypatch.setenv("TEAMCTX_HOOK_CACHE", str(tmp_path / "cache"))
@@ -139,7 +138,7 @@ def test_network_calls_are_time_bounded(monkeypatch, capsys, tmp_path) -> None:
     import teamctx.work_start as ws
     monkeypatch.setattr(
         gh, "fetch_github_pull_requests",
-        lambda **kw: ForgeReviewFetch(pull_requests=[], truncated=False),
+        lambda **kw: ForgeReviewFetch(pull_requests=[]),
     )
     seen: dict[str, object] = {}
     real = ws.work_start_answer
@@ -155,3 +154,22 @@ def test_network_calls_are_time_bounded(monkeypatch, capsys, tmp_path) -> None:
     _run(_payload(tmp_path), monkeypatch, capsys)
     assert seen["timeout"] == 8  # a network budget is applied during grounding
     assert socket.getdefaulttimeout() == before  # restored afterward (no global pollution)
+
+
+def test_ground_sets_reflex_profile(monkeypatch, tmp_path) -> None:
+    _init_repo(tmp_path)
+    import teamctx.hook_signal as hs
+    import teamctx.work_start as ws
+
+    seen: dict[str, object] = {}
+
+    def fake_answer(inputs, **kwargs):  # type: ignore[no-untyped-def]
+        seen["profile"] = inputs.profile
+        return object()
+
+    monkeypatch.setattr(ws, "work_start_answer", fake_answer)
+    monkeypatch.setattr(hs, "hook_signal", lambda *args, **kwargs: "ok")
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+    assert hook._ground(tmp_path, "src/app.py") == "ok"
+    assert seen["profile"] == "reflex"

@@ -132,6 +132,9 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
     couldnt = _couldnt_check_line(assessment)
     if couldnt:
         lines.append(couldnt)
+    partially = _partially_checked_line(assessment)
+    if partially:
+        lines.append(partially)
     not_checked = _not_checked_line(assessment)
     if not_checked:
         lines.append(not_checked)
@@ -207,6 +210,11 @@ def _cant_verify_bullets(assessment: WorkStartAssessment) -> list[str]:
             f"  • Failing checks: {fix} Until it's back you won't see red CI on your files."
         )
     for state in assessment.checks:
+        if state.status == "unbounded" and state.check in IMPORTANT_CHECKS:
+            label = "Open PRs" if state.check == "conflict" else "Failing checks"
+            note = state.note or RENDER_COPY[state.check].unreachable
+            bullets.append(f"  • {label}: {note} Glance at GitHub if this file is sensitive.")
+    for state in assessment.checks:
         if state.status == "pending" and state.check in IMPORTANT_CHECKS:
             bullets.append(_pending_bullet(state.check))
     return bullets
@@ -276,6 +284,19 @@ def _couldnt_check_line(assessment: WorkStartAssessment) -> str:
     if not gaps:
         return ""
     return "  Couldn't check: " + "; ".join(gaps) + "."
+
+
+def _partially_checked_line(assessment: WorkStartAssessment) -> str:
+    in_bullets = assessment.kind == "cant_verify"
+    gaps = [
+        s.note or RENDER_COPY[s.check].unreachable
+        for s in assessment.checks
+        if s.status == "unbounded"
+        and not (in_bullets and s.check in IMPORTANT_CHECKS)
+    ]
+    if not gaps:
+        return ""
+    return "  Partially checked: " + "; ".join(gaps)
 
 
 def _not_checked_line(assessment: WorkStartAssessment) -> str:

@@ -12,10 +12,10 @@ from click.testing import CliRunner
 from teamctx.cli import main
 from teamctx.connectors.forge_review import ForgeReviewPullRequest, normalize_forge_review_prs
 from teamctx.connectors.github import (
+    ForgeReviewFetch,
     GitHubProbeError,
     HttpResponse,
     github_error_message,
-    parse_github_pull_requests,
     run_github_pr_probe,
 )
 from teamctx.core.contracts import RequestContext
@@ -94,38 +94,86 @@ def test_forge_review_normalizer_omits_non_overlapping_prs() -> None:
     assert document.source_statuses[0].status == "fresh"
 
 
-def test_github_parser_omits_titles_unless_allowed() -> None:
-    pulls_payload: list[dict[str, Any]] = [
-        {
-            "number": 482,
-            "html_url": "https://github.com/org/app/pull/482",
-            "state": "open",
-            "title": "Add retry behavior",
-            "created_at": "2026-06-16T11:00:00Z",
-            "updated_at": "2026-06-16T11:49:00Z",
-            "user": {"login": "not-normalized"},
-            "labels": [{"name": "auth"}],
-        }
-    ]
-    files_by_pr = {482: [{"filename": "src/auth/token.py"}]}
-
-    omitted = parse_github_pull_requests(
-        repo="org/app",
-        pulls_payload=pulls_payload,
-        files_by_pr=files_by_pr,
-        include_titles=False,
-    )
-    included = parse_github_pull_requests(
-        repo="org/app",
-        pulls_payload=pulls_payload,
-        files_by_pr=files_by_pr,
-        include_titles=True,
+def test_unbounded_list_sets_status_and_verbatim_note() -> None:
+    document = normalize_forge_review_prs(
+        request_context(),
+        [
+            ForgeReviewPullRequest(
+                provider="github",
+                repo="org/app",
+                number=17,
+                state="open",
+                url="https://github.com/org/app/pull/17",
+                title=None,
+                changed_paths=("docs/readme.md",),
+                created_at="2026-06-16T11:00:00Z",
+                updated_at="2026-06-16T11:49:00Z",
+            )
+        ],
+        observed_at=OBSERVED_AT,
+        coverage_unbounded_list=True,
     )
 
-    assert omitted[0].title is None
-    assert included[0].title == "Add retry behavior"
-    assert not hasattr(omitted[0], "author")
-    assert omitted[0].labels == ("auth",)
+    status = document.source_statuses[0]
+    assert status.status == "unbounded"
+    assert status.safe_user_message == (
+        "Checked the 1 most recently updated open PRs; more exist, so this is not a "
+        "complete check."
+    )
+
+
+def test_unbounded_files_sets_status_and_verbatim_note() -> None:
+    document = normalize_forge_review_prs(
+        request_context(),
+        [
+            ForgeReviewPullRequest(
+                provider="github",
+                repo="org/app",
+                number=17,
+                state="open",
+                url="https://github.com/org/app/pull/17",
+                title=None,
+                changed_paths=("docs/readme.md",),
+                created_at="2026-06-16T11:00:00Z",
+                updated_at="2026-06-16T11:49:00Z",
+            )
+        ],
+        observed_at=OBSERVED_AT,
+        unbounded_files_prs=[17],
+    )
+
+    status = document.source_statuses[0]
+    assert status.status == "unbounded"
+    assert status.safe_user_message == (
+        "Open PR #17 changes more files than teamctx checked; it may touch yours."
+    )
+
+
+def test_unbounded_list_and_files_notes_concatenate_in_order() -> None:
+    document = normalize_forge_review_prs(
+        request_context(),
+        [
+            ForgeReviewPullRequest(
+                provider="github",
+                repo="org/app",
+                number=17,
+                state="open",
+                url="https://github.com/org/app/pull/17",
+                title=None,
+                changed_paths=("docs/readme.md",),
+                created_at="2026-06-16T11:00:00Z",
+                updated_at="2026-06-16T11:49:00Z",
+            )
+        ],
+        observed_at=OBSERVED_AT,
+        coverage_unbounded_list=True,
+        unbounded_files_prs=[17],
+    )
+
+    assert document.source_statuses[0].safe_user_message == (
+        "Checked the 1 most recently updated open PRs; more exist, so this is not a "
+        "complete check. Open PR #17 changes more files than teamctx checked; it may touch yours."
+    )
 
 
 def test_github_probe_missing_token_returns_unavailable_status() -> None:
@@ -197,3 +245,33 @@ def test_cli_github_pr_probe_missing_token_outputs_contract_document() -> None:
     assert output["source_signals"] == []
     assert output["source_statuses"][0]["status"] == "unavailable"
     assert "no token" in output["source_statuses"][0]["safe_user_message"]
+
+
+def test_cli_github_pr_probe_include_title_threads_to_fetch(monkeypatch) -> None:
+    import teamctx.connectors.github as gh
+
+    captured: dict[str, object] = {}
+
+    def fake_fetch(**kwargs: object) -> ForgeReviewFetch:
+        captured["include_titles"] = kwargs["include_titles"]
+        return ForgeReviewFetch(pull_requests=[])
+
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", fake_fetch)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        main,
+        [
+            "dev",
+            "github-pr-probe",
+            "--repo",
+            "org/app",
+            "--path",
+            "src/auth/token.py",
+            "--include-title",
+        ],
+        env={"GITHUB_TOKEN": "tok"},
+    )
+
+    assert result.exit_code == 0
+    assert captured["include_titles"] is True

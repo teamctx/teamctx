@@ -12,6 +12,7 @@ import contextlib
 import json
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from teamctx.clock import utc_now_iso
@@ -110,7 +111,10 @@ def _ground(root: Path, file_path: str) -> str:
     rel_file = repo_relative_path(root, file_path)
     token = resolve_github_token()
     paths = tuple(dict.fromkeys([rel_file, *_changed_paths(root)]))  # dedup, order-preserving
-    inputs = resolve_work_start_inputs(paths=paths, token=token, root=root)
+    inputs = replace(
+        resolve_work_start_inputs(paths=paths, token=token, root=root),
+        profile="reflex",
+    )
 
     old_timeout = socket.getdefaulttimeout()
     socket.setdefaulttimeout(8)  # bound every network call so a hung GitHub never freezes the edit
