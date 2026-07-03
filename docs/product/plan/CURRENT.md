@@ -77,9 +77,9 @@ below until the arc completes.
   real as onboard's read-only twin (F2) **DONE 2026-07-03 (merged `ea0cbef`, 455 tests; codex
   built in an isolated worktree from the plan, Fable arbiter-reviewed + live smoke: every
   status line true, real reachability call)** · S4 small batch:
-  authority.json fail-closed, CI 3.13 matrix + coverage gate wired (93.16% > 90), teamctx-mcp
-  friendly import guard (F6, F8, F10; plan
-  `docs/superpowers/plans/2026-07-03-s4-small-batch.md`, codex building in a worktree).
+  authority.json fail-closed, CI 3.12+3.13 matrix + coverage gate wired (93.12% > 90),
+  teamctx-mcp friendly import guard (F6, F8, F10) **DONE 2026-07-03 (merged `950f0a3`, 464
+  tests; codex built from the plan, Fable arbiter-reviewed)**. **PHASE 0 COMPLETE.**
 
 **Execution re-sequencing (CTO, 2026-07-03, merit-based):** S6+S7 (structural) land BEFORE
 Phase 1, because S5b must extend the exact registries S6 consolidates (building S5 first
