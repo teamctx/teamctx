@@ -18,6 +18,8 @@ from teamctx.connectors.github import (
     github_error_message,
     run_github_pr_probe,
 )
+from teamctx.contract_render import render_broker_answer, render_open_source
+from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import RequestContext
 from teamctx.core.select import derive_cards
 
@@ -275,3 +277,115 @@ def test_cli_github_pr_probe_include_title_threads_to_fetch(monkeypatch) -> None
 
     assert result.exit_code == 0
     assert captured["include_titles"] is True
+
+
+def test_gitlab_normalizer_emits_mr_worded_collision_card() -> None:
+    document = normalize_forge_review_prs(
+        request_context(),
+        [
+            ForgeReviewPullRequest(
+                provider="gitlab",
+                repo="org/app",
+                number=12,
+                state="opened",
+                url="https://gitlab.com/org/app/-/merge_requests/12",
+                title=None,
+                changed_paths=("src/auth/token.py",),
+                created_at="2026-06-16T11:00:00Z",
+                updated_at="2026-06-16T11:49:00Z",
+                head_ref="feature/other",
+                source_project_id=101,
+                target_project_id=101,
+            )
+        ],
+        observed_at=OBSERVED_AT,
+        provider="gitlab",
+        source_id="gitlab_mr_metadata",
+    )
+
+    signal = document.source_signals[0]
+    assert signal.id == "sig_gitlab_mr_12_collision"
+    assert signal.source_display == "GitLab MR !12"
+    assert signal.evidence_summary == "Open MR !12 changed src/auth/token.py."
+    assert signal.scope["provider"] == "gitlab"
+    status = document.source_statuses[0]
+    assert status.source_id == "gitlab_mr_metadata"
+    assert status.scope["provider"] == "gitlab"
+    cards = derive_cards(document.request_context, document.source_signals)
+    assert cards[0].text == "Open MR !12 changed src/auth/token.py."
+    assert cards[0].source_display == "GitLab MR !12"
+    assert cards[0].scope["provider"] == "gitlab"
+    assert document.source_open_targets[0].id == "open_gitlab_mr_12"
+    assert document.source_open_targets[0].open_label == "Open MR"
+
+
+def test_gitlab_own_branch_mr_uses_mr_fyi_copy() -> None:
+    document = normalize_forge_review_prs(
+        request_context(),
+        [
+            ForgeReviewPullRequest(
+                provider="gitlab",
+                repo="org/app",
+                number=12,
+                state="opened",
+                url="https://gitlab.com/org/app/-/merge_requests/12",
+                title=None,
+                changed_paths=("src/auth/token.py",),
+                created_at="2026-06-16T11:00:00Z",
+                updated_at="2026-06-16T11:49:00Z",
+                head_ref="feature/token-retry",
+                source_project_id=101,
+                target_project_id=101,
+            )
+        ],
+        observed_at=OBSERVED_AT,
+        provider="gitlab",
+        source_id="gitlab_mr_metadata",
+    )
+
+    assert document.source_signals == []
+    status = document.source_statuses[0]
+    assert status.scope["own_branch_prs"] == ["12"]
+    assert status.safe_user_message == (
+        "Your own open MR !12 for this branch touches these files; "
+        "not flagged as a collision."
+    )
+
+
+def test_gitlab_collision_render_has_no_gh_hint_and_open_source_shows_url() -> None:
+    document = normalize_forge_review_prs(
+        request_context(),
+        [
+            ForgeReviewPullRequest(
+                provider="gitlab",
+                repo="org/app",
+                number=12,
+                state="opened",
+                url="https://gitlab.com/org/app/-/merge_requests/12",
+                title=None,
+                changed_paths=("src/auth/token.py",),
+                created_at="2026-06-16T11:00:00Z",
+                updated_at="2026-06-16T11:49:00Z",
+                head_ref="feature/other",
+                source_project_id=101,
+                target_project_id=101,
+            )
+        ],
+        observed_at=OBSERVED_AT,
+        provider="gitlab",
+        source_id="gitlab_mr_metadata",
+    )
+    answer = broker_answer(
+        document.request_context,
+        document.source_signals,
+        document.source_statuses,
+        open_targets=document.source_open_targets,
+    )
+
+    text = render_broker_answer(answer)
+    assert "Open MR !12 changed src/auth/token.py" in text
+    assert "gh pr view" not in text
+
+    source = render_open_source(answer.selection.cards[0], answer.open_targets)
+    assert "gh pr view" not in source
+    assert "open https://gitlab.com/org/app/-/merge_requests/12" in source

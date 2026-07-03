@@ -11,7 +11,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from teamctx.connectors.forge_review import ForgeReviewPullRequest
+from teamctx.connectors.forge_review import (
+    ForgeReviewPullRequest,
+    normalize_forge_review_prs,
+    unavailable_forge_review_document,
+)
+from teamctx.core.contracts import CoreContractDocument, RequestContext
 
 GITLAB_API_ROOT = "https://gitlab.com"
 
@@ -57,6 +62,58 @@ class GitLabProbeError(RuntimeError):
     def __init__(self, message: str, *, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
+
+
+def run_gitlab_mr_probe(
+    *,
+    repo: str,
+    token: str | None,
+    request_context: RequestContext,
+    observed_at: str,
+    max_pages: int = 3,
+    diff_limit: int = 100,
+    opener: HttpOpener = DEFAULT_OPENER,
+) -> CoreContractDocument:
+    if not token:
+        return unavailable_forge_review_document(
+            request_context,
+            provider="gitlab",
+            repo=repo,
+            observed_at=observed_at,
+            source_id="gitlab_mr_metadata",
+            safe_user_message="GitLab MR metadata is unavailable because no token is configured.",
+        )
+
+    try:
+        fetch = fetch_gitlab_merge_requests(
+            repo=repo,
+            token=token,
+            request_branch=request_context.branch,
+            max_pages=max_pages,
+            diff_limit=diff_limit,
+            opener=opener,
+        )
+    except GitLabProbeError as exc:
+        return unavailable_forge_review_document(
+            request_context,
+            provider="gitlab",
+            repo=repo,
+            observed_at=observed_at,
+            source_id="gitlab_mr_metadata",
+            safe_user_message=gitlab_error_message(exc, source="GitLab MR metadata"),
+        )
+
+    return normalize_forge_review_prs(
+        request_context,
+        fetch.merge_requests,
+        observed_at=observed_at,
+        provider="gitlab",
+        source_id="gitlab_mr_metadata",
+        coverage_unbounded_list=fetch.unbounded_list,
+        unbounded_files_prs=fetch.unbounded_files_mrs,
+        diff_checked_count=fetch.diff_checked_count,
+        diff_unchecked_count=fetch.diff_unchecked_count,
+    )
 
 
 def fetch_gitlab_merge_requests(

@@ -172,6 +172,9 @@ def _finding_text(state: CheckState, card: ContextCard) -> str:
 
 
 def _gh_hint(card: ContextCard) -> str:
+    provider = card.scope.get("provider")
+    if provider is not None and provider != "github":
+        return ""
     marker = card.source_display.rfind("#")
     if marker == -1:
         return ""
@@ -389,10 +392,14 @@ def render_open_source(card: ContextCard, open_targets: tuple[SourceOpenTarget, 
         pr_number = card.scope.get("pr_number")
         repo = card.scope.get("repo")
         url = card.scope.get("url")
-        if pr_number is not None and isinstance(repo, str):
+        provider = card.scope.get("provider")
+        is_github = provider is None or provider == "github"
+        if is_github and pr_number is not None and isinstance(repo, str):
             lines.append(f"  gh pr view {pr_number} --repo {repo}")
-        if isinstance(url, str):
+        if isinstance(url, str) and is_github:
             lines.append(f"  or open {url}")
+        elif isinstance(url, str):
+            lines.append(f"  open {url}")
     elif card.reason_code.startswith("gate") or card.reason_code.startswith("criteria"):
         url = card.scope.get("url")
         if isinstance(url, str):

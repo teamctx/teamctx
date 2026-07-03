@@ -11,7 +11,9 @@ from teamctx.connectors.gitlab import (
     GitLabProbeError,
     fetch_gitlab_merge_requests,
     gitlab_api_root,
+    run_gitlab_mr_probe,
 )
+from teamctx.core.contracts import RequestContext
 
 TOKEN = "tok"
 REPO = "group/sub/project"
@@ -63,6 +65,20 @@ def _mr(
 
 def _diff(path: str) -> dict[str, object]:
     return {"old_path": path, "new_path": path, "renamed_file": False}
+
+
+def _request(paths: list[str] | None = None, branch: str | None = "feature/x") -> RequestContext:
+    return RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id="t",
+        repo=REPO,
+        branch=branch,
+        task="work",
+        paths=paths or ["src/app.py"],
+        linked_issues=[],
+        requested_at="2026-07-03T00:00:00Z",
+        requesting_principal=None,
+    )
 
 
 def test_default_api_root_is_gitlab() -> None:
@@ -241,3 +257,65 @@ def test_malformed_diff_payload_fails_closed() -> None:
             diff_limit=20,
             opener=opener,
         )
+
+
+def test_gitlab_mr_probe_missing_token_returns_verbatim_unavailable_status() -> None:
+    document = run_gitlab_mr_probe(
+        repo=REPO,
+        token=None,
+        request_context=_request(),
+        observed_at="2026-07-03T00:00:00Z",
+    )
+
+    assert document.source_signals == []
+    status = document.source_statuses[0]
+    assert status.source_id == "gitlab_mr_metadata"
+    assert status.status == "unavailable"
+    assert status.safe_user_message == (
+        "GitLab MR metadata is unavailable because no token is configured."
+    )
+
+
+def test_gitlab_mr_probe_normalizes_fetch_to_collision_signal() -> None:
+    opener = _Opener(
+        _Resp([_mr(7, source_project_id=202, target_project_id=101)]),
+        _Resp([_diff("src/app.py")]),
+    )
+
+    document = run_gitlab_mr_probe(
+        repo=REPO,
+        token=TOKEN,
+        request_context=_request(),
+        observed_at="2026-07-03T00:00:00Z",
+        opener=opener,
+    )
+
+    assert document.source_signals[0].source_display == "GitLab MR !7"
+    assert document.source_statuses[0].source_id == "gitlab_mr_metadata"
+
+
+def test_gitlab_mr_probe_reports_unchecked_diff_budget_with_verbatim_copy() -> None:
+    opener = _Opener(
+        _Resp([
+            _mr(1),
+            _mr(2, source_project_id=202, target_project_id=101),
+            _mr(3, source_project_id=303, target_project_id=101),
+        ]),
+        _Resp([_diff("src/own.py")]),
+    )
+
+    document = run_gitlab_mr_probe(
+        repo=REPO,
+        token=TOKEN,
+        request_context=_request(paths=["src/app.py"]),
+        observed_at="2026-07-03T00:00:00Z",
+        max_pages=1,
+        diff_limit=1,
+        opener=opener,
+    )
+
+    assert document.source_statuses[0].status == "unbounded"
+    assert document.source_statuses[0].safe_user_message == (
+        "Checked the files of the 1 most recently updated open MRs; "
+        "2 more open MRs were not file-checked."
+    )
