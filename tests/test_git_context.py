@@ -7,8 +7,10 @@ import pytest
 
 from teamctx.git_context import (
     detect_branch,
+    detect_forge_repo,
     detect_repo,
     parse_github_repo,
+    parse_gitlab_repo,
     repo_relative_path,
     resolve_project_root,
 )
@@ -49,6 +51,41 @@ def test_parse_github_repo_rejects(value: str) -> None:
     assert parse_github_repo(value) is None
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("owner/name", "owner/name"),
+        ("owner/name/", "owner/name"),
+        ("group/sub/project", "group/sub/project"),
+        ("https://gitlab.com/owner/name", "owner/name"),
+        ("https://gitlab.com/owner/name.git", "owner/name"),
+        ("https://gitlab.com/group/sub/project.git", "group/sub/project"),
+        ("git@gitlab.com:owner/name.git", "owner/name"),
+        ("git@gitlab.com:group/sub/project.git", "group/sub/project"),
+        ("ssh://git@gitlab.com/group/sub/project.git", "group/sub/project"),
+    ],
+)
+def test_parse_gitlab_repo_accepts_gitlab(value: str, expected: str) -> None:
+    assert parse_gitlab_repo(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https://github.com/owner/name",
+        "git@github.com:owner/name.git",
+        "owner",
+        "",
+        "https://gitlab.com/owner",
+        "../sibling",
+        "owner/../project",
+        "owner/na me",
+    ],
+)
+def test_parse_gitlab_repo_rejects(value: str) -> None:
+    assert parse_gitlab_repo(value) is None
+
+
 def _init_repo(root: Path) -> None:
     subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
@@ -69,8 +106,41 @@ def test_detect_repo_and_branch_in_a_real_repo(tmp_path: Path) -> None:
     assert detect_branch(tmp_path) == "feature"
 
 
+@pytest.mark.parametrize(
+    ("origin", "expected"),
+    [
+        ("git@github.com:acme/widgets.git", ("acme/widgets", "github")),
+        ("https://github.com/acme/widgets.git", ("acme/widgets", "github")),
+        ("git@gitlab.com:acme/widgets.git", ("acme/widgets", "gitlab")),
+        ("https://gitlab.com/group/sub/project.git", ("group/sub/project", "gitlab")),
+    ],
+)
+def test_detect_forge_repo_by_origin_host(
+    tmp_path: Path, origin: str, expected: tuple[str, str]
+) -> None:
+    _init_repo(tmp_path)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "remote", "add", "origin", origin],
+        check=True,
+    )
+
+    assert detect_forge_repo(tmp_path) == expected
+
+
+def test_detect_forge_repo_none_for_unrecognized_host(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "remote", "add", "origin", "git@example.com:acme/widgets.git"],
+        check=True,
+    )
+
+    assert detect_forge_repo(tmp_path) is None
+    assert detect_repo(tmp_path) is None
+
+
 def test_detect_returns_none_outside_a_repo(tmp_path: Path) -> None:
     assert detect_repo(tmp_path) is None
+    assert detect_forge_repo(tmp_path) is None
     assert detect_branch(tmp_path) is None
 
 
