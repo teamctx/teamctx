@@ -466,14 +466,14 @@ def _config_step_and_effective_repo(
     return StepResult("config", "wrote", f"{path} (repo {write_repo})"), write_repo
 
 
-DocsDirState = Literal["ok", "unsafe", "absent"]
+DocsDirState = Literal["ok", "unsafe", "empty", "absent"]
 
 
 def _docs_dir_state(root: Path) -> DocsDirState:
     """Whether a conventional top-level ``docs/`` folder is safely configurable, mirroring the
     runtime scan's fail-closed rules (connectors/docs.py): the directory and every markdown file
     in it must resolve inside the project root, else the runtime scan would read unavailable.
-    ``absent`` also covers a docs/ dir with no markdown (nothing to scan)."""
+    ``empty`` = the folder exists (safely) but holds no markdown; ``absent`` = no folder."""
 
     docs_dir = root / "docs"
     if not docs_dir.is_dir():
@@ -483,7 +483,7 @@ def _docs_dir_state(root: Path) -> DocsDirState:
         docs_dir.resolve().relative_to(base)
         markdown = list(docs_dir.rglob("*.md"))
         if not markdown:
-            return "absent"
+            return "empty"
         for path in markdown:
             path.resolve().relative_to(base)
     except (OSError, ValueError):
@@ -510,6 +510,7 @@ _DOCS_UNSAFE = (
     "a docs/ folder exists but couldn't be safely configured (it or a file in it resolves "
     "outside the repo); set work_start.docs_root by hand if this is intended."
 )
+_DOCS_EMPTY = "a docs/ folder exists but has no markdown files in it; nothing to scan yet."
 
 
 def _docs_step(
@@ -531,6 +532,8 @@ def _docs_step(
         return StepResult("docs", "noted", _DOCS_EXISTS_UNCONFIGURED)
     if dir_state == "unsafe":
         return StepResult("docs", "noted", _DOCS_UNSAFE)
+    if dir_state == "empty":
+        return StepResult("docs", "noted", _DOCS_EMPTY)
     return StepResult("docs", "noted", _DOCS_NOT_FOUND)
 
 
@@ -779,15 +782,24 @@ def run_status(
             f"docs_root '{configured_docs}' is configured; superseded docs there will be "
             "flagged.",
         ))
-    elif _docs_dir_state(root) == "ok":
-        steps.append(StepResult(
-            "docs", "noted",
-            "a docs/ folder exists but no docs_root is configured; `teamctx onboard` sets it.",
-        ))
-    elif _docs_dir_state(root) == "unsafe":
-        steps.append(StepResult("docs", "noted", _DOCS_UNSAFE))
     else:
-        steps.append(StepResult("docs", "noted", _DOCS_NOT_FOUND))
+        docs_state = _docs_dir_state(root)
+        if docs_state == "ok" and existing is None:
+            # no config yet: a fresh onboard WILL write the detection, so this promise is true
+            steps.append(StepResult(
+                "docs", "noted",
+                "a docs/ folder exists but no docs_root is configured; `teamctx onboard` sets "
+                "it.",
+            ))
+        elif docs_state == "ok":
+            # an existing config is never modified by onboard, so say the real fix
+            steps.append(StepResult("docs", "noted", _DOCS_EXISTS_UNCONFIGURED))
+        elif docs_state == "unsafe":
+            steps.append(StepResult("docs", "noted", _DOCS_UNSAFE))
+        elif docs_state == "empty":
+            steps.append(StepResult("docs", "noted", _DOCS_EMPTY))
+        else:
+            steps.append(StepResult("docs", "noted", _DOCS_NOT_FOUND))
 
     settings_path = root / ".claude" / "settings.json"
     steps.append(_hook_status_step(settings_path))
