@@ -228,14 +228,16 @@ def test_gitlab_forge_emits_unwired_statuses_and_never_calls_github(monkeypatch)
     assert statuses["ci_deploy"].source_id == "gitlab_pipeline_state"
     for status in statuses.values():
         assert status.status == "disabled"
-        assert status.safe_user_message == (
-            "open MRs and pipeline state (this repo is on GitLab; the GitLab connector isn't "
-            "wired yet, next slice)"
-        )
         assert status.policy.decision_reason == (
             "This repo is on GitLab. The GitLab connector isn't wired yet; open MRs and pipeline "
             "state are not checked."
         )
+    assert statuses["git_hosting"].safe_user_message == (
+        "open MRs (this repo is on GitLab; the GitLab connector isn't wired yet, next slice)"
+    )
+    assert statuses["ci_deploy"].safe_user_message == (
+        "pipeline state (this repo is on GitLab; the GitLab connector isn't wired yet, next slice)"
+    )
 
     answer = broker_answer_from_documents(request_context, documents)
     verdicts = {label: valuation for label, valuation in answer.verdicts}
@@ -247,7 +249,9 @@ def test_gitlab_forge_emits_unwired_statuses_and_never_calls_github(monkeypatch)
     assert "the linked issue's criteria are unchanged" not in output
     assert "no failing checks found" not in output
     assert "GitHub" not in output
-    assert "open MRs and pipeline state" in output
+    assert "open MRs (this repo is on GitLab" in output
+    assert "pipeline state (this repo is on GitLab" in output
+    assert not output.startswith("Looks clear to start.")
 
 
 def test_request_context_shares_paths_and_issues() -> None:

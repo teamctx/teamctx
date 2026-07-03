@@ -31,9 +31,11 @@ _CRITERIA_NO_SINCE = (
 _CAP_NOTE = "capped at 5 issues; pass --issue to name others"
 _DOCS_DISABLED = "docs (no docs root is configured; set work_start.docs_root to enable)"
 _GATE_DISABLED = "failing checks (couldn't determine your branch; pass --branch or --ref)"
-_GITLAB_UNWIRED_NOTE = (
-    "open MRs and pipeline state (this repo is on GitLab; the GitLab connector isn't wired yet, "
-    "next slice)"
+_GITLAB_MRS_NOTE = (
+    "open MRs (this repo is on GitLab; the GitLab connector isn't wired yet, next slice)"
+)
+_GITLAB_PIPELINE_NOTE = (
+    "pipeline state (this repo is on GitLab; the GitLab connector isn't wired yet, next slice)"
 )
 _GITLAB_UNWIRED_MESSAGE = (
     "This repo is on GitLab. The GitLab connector isn't wired yet; open MRs and pipeline state "
@@ -246,7 +248,7 @@ def _gitlab_unwired_documents(
             source_id="gitlab_mr_metadata",
             source_family="git_hosting",
             observed_at=observed_at,
-            safe_user_message=_GITLAB_UNWIRED_NOTE,
+            safe_user_message=_GITLAB_MRS_NOTE,
             policy_reason=_GITLAB_UNWIRED_MESSAGE,
         ),
         _disabled_document(
@@ -254,7 +256,7 @@ def _gitlab_unwired_documents(
             source_id="gitlab_pipeline_state",
             source_family="ci_deploy",
             observed_at=observed_at,
-            safe_user_message=_GITLAB_UNWIRED_NOTE,
+            safe_user_message=_GITLAB_PIPELINE_NOTE,
             policy_reason=_GITLAB_UNWIRED_MESSAGE,
         ),
     ]

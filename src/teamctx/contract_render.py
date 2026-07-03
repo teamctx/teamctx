@@ -123,7 +123,11 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
     never via an LLM, and prints: it never blocks."""
 
     assessment = assess(answer)
-    lines = [_HEADLINE[assessment.kind]]
+    headline = _HEADLINE[assessment.kind]
+    if assessment.kind == "ready" and not any(s.status == "clear" for s in assessment.checks):
+        # nothing ran at all (every check not configured): "clear" would be false comfort
+        headline = "Nothing checked yet; here's why:"
+    lines = [headline]
     lines.extend(_finding_bullets(assessment))
     coverage = _coverage_line(answer, assessment)
     if coverage:
