@@ -9,6 +9,7 @@ may change while the product is hardened.
 
 ### Added
 
+- work-start now derives the linked issue and the start time from your branch name, local commit trailers, and the merge-base, with the derivation named in the output; explicit --issue/--since override it.
 - `teamctx onboard`: a single command to set up a repo with zero flags and zero false confidence.
   It detects the GitHub repo, writes a trackable `.teamctx/config.json`, installs the reflex hook,
   writes an honest CLAUDE.md snippet (managed between markers, migration-safe, never overwriting
@@ -39,6 +40,7 @@ may change while the product is hardened.
 
 ### Fixed
 
+- A skipped check now says exactly which input is missing and how to provide it, and issue-change time comparisons are chronological, never lexical.
 - A malformed .teamctx/authority.json now fails closed with a plain message naming the file and the fix, instead of a traceback (CLI and MCP).
 - teamctx-mcp without the optional mcp dependency now prints an install hint instead of a raw ImportError.
 - work-start no longer flags the open PR of the branch you are on as a collision; it is set aside with an FYI line and recorded on the forge source status.

@@ -13,12 +13,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from teamctx.connectors._contract import unavailable_document
 from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.github import run_github_pr_probe
 from teamctx.connectors.github_checks import run_github_checks_probe
 from teamctx.connectors.github_issues import run_github_issues_probe
-from teamctx.core.contracts import CoreContractDocument, RequestContext
+from teamctx.core.contracts import CoreContractDocument, RequestContext, SourceFamily
 from teamctx.git_context import parse_github_repo
+
+_CRITERIA_NO_ISSUE = (
+    "spec changes (no issue could be derived from your branch or commits; name one with --issue)"
+)
+_CRITERIA_NO_SINCE = (
+    "spec changes (issue {refs} was derived, but the start time couldn't be; pass --since)"
+)
+_CAP_NOTE = "capped at 5 issues; pass --issue to name others"
+_DOCS_DISABLED = "docs (no docs root is configured; set work_start.docs_root to enable)"
+_GATE_DISABLED = "failing checks (couldn't determine your branch; pass --branch or --ref)"
 
 
 @dataclass(frozen=True)
@@ -36,6 +47,8 @@ class WorkStartInputs:
     include_titles: bool = False
     issues: tuple[str, ...] = ()
     since: str | None = None
+    input_provenance: tuple[tuple[str, str], ...] = ()
+    derived_issues_capped: bool = False
     docs_root: str | None = None
     ref: str | None = None
 
@@ -55,6 +68,7 @@ def build_request_context(inputs: WorkStartInputs, *, observed_at: str) -> Reque
         task=inputs.task,
         paths=list(inputs.paths),
         linked_issues=list(inputs.issues),
+        input_provenance=dict(inputs.input_provenance),
         requested_at=observed_at,
         requesting_principal=None,
     )
@@ -94,6 +108,16 @@ def run_work_start_connectors(
                 observed_at=observed_at,
             )
         )
+    else:
+        documents.append(
+            _disabled_document(
+                request_context,
+                source_id="github_check_runs",
+                source_family="ci_deploy",
+                observed_at=observed_at,
+                safe_user_message=_GATE_DISABLED,
+            )
+        )
 
     if inputs.issues and inputs.since:
         documents.append(
@@ -104,6 +128,16 @@ def run_work_start_connectors(
                 token=inputs.token,
                 request_context=request_context,
                 observed_at=observed_at,
+            )
+        )
+    else:
+        documents.append(
+            _disabled_document(
+                request_context,
+                source_id="github_issues",
+                source_family="issue_tracker",
+                observed_at=observed_at,
+                safe_user_message=_criteria_disabled_message(inputs),
             )
         )
 
@@ -117,5 +151,46 @@ def run_work_start_connectors(
                 base_dir=project_root,
             )
         )
+    else:
+        documents.append(
+            _disabled_document(
+                request_context,
+                source_id="docs_supersession",
+                source_family="docs",
+                observed_at=observed_at,
+                safe_user_message=_DOCS_DISABLED,
+            )
+        )
 
     return request_context, documents
+
+
+def _disabled_document(
+    request_context: RequestContext,
+    *,
+    source_id: str,
+    source_family: SourceFamily,
+    observed_at: str,
+    safe_user_message: str,
+) -> CoreContractDocument:
+    return unavailable_document(
+        request_context,
+        source_id=source_id,
+        source_family=source_family,
+        scope={"repo": request_context.repo},
+        observed_at=observed_at,
+        status="disabled",
+        safe_user_message=safe_user_message,
+        visibility="warning_when_relevant",
+        policy_reason="Source was not checked because required work-start input was absent.",
+    )
+
+
+def _criteria_disabled_message(inputs: WorkStartInputs) -> str:
+    if not inputs.issues:
+        return _CRITERIA_NO_ISSUE
+    refs = ", ".join(inputs.issues)
+    message = _CRITERIA_NO_SINCE.format(refs=refs)
+    if inputs.derived_issues_capped:
+        message = f"{message[:-1]}; {_CAP_NOTE})"
+    return message

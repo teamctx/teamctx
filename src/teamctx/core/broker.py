@@ -65,9 +65,11 @@ def compose(documents: Iterable[CoreContractDocument]) -> ComposedSources:
 class BrokerAnswer:
     """The broker's complete answer at work-start: the derived selection (cards, certified
     claims, coverage, closure, authority, replay digest) plus one labeled verdict per card
-    kind. ``verdicts`` is ordered to match ``CARD_KINDS``. ``open_targets`` carries every
-    source open target from the composed documents, for use by why/open-source commands."""
+    kind. ``request`` carries the exact request that produced it. ``verdicts`` is ordered to
+    match ``CARD_KINDS``. ``open_targets`` carries every source open target from the composed
+    documents, for use by why/open-source commands."""
 
+    request: RequestContext
     selection: ContextSelection
     verdicts: tuple[tuple[str, Valuation], ...]
     open_targets: tuple[SourceOpenTarget, ...] = ()
@@ -93,7 +95,9 @@ def broker_answer(
         )
         for kind in CARD_KINDS
     )
-    return BrokerAnswer(selection=selection, verdicts=verdicts, open_targets=tuple(open_targets))
+    return BrokerAnswer(
+        request=request, selection=selection, verdicts=verdicts, open_targets=tuple(open_targets)
+    )
 
 
 def broker_answer_from_documents(

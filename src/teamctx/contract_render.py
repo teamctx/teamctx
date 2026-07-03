@@ -125,7 +125,7 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
     assessment = assess(answer)
     lines = [_HEADLINE[assessment.kind]]
     lines.extend(_finding_bullets(assessment))
-    coverage = _coverage_line(assessment)
+    coverage = _coverage_line(answer, assessment)
     if coverage:
         lines.append(coverage)
     lines.extend(_fyi_lines(answer.selection))
@@ -212,12 +212,43 @@ def _cant_verify_bullets(assessment: WorkStartAssessment) -> list[str]:
     return bullets
 
 
-def _coverage_line(assessment: WorkStartAssessment) -> str:
-    clear = [RENDER_COPY[s.check].clear for s in assessment.checks if s.status == "clear"]
+def _coverage_line(answer: BrokerAnswer, assessment: WorkStartAssessment) -> str:
+    clear = [_clear_phrase(answer, s) for s in assessment.checks if s.status == "clear"]
     if not clear:
         return ""
     label = "Checked: " if assessment.kind == "ready" else "Also checked: "
     return "  " + label + "; ".join(clear) + "."
+
+
+def _clear_phrase(answer: BrokerAnswer, state: CheckState) -> str:
+    phrase = RENDER_COPY[state.check].clear
+    if state.check == "criteria":
+        suffix = _criteria_provenance_suffix(answer)
+        if suffix:
+            return f"{phrase} {suffix}"
+    return phrase
+
+
+def _criteria_provenance_suffix(answer: BrokerAnswer) -> str:
+    issue_sources = [
+        (issue, answer.request.input_provenance[f"issue:{issue}"])
+        for issue in answer.request.linked_issues
+        if f"issue:{issue}" in answer.request.input_provenance
+    ]
+    if not issue_sources:
+        return ""
+    described = [
+        f"{issue} from {_issue_provenance_label(source)}" for issue, source in issue_sources
+    ]
+    if len(described) == 1:
+        return f"(issue {described[0]})"
+    return f"(issues {', '.join(described)})"
+
+
+def _issue_provenance_label(source: str) -> str:
+    if source == "a commit message trailer":
+        return "a commit trailer"
+    return source
 
 
 def _fyi_lines(selection: ContextSelection) -> list[str]:
@@ -249,7 +280,7 @@ def _couldnt_check_line(assessment: WorkStartAssessment) -> str:
 
 def _not_checked_line(assessment: WorkStartAssessment) -> str:
     gaps = [
-        RENDER_COPY[s.check].not_checked
+        s.note or RENDER_COPY[s.check].not_checked
         for s in assessment.checks
         if s.status == "not_configured"
     ]

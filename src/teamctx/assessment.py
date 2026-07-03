@@ -13,7 +13,7 @@ from typing import Literal
 from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import ContextCard
 from teamctx.core.evaluate import Valuation
-from teamctx.core.kinds import LABEL_CHECK_PAIRS, REASON_PREFIX, CheckId
+from teamctx.core.kinds import CHECK_DEPS_FAMILY, LABEL_CHECK_PAIRS, REASON_PREFIX, CheckId
 
 CheckStatus = Literal[
     "clear", "found", "unreachable", "not_configured", "pending", "not_applicable"
@@ -29,6 +29,7 @@ class CheckState:
     check: CheckId
     status: CheckStatus
     cards: tuple[ContextCard, ...]
+    note: str | None = None
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     cards_by_check: dict[CheckId, list[ContextCard]] = {
         "conflict": [], "criteria": [], "docs": [], "gate": []
     }
+    disabled_notes = _disabled_notes_by_family(answer)
     findings: list[ContextCard] = []
     for card in answer.selection.cards:
         check = _check_of_card(card)
@@ -74,7 +76,14 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     for label, check in LABEL_CHECK_PAIRS:
         valuation = verdicts.get(label)
         status: CheckStatus = _status_for(valuation) if valuation is not None else "not_configured"
-        states.append(CheckState(check=check, status=status, cards=tuple(cards_by_check[check])))
+        states.append(
+            CheckState(
+                check=check,
+                status=status,
+                cards=tuple(cards_by_check[check]),
+                note=_note_for(check, status, disabled_notes),
+            )
+        )
 
     kind: Literal["ready", "heads_up", "cant_verify"]
     if any(s.status == "found" for s in states):
@@ -86,3 +95,21 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     else:
         kind = "ready"
     return WorkStartAssessment(kind=kind, checks=tuple(states), findings=tuple(findings))
+
+
+def _disabled_notes_by_family(answer: BrokerAnswer) -> dict[str, tuple[str, ...]]:
+    notes: dict[str, list[str]] = {}
+    for entry in answer.selection.coverage.entries:
+        if entry.status == "disabled" and entry.note:
+            notes.setdefault(entry.source_family, []).append(entry.note)
+    return {family: tuple(values) for family, values in notes.items()}
+
+
+def _note_for(
+    check: CheckId, status: CheckStatus, disabled_notes: dict[str, tuple[str, ...]]
+) -> str | None:
+    if status != "not_configured":
+        return None
+    family = CHECK_DEPS_FAMILY[check]
+    notes = disabled_notes.get(family, ())
+    return "; ".join(notes) if notes else None

@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 
 import teamctx.resolve as resolve_mod
+from teamctx.discover import DerivedIssues
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
+from teamctx.runner import build_request_context
 
 
 def _write_config(root: Path, **work_start: str) -> None:
@@ -112,3 +114,68 @@ def test_resolve_github_repo_shared_precedence_and_normalization() -> None:
     assert repo is None and err is not None  # invalid -> error
     repo, err = resolve_github_repo(None, None, None)
     assert repo is None and err is not None  # nothing resolves -> error
+
+
+def test_resolve_derives_issues_since_and_provenance(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(resolve_mod, "detect_repo", lambda root: "from/git")
+    monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: "feature")
+    monkeypatch.setattr(
+        resolve_mod,
+        "derive_issues",
+        lambda root: DerivedIssues((("#42", "your branch name"),), capped=False),
+    )
+    monkeypatch.setattr(
+        resolve_mod,
+        "derive_since",
+        lambda root: ("2026-07-01T09:15:00Z", "when you branched (merge-base abc1234)"),
+    )
+
+    inputs = resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
+
+    assert inputs.issues == ("#42",)
+    assert inputs.since == "2026-07-01T09:15:00Z"
+    assert inputs.input_provenance == (
+        ("issue:#42", "your branch name"),
+        ("since", "when you branched (merge-base abc1234)"),
+    )
+    request = build_request_context(inputs, observed_at="2026-07-03T00:00:00Z")
+    assert request.input_provenance == {
+        "issue:#42": "your branch name",
+        "since": "when you branched (merge-base abc1234)",
+    }
+
+
+def test_explicit_issue_and_since_suppress_derivation(monkeypatch, tmp_path: Path) -> None:
+    def fail_derive(root: Path) -> None:
+        raise AssertionError("derivation should be disabled by explicit inputs")
+
+    monkeypatch.setattr(resolve_mod, "derive_issues", fail_derive)
+    monkeypatch.setattr(resolve_mod, "derive_since", fail_derive)
+
+    inputs = resolve_work_start_inputs(
+        paths=("src/x.py",),
+        repo="owner/name",
+        branch="explicit",
+        issues=("#9",),
+        since="2026-07-01",
+        root=tmp_path,
+    )
+
+    assert inputs.issues == ("#9",)
+    assert inputs.since == "2026-07-01"
+    assert inputs.input_provenance == ()
+
+
+def test_bad_explicit_since_raises_pinned_message(tmp_path: Path) -> None:
+    with pytest.raises(WorkStartResolutionError) as exc:
+        resolve_work_start_inputs(
+            paths=("src/x.py",),
+            repo="owner/name",
+            since="July 1",
+            root=tmp_path,
+        )
+
+    assert str(exc.value) == (
+        "--since 'July 1' is not an ISO-8601 timestamp "
+        "(e.g. 2026-07-01 or 2026-07-01T12:00:00Z)."
+    )

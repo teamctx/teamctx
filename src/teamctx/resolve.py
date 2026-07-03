@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from teamctx.clock import parse_since
+from teamctx.discover import derive_issues, derive_since
 from teamctx.git_context import (
     detect_branch,
     detect_repo,
@@ -78,6 +80,28 @@ def resolve_work_start_inputs(
     if resolved_repo is None:
         raise WorkStartResolutionError(repo_error or _REPO_UNRESOLVED)
 
+    resolved_issues = tuple(issues)
+    resolved_since = since
+    provenance: list[tuple[str, str]] = []
+    issues_capped = False
+
+    if not resolved_issues:
+        derived = derive_issues(root)
+        resolved_issues = tuple(issue_ref for issue_ref, _ in derived.issues)
+        provenance.extend((f"issue:{issue_ref}", source) for issue_ref, source in derived.issues)
+        issues_capped = derived.capped
+
+    if resolved_since is None:
+        derived_since = derive_since(root)
+        if derived_since is not None:
+            resolved_since, source = derived_since
+            provenance.append(("since", source))
+    else:
+        try:
+            parse_since(resolved_since)
+        except ValueError as exc:
+            raise WorkStartResolutionError(str(exc)) from exc
+
     return WorkStartInputs(
         repo=resolved_repo,
         paths=tuple(repo_relative_path(root, path) for path in paths),
@@ -85,8 +109,10 @@ def resolve_work_start_inputs(
         task=task,
         token=token,
         include_titles=include_titles,
-        issues=tuple(issues),
-        since=since,
+        issues=resolved_issues,
+        since=resolved_since,
+        input_provenance=tuple(provenance),
+        derived_issues_capped=issues_capped,
         docs_root=docs_root or _config_docs_root(config),
         ref=ref,
     )

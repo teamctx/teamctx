@@ -114,12 +114,14 @@ def test_compose_preserves_order() -> None:
 
 
 def test_broker_answer_returns_selection_and_one_verdict_per_kind() -> None:
+    request = _request()
     answer = broker_answer(
-        _request(),
+        request,
         [_collision_signal(1)],
         [_status("github_pr_metadata", "git_hosting")],
     )
     assert isinstance(answer, BrokerAnswer)
+    assert answer.request == request
     # one verdict per registered card kind
     assert len(answer.verdicts) == 4
     labels = [label for label, _ in answer.verdicts]
@@ -153,8 +155,23 @@ def test_broker_answer_conflict_is_true_when_clear_and_complete() -> None:
 def test_broker_answer_from_documents_composes_then_answers() -> None:
     doc_a = _document([_collision_signal(1)], [_status("github_pr_metadata", "git_hosting")])
     doc_b = _document([], [_status("github_check_runs", "ci_deploy")])
-    answer = broker_answer_from_documents(_request(), [doc_a, doc_b])
+    request = _request()
+    answer = broker_answer_from_documents(request, [doc_a, doc_b])
     verdicts = dict(answer.verdicts)
+    assert answer.request == request
     # collision from doc_a refutes conflict; gate coverage from doc_b is now complete + clear
     assert verdicts["Conflict check"].value == "false"
     assert verdicts["Gate check"].value == "true"
+
+
+def test_provenance_changes_replay_digest() -> None:
+    request = _request()
+    with_provenance = request.model_copy(
+        update={"input_provenance": {"issue:#42": "your branch name"}}
+    )
+    statuses = [_status("github_pr_metadata", "git_hosting")]
+
+    base = broker_answer(request, [], statuses)
+    derived = broker_answer(with_provenance, [], statuses)
+
+    assert base.selection.snapshot_digest != derived.selection.snapshot_digest

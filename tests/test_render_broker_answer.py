@@ -5,12 +5,14 @@ from teamctx.contract_render import render_broker_answer
 from teamctx.core.authority import AuthorityDecl
 from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import RequestContext, SourceSignal, SourceStatus
+from teamctx.hook_signal import hook_signal
 
 
-def _request(paths=("src/app.py",), issues=()) -> RequestContext:
+def _request(paths=("src/app.py",), issues=(), provenance=None) -> RequestContext:
     return RequestContext(
         schema_version="teamctx.request_context.v0", request_id="t", repo="acme/widgets",
         branch="feature", task="work", paths=list(paths), linked_issues=list(issues),
+        input_provenance=provenance or {},
         requested_at="2026-06-28T00:00:00Z", requesting_principal=None,
     )
 
@@ -53,6 +55,19 @@ def _unavailable(family: str) -> SourceStatus:
         source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
         status="unavailable", observed_at="2026-06-28T00:00:00Z", safe_user_message="no access",
         visibility="silent", policy_reason="status only",
+    )
+
+
+def _disabled(family: str, message: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe",
+        source_family=family,
+        scope={"repo": "acme/widgets"},
+        status="disabled",
+        observed_at="2026-06-28T00:00:00Z",
+        safe_user_message=message,
+        visibility="warning_when_relevant",
+        policy_reason="status only",
     )
 
 
@@ -100,6 +115,25 @@ def test_ready_headline_names_clear_checks_and_lists_gaps() -> None:
     assert text.startswith("Looks clear to start.")
     assert "no other open PRs touch your files" in text
     assert "Not checked:" in text and "no issue is linked to this branch" in text
+    _no_jargon(text)
+
+
+def test_not_checked_line_uses_disabled_note_verbatim() -> None:
+    note = (
+        "spec changes (no issue could be derived from your branch or commits; name one "
+        "with --issue)"
+    )
+    text = render_broker_answer(broker_answer(_request(), [], [_disabled("issue_tracker", note)]))
+    assert note in text
+    assert "no issue is linked to this branch" not in text
+    _no_jargon(text)
+
+
+def test_not_checked_line_uses_derived_issue_without_since_note() -> None:
+    note = "spec changes (issue #42 was derived, but the start time couldn't be; pass --since)"
+    text = render_broker_answer(broker_answer(_request(), [], [_disabled("issue_tracker", note)]))
+    assert note in text
+    assert "no issue is linked to this branch" not in text
     _no_jargon(text)
 
 
@@ -169,6 +203,53 @@ def test_heads_up_uses_also_checked_label_for_remaining_clear_checks() -> None:
     assert text.startswith("Before you start, here is what to handle first:")
     assert "Also checked: no failing checks found" in text
     _no_jargon(text)
+
+
+def test_criteria_clear_line_names_single_derived_issue_provenance() -> None:
+    request = _request(issues=("#123",), provenance={"issue:#123": "your branch name"})
+
+    text = render_broker_answer(broker_answer(request, [], [_fresh("issue_tracker")]))
+
+    assert "the linked issue's criteria are unchanged (issue #123 from your branch name)" in text
+    _no_jargon(text)
+
+
+def test_criteria_clear_line_names_multiple_derived_issue_provenance() -> None:
+    request = _request(
+        issues=("#12", "#34"),
+        provenance={
+            "issue:#12": "your branch name",
+            "issue:#34": "a commit message trailer",
+        },
+    )
+
+    text = render_broker_answer(broker_answer(request, [], [_fresh("issue_tracker")]))
+
+    assert (
+        "the linked issue's criteria are unchanged "
+        "(issues #12 from your branch name, #34 from a commit trailer)"
+    ) in text
+    _no_jargon(text)
+
+
+def test_criteria_clear_line_omits_suffix_for_explicit_issue() -> None:
+    request = _request(issues=("#123",))
+
+    text = render_broker_answer(broker_answer(request, [], [_fresh("issue_tracker")]))
+
+    assert "the linked issue's criteria are unchanged." in text
+    assert "from your branch name" not in text
+    _no_jargon(text)
+
+
+def test_hook_signal_does_not_include_criteria_provenance_suffix() -> None:
+    request = _request(issues=("#123",), provenance={"issue:#123": "your branch name"})
+    answer = broker_answer(request, [], [_fresh("issue_tracker")])
+
+    signal = hook_signal(answer, file_path="src/app.py", token_present=True)
+
+    assert "the linked issue's criteria are unchanged" in signal
+    assert "from your branch name" not in signal
 
 
 def test_cant_verify_gate_only_bullet() -> None:
