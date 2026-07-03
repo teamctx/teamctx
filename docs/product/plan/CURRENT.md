@@ -128,9 +128,14 @@ build): `docs/superpowers/specs/2026-07-03-autodiscovery-and-structure.md`.
 2026-07-03: `.secrets/jira-stage` (Atlassian Cloud API token, basic auth with Edgar's email)
 against `https://stage-redhat.atlassian.net/`; read-verified live (whoami OK, 1742 Jira
 projects visible, Confluence v2 spaces list OK). Never commit the URL or instance data into
-repo fixtures (no Red Hat refs in the codebase).** Remaining Edgar inputs: a Jira project key
-+ Confluence space key where Phase 5 may CREATE clearly-labeled test artifacts (reads need
-nothing; asked at the Phase 5 checkpoint) · PyPI publish · going public.
+repo fixtures (no Red Hat refs in the codebase).** ~~Jira project + Confluence space~~ **RESOLVED
+2026-07-03 (Edgar authorized find-or-create; the instance is staging): Jira = project
+JIRAPLAY (the instance's designated playground; create + field-level edit + close verified
+live on JIRAPLAY-1441; NO delete permission, so artifacts are prefixed "[TCTX]" and closed
+after each run) · Confluence = space TS "Testing spaces" (page create + delete full cycle
+verified live). Conduct: clearly-labeled artifacts only, cleaned up after each run; real
+keys never enter committed evidence (the redaction map covers them).** Remaining Edgar
+inputs: PyPI publish · going public.
 
 ## The arc to product-complete (four sprints)
 
