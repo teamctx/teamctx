@@ -9,17 +9,8 @@ Low-stakes coverage gaps (a check not configured) are never headlined.
 from __future__ import annotations
 
 from teamctx.assessment import IMPORTANT_CHECKS, CheckState, WorkStartAssessment, assess
+from teamctx.contract_render import RENDER_COPY
 from teamctx.core.broker import BrokerAnswer
-
-_CLEAR_PHRASE = {
-    "conflict": "no other open pull requests touch these files",
-    "gate": "no failing checks found",
-    "docs": "the docs you rely on are current",
-    "criteria": "the linked issue's criteria are unchanged",
-}
-
-
-_HOOK_GAP = {"conflict": "open pull requests", "gate": "failing checks"}
 
 
 def hook_signal(answer: BrokerAnswer, *, file_path: str, token_present: bool) -> str:
@@ -44,8 +35,8 @@ def _important_gap_notes(a: WorkStartAssessment) -> list[str]:
             notes.append("CI checks are still running, so the gate isn't confirmed green yet.")
         elif s.status == "unreachable":
             notes.append(
-                f"teamctx couldn't reach GitHub to check {_HOOK_GAP.get(s.check, s.check)}, "
-                "so it's unconfirmed."
+                "teamctx couldn't reach GitHub to check "
+                f"{RENDER_COPY[s.check].hook_gap or s.check}, so it's unconfirmed."
             )
     return notes
 
@@ -70,7 +61,7 @@ def _cant_verify(a: WorkStartAssessment, token_present: bool) -> str:
     if unreachable:
         # name only the checks that are actually unreachable, so a pending gate is never
         # mislabeled as "couldn't check failing checks".
-        gaps = " or ".join(_HOOK_GAP.get(check, check) for check in unreachable)
+        gaps = " or ".join(RENDER_COPY[check].hook_gap or check for check in unreachable)
         if not token_present:
             parts.append(
                 f"teamctx couldn't check {gaps} around this file. It doesn't have access to "
@@ -94,7 +85,7 @@ def _cant_verify(a: WorkStartAssessment, token_present: bool) -> str:
 
 
 def _ready(checks: tuple[CheckState, ...], file_path: str) -> str:
-    clear = [_CLEAR_PHRASE[s.check] for s in checks if s.status == "clear"]
+    clear = [RENDER_COPY[s.check].hook_clear for s in checks if s.status == "clear"]
     if not clear:
         return ""
     return f"teamctx: looks clear to start on {file_path} ({_join(clear)})."

@@ -77,3 +77,18 @@ def test_verdict_label_check_pairs_match_pin() -> None:
     from teamctx.core.kinds import LABEL_CHECK_PAIRS
 
     assert tuple(LABEL_CHECK_PAIRS) == EXPECTED_LABELS
+
+
+def test_render_copy_has_one_entry_per_card_kind() -> None:
+    from teamctx.contract_render import RENDER_COPY
+    from teamctx.core.kinds import CARD_KINDS
+
+    assert set(RENDER_COPY) == {kind.check_id for kind in CARD_KINDS}
+
+
+def test_hook_gap_is_present_exactly_for_important_checks() -> None:
+    from teamctx.assessment import IMPORTANT_CHECKS
+    from teamctx.contract_render import RENDER_COPY
+
+    with_hook_gap = {check for check, copy in RENDER_COPY.items() if copy.hook_gap is not None}
+    assert with_hook_gap == set(IMPORTANT_CHECKS)

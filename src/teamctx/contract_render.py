@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from teamctx.assessment import (
     IMPORTANT_CHECKS,
     CheckState,
@@ -14,7 +16,7 @@ from teamctx.core.contracts import (
     ContextCard,
     SourceOpenTarget,
 )
-from teamctx.core.kinds import CheckId
+from teamctx.core.kinds import CARD_KINDS, CheckId
 from teamctx.core.select import ContextSelection
 
 _HEADLINE = {
@@ -22,30 +24,64 @@ _HEADLINE = {
     "heads_up": "Before you start, here is what to handle first:",
     "cant_verify": "Heads up: I can't confirm the important things yet:",
 }
-_CLEAR_PHRASE: dict[CheckId, str] = {
-    "conflict": "no other open PRs touch your files",
-    "gate": "no failing checks found",
-    "docs": "the docs you rely on are current",
-    "criteria": "the linked issue's criteria are unchanged",
+@dataclass(frozen=True)
+class CheckCopy:
+    """The per-check human copy at the render edge, one entry per check. Voice stays
+    hand-written (owned by the CTO); consolidating it into one struct means a new card kind
+    cannot silently ship without the phrases the report and the hook need. ``hook_gap`` is None
+    for a low-stakes check (one that is never headlined as an unconfirmed important gap)."""
+
+    clear: str  # the checked-and-clear coverage phrase
+    not_checked: str  # the not-configured "Not checked" phrase
+    unreachable: str  # the "Couldn't check" phrase
+    finding_action: str  # what to do about a finding, appended to the finding text
+    hook_clear: str  # the glanceable hook's checked-and-clear phrase
+    hook_gap: str | None  # the glanceable hook's unconfirmed-gap phrase (None = not important)
+
+
+# One definition site for every check's copy. The completeness check below fails loud at import
+# if a card kind lacks an entry, so a new kind never silently drops from the report.
+RENDER_COPY: dict[CheckId, CheckCopy] = {
+    "conflict": CheckCopy(
+        clear="no other open PRs touch your files",
+        not_checked="open PRs (couldn't determine the repository)",
+        unreachable="open PRs (couldn't reach GitHub)",
+        finding_action="look at it before you edit so you don't undo each other's work",
+        hook_clear="no other open pull requests touch these files",
+        hook_gap="open pull requests",
+    ),
+    "criteria": CheckCopy(
+        clear="the linked issue's criteria are unchanged",
+        not_checked="spec changes (no issue is linked to this branch; link one to enable)",
+        unreachable="spec changes (couldn't reach GitHub)",
+        finding_action="re-check the criteria before you rely on them",
+        hook_clear="the linked issue's criteria are unchanged",
+        hook_gap=None,
+    ),
+    "docs": CheckCopy(
+        clear="the docs you rely on are current",
+        not_checked="docs (no docs root is configured; set work_start.docs_root to enable)",
+        unreachable="the docs you rely on (couldn't read the docs folder)",
+        finding_action="rely on the current one instead",
+        hook_clear="the docs you rely on are current",
+        hook_gap=None,
+    ),
+    "gate": CheckCopy(
+        clear="no failing checks found",
+        not_checked="failing checks (couldn't determine your branch)",
+        unreachable="failing checks (couldn't reach GitHub)",
+        finding_action="fix it or wait for a green build before relying on it",
+        hook_clear="no failing checks found",
+        hook_gap="failing checks",
+    ),
 }
-_NOT_CHECKED_PHRASE: dict[CheckId, str] = {
-    "criteria": "spec changes (no issue is linked to this branch; link one to enable)",
-    "docs": "docs (no docs root is configured; set work_start.docs_root to enable)",
-    "gate": "failing checks (couldn't determine your branch)",
-    "conflict": "open PRs (couldn't determine the repository)",
-}
-_UNREACHABLE_PHRASE: dict[CheckId, str] = {
-    "conflict": "open PRs (couldn't reach GitHub)",
-    "gate": "failing checks (couldn't reach GitHub)",
-    "criteria": "spec changes (couldn't reach GitHub)",
-    "docs": "the docs you rely on (couldn't read the docs folder)",
-}
-_FINDING_ACTION: dict[CheckId, str] = {
-    "conflict": "look at it before you edit so you don't undo each other's work",
-    "criteria": "re-check the criteria before you rely on them",
-    "docs": "rely on the current one instead",
-    "gate": "fix it or wait for a green build before relying on it",
-}
+
+if set(RENDER_COPY) != {kind.check_id for kind in CARD_KINDS}:
+    raise RuntimeError(
+        "RENDER_COPY must carry exactly one entry per card kind; "
+        f"have {sorted(RENDER_COPY)}, need {sorted(kind.check_id for kind in CARD_KINDS)}"
+    )
+
 _PENDING_PHRASE: dict[CheckId, str] = {
     "gate": "failing checks (CI still running, not confirmed green yet)",
 }
@@ -122,7 +158,7 @@ def _finding_bullets(assessment: WorkStartAssessment) -> list[str]:
 
 
 def _finding_text(state: CheckState, card: ContextCard) -> str:
-    action = _FINDING_ACTION.get(state.check, "")
+    action = RENDER_COPY[state.check].finding_action
     base = f"{card.text.rstrip('.')}: {action}" if action else card.text
     pr = _gh_hint(card) if state.check == "conflict" else ""
     return f"{base}{pr}"
@@ -177,7 +213,7 @@ def _cant_verify_bullets(assessment: WorkStartAssessment) -> list[str]:
 
 
 def _coverage_line(assessment: WorkStartAssessment) -> str:
-    clear = [_CLEAR_PHRASE[s.check] for s in assessment.checks if s.status == "clear"]
+    clear = [RENDER_COPY[s.check].clear for s in assessment.checks if s.status == "clear"]
     if not clear:
         return ""
     label = "Checked: " if assessment.kind == "ready" else "Also checked: "
@@ -201,7 +237,7 @@ def _couldnt_check_line(assessment: WorkStartAssessment) -> str:
     # surfaced here too. Honest-UNKNOWN is never silently dropped.
     in_bullets = assessment.kind == "cant_verify"
     gaps = [
-        _UNREACHABLE_PHRASE[s.check]
+        RENDER_COPY[s.check].unreachable
         for s in assessment.checks
         if s.status == "unreachable"
         and not (in_bullets and s.check in IMPORTANT_CHECKS)
@@ -212,7 +248,11 @@ def _couldnt_check_line(assessment: WorkStartAssessment) -> str:
 
 
 def _not_checked_line(assessment: WorkStartAssessment) -> str:
-    gaps = [_NOT_CHECKED_PHRASE[s.check] for s in assessment.checks if s.status == "not_configured"]
+    gaps = [
+        RENDER_COPY[s.check].not_checked
+        for s in assessment.checks
+        if s.status == "not_configured"
+    ]
     if not gaps:
         return ""
     return "  Not checked: " + "; ".join(gaps) + "."
