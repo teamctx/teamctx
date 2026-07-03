@@ -43,7 +43,7 @@ Issues = "https://github.com/teamctx/teamctx/issues"
 
 [project.scripts]
 teamctx = "teamctx.cli:main"
-teamctx-mcp = "teamctx.mcp_server:main"
+teamctx-mcp = "teamctx.mcp_entry:main"
 teamctx-hook = "teamctx.hook:main"
 
 [project.optional-dependencies]

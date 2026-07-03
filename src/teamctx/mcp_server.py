@@ -15,6 +15,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from teamctx.clock import utc_now_iso
+from teamctx.connectors.declared_authority import DeclaredAuthorityError
 from teamctx.git_context import resolve_project_root
 from teamctx.project_config import ProjectConfigError
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
@@ -66,7 +67,10 @@ def work_start(
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
         return str(exc)
-    return render_work_start(inputs, observed_at=utc_now_iso(), project_root=_resolution_root())
+    try:
+        return render_work_start(inputs, observed_at=utc_now_iso(), project_root=_resolution_root())
+    except DeclaredAuthorityError as exc:
+        return str(exc)
 
 
 def _resolution_root() -> Path:

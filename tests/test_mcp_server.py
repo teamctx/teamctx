@@ -122,6 +122,17 @@ def test_work_start_returns_error_text_when_repo_unresolvable(monkeypatch, tmp_p
     assert "could not determine the repository" in out
 
 
+def test_work_start_returns_error_text_for_malformed_authority(monkeypatch, tmp_path) -> None:
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "authority.json").write_text("{ not valid json", encoding="utf-8")
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    out = work_start(repo="acme/widgets", paths=["src/x.py"])
+
+    assert "Fix or remove the file." in out
+
+
 def test_work_start_docs_scanned_from_project_root_not_cwd(monkeypatch, tmp_path) -> None:
     import json
 

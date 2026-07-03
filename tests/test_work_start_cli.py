@@ -168,6 +168,29 @@ def test_work_start_errors_on_malformed_config(monkeypatch, tmp_path: Path) -> N
     assert "config" in result.output.lower()  # clean message, not a traceback
 
 
+def test_work_start_errors_on_malformed_authority(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "authority.json").write_text("{ not valid json", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "work-start",
+            "--github-repo",
+            "acme/widgets",
+            "--path",
+            "src/x.py",
+            "--token-env",
+            "TEAMCTX_DEFINITELY_UNSET_TOKEN",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Fix or remove the file." in result.output
+    assert "Traceback" not in result.output
+
+
 def test_work_start_finds_config_from_subdirectory(monkeypatch, tmp_path: Path) -> None:
     """Run from a subdirectory: the committed config at the repo root is still found, because
     root resolution uses the git toplevel, not the process cwd."""
