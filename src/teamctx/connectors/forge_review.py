@@ -13,7 +13,6 @@ from typing import Literal
 
 from teamctx.connectors._contract import metadata_only_policy, source_status, unavailable_document
 from teamctx.core.contracts import (
-    ContextCard,
     CoreContractDocument,
     RequestContext,
     Scope,
@@ -62,7 +61,6 @@ def normalize_forge_review_prs(
 ) -> CoreContractDocument:
     source_signals: list[SourceSignal] = []
     source_open_targets: list[SourceOpenTarget] = []
-    context_cards: list[ContextCard] = []
     requested_paths = set(request_context.paths)
     own_branch_prs: list[int] = []
 
@@ -125,24 +123,6 @@ def normalize_forge_review_prs(
                 policy=policy,
             )
         )
-        context_cards.append(
-            ContextCard(
-                schema_version="teamctx.context_card.v0",
-                id=f"card_{pr.provider}_pr_{pr.number}_collision",
-                section="Needs attention",
-                text=evidence_summary,
-                why_this_matters=why_collision_matters(overlap),
-                source_display=source_display,
-                refs=[signal_id],
-                reason="same repository and file path as the current task",
-                scope={"repo": pr.repo, "files": overlap},
-                freshness="fresh",
-                confidence="high",
-                source_body="status_only",
-                source_open_target_id=open_target_id,
-                agent_instruction="verify_before_relying",
-            )
-        )
 
     status: SourceStatusValue = "stale" if coverage_truncated else "fresh"
     messages: list[str] = []
@@ -192,7 +172,7 @@ def normalize_forge_review_prs(
         source_open_targets=source_open_targets,
         guidance_records=[],
         session_context_uses=[],
-        context_cards=context_cards,
+        context_cards=[],
     )
 
 
@@ -248,12 +228,6 @@ def collision_summary(pr_number: int, paths: list[str]) -> str:
     if len(paths) == 1:
         return f"Open PR #{pr_number} changed {paths[0]}."
     return f"Open PR #{pr_number} changed {len(paths)} files in the current task."
-
-
-def why_collision_matters(paths: list[str]) -> str:
-    if len(paths) == 1:
-        return "you are editing the same file."
-    return "you are editing the same files."
 
 
 def provider_name(provider: ForgeProvider) -> str:
