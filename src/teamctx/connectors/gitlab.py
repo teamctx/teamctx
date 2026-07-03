@@ -16,6 +16,12 @@ from teamctx.connectors.forge_review import (
     normalize_forge_review_prs,
     unavailable_forge_review_document,
 )
+from teamctx.connectors.gate_status import (
+    FailingGate,
+    normalize_failing_gates,
+    pending_gates_document,
+    unavailable_gates_document,
+)
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 
 GITLAB_API_ROOT = "https://gitlab.com"
@@ -58,10 +64,33 @@ class GitLabMRFetch:
     diff_unchecked_count: int = 0
 
 
+@dataclass(frozen=True)
+class GitLabPipeline:
+    id: int
+    status: str
+    web_url: str
+
+
 class GitLabProbeError(RuntimeError):
-    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        stale: bool = False,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
+        self.stale = stale
+
+
+_PENDING_PIPELINE_STATUSES = frozenset(
+    {"running", "pending", "created", "waiting_for_resource", "preparing", "scheduled"}
+)
+_FAILING_PIPELINE_STATUSES = frozenset({"failed", "canceled"})
+_FAILING_JOB_STATUSES = frozenset({"failed", "canceled"})
+_PIPELINE_STALE_MESSAGE = "the pipeline state could not be confirmed green"
+_ZERO_PIPELINES_NOTE = "no pipeline ran for this branch, so the gate is unverified"
 
 
 def run_gitlab_mr_probe(
@@ -116,6 +145,87 @@ def run_gitlab_mr_probe(
     )
 
 
+def run_gitlab_pipeline_probe(
+    *,
+    repo: str,
+    ref: str,
+    token: str | None,
+    request_context: RequestContext,
+    observed_at: str,
+    opener: HttpOpener = DEFAULT_OPENER,
+) -> CoreContractDocument:
+    if not token:
+        return unavailable_gates_document(
+            request_context,
+            repo=repo,
+            observed_at=observed_at,
+            source_id="gitlab_pipeline_state",
+            safe_user_message="CI status is unavailable because no token is configured.",
+        )
+
+    try:
+        pipeline = fetch_latest_gitlab_pipeline(
+            repo=repo, ref=ref, token=token, opener=opener
+        )
+        if pipeline is None:
+            return unavailable_gates_document(
+                request_context,
+                repo=repo,
+                observed_at=observed_at,
+                source_id="gitlab_pipeline_state",
+                status="disabled",
+                safe_user_message=_ZERO_PIPELINES_NOTE,
+            )
+        if pipeline.status == "success":
+            return normalize_failing_gates(
+                request_context,
+                [],
+                observed_at=observed_at,
+                source_id="gitlab_pipeline_state",
+            )
+        if pipeline.status in _PENDING_PIPELINE_STATUSES:
+            return pending_gates_document(
+                request_context,
+                repo=repo,
+                observed_at=observed_at,
+                source_id="gitlab_pipeline_state",
+                safe_user_message=(
+                    f"GitLab pipeline is {pipeline.status}; the gate is not confirmed green yet."
+                ),
+            )
+        if pipeline.status in _FAILING_PIPELINE_STATUSES:
+            gates = fetch_gitlab_failing_pipeline_jobs(
+                repo=repo, pipeline=pipeline, token=token, opener=opener
+            )
+            if not gates:
+                gates = [(f"pipeline {pipeline.status}", pipeline.web_url)]
+            return normalize_failing_gates(
+                request_context,
+                [
+                    FailingGate(
+                        repo=repo,
+                        gate_name=name,
+                        url=url,
+                        files=tuple(request_context.paths),
+                    )
+                    for name, url in gates
+                ],
+                observed_at=observed_at,
+                source_id="gitlab_pipeline_state",
+            )
+        return _stale_pipeline_document(request_context, repo=repo, observed_at=observed_at)
+    except GitLabProbeError as exc:
+        if exc.stale:
+            return _stale_pipeline_document(request_context, repo=repo, observed_at=observed_at)
+        return unavailable_gates_document(
+            request_context,
+            repo=repo,
+            observed_at=observed_at,
+            source_id="gitlab_pipeline_state",
+            safe_user_message=gitlab_error_message(exc, source="CI status"),
+        )
+
+
 def fetch_gitlab_merge_requests(
     *,
     repo: str,
@@ -168,6 +278,78 @@ def fetch_gitlab_merge_requests(
         unbounded_files_mrs=unbounded_files_mrs,
         diff_checked_count=checked_count,
         diff_unchecked_count=unchecked_count,
+    )
+
+
+def fetch_latest_gitlab_pipeline(
+    *, repo: str, ref: str, token: str, opener: HttpOpener = DEFAULT_OPENER
+) -> GitLabPipeline | None:
+    project = quote(repo, safe="")
+    payload, _ = get_json_with_headers(
+        f"{gitlab_api_root()}/api/v4/projects/{project}/pipelines"
+        f"?ref={quote(ref, safe='')}&per_page=1&order_by=updated_at&sort=desc",
+        token=token,
+        opener=opener,
+    )
+    if not isinstance(payload, list):
+        raise GitLabProbeError("GitLab pipelines response was not a list", stale=True)
+    if not payload:
+        return None
+    return _parse_pipeline(payload[0])
+
+
+def fetch_gitlab_failing_pipeline_jobs(
+    *,
+    repo: str,
+    pipeline: GitLabPipeline,
+    token: str,
+    opener: HttpOpener = DEFAULT_OPENER,
+) -> list[tuple[str, str]]:
+    project = quote(repo, safe="")
+    payload, _ = get_json_with_headers(
+        f"{gitlab_api_root()}/api/v4/projects/{project}/pipelines/{pipeline.id}/jobs"
+        "?per_page=100",
+        token=token,
+        opener=opener,
+    )
+    if not isinstance(payload, list):
+        raise GitLabProbeError("GitLab pipeline jobs response was not a list", stale=True)
+    failing: list[tuple[str, str]] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            raise GitLabProbeError("GitLab pipeline job item was malformed", stale=True)
+        status = item.get("status")
+        if status not in _FAILING_JOB_STATUSES:
+            continue
+        name = item.get("name")
+        url = item.get("web_url")
+        if not isinstance(name, str) or not isinstance(url, str):
+            raise GitLabProbeError("GitLab failing pipeline job was malformed", stale=True)
+        failing.append((name, url))
+    return failing
+
+
+def _parse_pipeline(item: object) -> GitLabPipeline:
+    if not isinstance(item, dict):
+        raise GitLabProbeError("GitLab pipeline item was malformed", stale=True)
+    pipeline_id = item.get("id")
+    status = item.get("status")
+    web_url = item.get("web_url")
+    if not (isinstance(pipeline_id, int) and isinstance(status, str) and isinstance(web_url, str)):
+        raise GitLabProbeError("GitLab pipeline item was malformed", stale=True)
+    return GitLabPipeline(id=pipeline_id, status=status, web_url=web_url)
+
+
+def _stale_pipeline_document(
+    request_context: RequestContext, *, repo: str, observed_at: str
+) -> CoreContractDocument:
+    return unavailable_gates_document(
+        request_context,
+        repo=repo,
+        observed_at=observed_at,
+        source_id="gitlab_pipeline_state",
+        status="stale",
+        safe_user_message=_PIPELINE_STALE_MESSAGE,
     )
 
 
