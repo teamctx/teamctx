@@ -163,6 +163,40 @@ def test_ref_overrides_branch_for_gate(monkeypatch) -> None:
     assert captured["ref"] == "abc123"
 
 
+def test_reflex_profile_passes_one_page_collision_budget(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_collision(*, max_pages, request_context, observed_at, **kwargs):  # type: ignore[no-untyped-def]
+        captured["max_pages"] = max_pages
+        return _empty_doc(request_context)
+
+    monkeypatch.setattr(runner, "run_github_pr_probe", fake_collision)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        profile="reflex",
+    )
+
+    run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    assert captured["max_pages"] == 1
+
+
+def test_full_profile_passes_three_page_collision_budget(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_collision(*, max_pages, request_context, observed_at, **kwargs):  # type: ignore[no-untyped-def]
+        captured["max_pages"] = max_pages
+        return _empty_doc(request_context)
+
+    monkeypatch.setattr(runner, "run_github_pr_probe", fake_collision)
+    inputs = WorkStartInputs(repo="teamctx/teamctx", paths=("src/x.py",))
+
+    run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    assert captured["max_pages"] == 3
+
+
 def test_request_context_shares_paths_and_issues() -> None:
     inputs = WorkStartInputs(
         repo="teamctx/teamctx", paths=("src/x.py",), issues=("#42",), task="do a thing",

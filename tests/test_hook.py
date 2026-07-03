@@ -154,3 +154,22 @@ def test_network_calls_are_time_bounded(monkeypatch, capsys, tmp_path) -> None:
     _run(_payload(tmp_path), monkeypatch, capsys)
     assert seen["timeout"] == 8  # a network budget is applied during grounding
     assert socket.getdefaulttimeout() == before  # restored afterward (no global pollution)
+
+
+def test_ground_sets_reflex_profile(monkeypatch, tmp_path) -> None:
+    _init_repo(tmp_path)
+    import teamctx.hook_signal as hs
+    import teamctx.work_start as ws
+
+    seen: dict[str, object] = {}
+
+    def fake_answer(inputs, **kwargs):  # type: ignore[no-untyped-def]
+        seen["profile"] = inputs.profile
+        return object()
+
+    monkeypatch.setattr(ws, "work_start_answer", fake_answer)
+    monkeypatch.setattr(hs, "hook_signal", lambda *args, **kwargs: "ok")
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+    assert hook._ground(tmp_path, "src/app.py") == "ok"
+    assert seen["profile"] == "reflex"
