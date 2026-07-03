@@ -6,11 +6,12 @@ from teamctx.core.contracts import RequestContext, SourceSignal, SourceStatus
 from teamctx.hook_signal import hook_signal
 
 
-def _request(paths=("src/app.py",)) -> RequestContext:
+def _request(paths=("src/app.py",), forge: str = "github") -> RequestContext:
     return RequestContext(
         schema_version="teamctx.request_context.v0",
         request_id="t",
         repo="acme/widgets",
+        forge=forge,
         branch="feature",
         task="work",
         paths=list(paths),
@@ -94,6 +95,16 @@ def test_cant_verify_when_github_unreachable_no_token() -> None:
     assert "keep working" in text
 
 
+def test_cant_verify_when_gitlab_unreachable_no_token() -> None:
+    answer = broker_answer(_request(forge="gitlab"), [], [_unavailable_status("git_hosting")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=False)
+    assert "GitLab" in text
+    assert "GITLAB_TOKEN" in text
+    assert "open merge requests" in text
+    assert "GitHub" not in text
+    assert "GITHUB_TOKEN" not in text
+
+
 def test_cant_verify_with_token_present_is_transient() -> None:
     answer = broker_answer(_request(), [], [_unavailable_status("git_hosting")])
     text = hook_signal(answer, file_path="src/app.py", token_present=True)
@@ -126,6 +137,13 @@ def test_ready_names_the_clear_checks_no_lowstakes_hedge() -> None:
     assert "no other open pull requests touch these files" in text
     assert "FYI:" not in text
     assert "couldn't" not in text.lower()
+
+
+def test_gitlab_ready_names_open_merge_requests() -> None:
+    answer = broker_answer(_request(forge="gitlab"), [], [_fresh_status("git_hosting")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "no other open merge requests touch these files" in text
+    assert "pull requests" not in text
 
 
 def _pending_status(family: str) -> SourceStatus:

@@ -37,6 +37,10 @@ class CheckCopy:
     finding_action: str  # what to do about a finding, appended to the finding text
     hook_clear: str  # the glanceable hook's checked-and-clear phrase
     hook_gap: str | None  # the glanceable hook's unconfirmed-gap phrase (None = not important)
+    gitlab_clear: str | None = None
+    gitlab_unreachable: str | None = None
+    gitlab_hook_clear: str | None = None
+    gitlab_hook_gap: str | None = None
 
 
 # One definition site for every check's copy. The completeness check below fails loud at import
@@ -49,6 +53,10 @@ RENDER_COPY: dict[CheckId, CheckCopy] = {
         finding_action="look at it before you edit so you don't undo each other's work",
         hook_clear="no other open pull requests touch these files",
         hook_gap="open pull requests",
+        gitlab_clear="no other open MRs touch your files",
+        gitlab_unreachable="open MRs (couldn't reach GitLab)",
+        gitlab_hook_clear="no other open merge requests touch these files",
+        gitlab_hook_gap="open merge requests",
     ),
     "criteria": CheckCopy(
         clear="the linked issue's criteria are unchanged",
@@ -73,6 +81,8 @@ RENDER_COPY: dict[CheckId, CheckCopy] = {
         finding_action="fix it or wait for a green build before relying on it",
         hook_clear="no failing checks found",
         hook_gap="failing checks",
+        gitlab_unreachable="pipeline state (couldn't reach GitLab)",
+        gitlab_hook_gap="pipeline state",
     ),
 }
 
@@ -107,6 +117,34 @@ def _pending_bullet(check: CheckId) -> str:
     return f"  • {check}: still running, not confirmed yet."
 
 
+def check_clear_copy(check: CheckId, forge: str) -> str:
+    copy = RENDER_COPY[check]
+    if forge == "gitlab" and copy.gitlab_clear is not None:
+        return copy.gitlab_clear
+    return copy.clear
+
+
+def check_unreachable_copy(check: CheckId, forge: str) -> str:
+    copy = RENDER_COPY[check]
+    if forge == "gitlab" and copy.gitlab_unreachable is not None:
+        return copy.gitlab_unreachable
+    return copy.unreachable
+
+
+def check_hook_clear_copy(check: CheckId, forge: str) -> str:
+    copy = RENDER_COPY[check]
+    if forge == "gitlab" and copy.gitlab_hook_clear is not None:
+        return copy.gitlab_hook_clear
+    return copy.hook_clear
+
+
+def check_hook_gap_copy(check: CheckId, forge: str) -> str | None:
+    copy = RENDER_COPY[check]
+    if forge == "gitlab" and copy.gitlab_hook_gap is not None:
+        return copy.gitlab_hook_gap
+    return copy.hook_gap
+
+
 def _authority_line(entry: AuthorityEntry) -> str:
     if entry.state == "resolved":
         return f"- {entry.subject}: resolved (value {entry.value})"
@@ -128,12 +166,13 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
         # nothing ran at all (every check not configured): "clear" would be false comfort
         headline = "Nothing checked yet; here's why:"
     lines = [headline]
-    lines.extend(_finding_bullets(assessment))
+    forge = answer.request.forge
+    lines.extend(_finding_bullets(assessment, forge))
     coverage = _coverage_line(answer, assessment)
     if coverage:
         lines.append(coverage)
     lines.extend(_fyi_lines(answer.selection))
-    couldnt = _couldnt_check_line(assessment)
+    couldnt = _couldnt_check_line(assessment, forge)
     if couldnt:
         lines.append(couldnt)
     partially = _partially_checked_line(assessment)
@@ -152,7 +191,7 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _finding_bullets(assessment: WorkStartAssessment) -> list[str]:
+def _finding_bullets(assessment: WorkStartAssessment, forge: str) -> list[str]:
     if assessment.kind == "heads_up":
         bullets: list[str] = []
         for state in assessment.checks:
@@ -160,7 +199,7 @@ def _finding_bullets(assessment: WorkStartAssessment) -> list[str]:
                 bullets.extend(f"  • {_finding_text(state, card)}" for card in state.cards)
         return bullets
     if assessment.kind == "cant_verify":
-        return _cant_verify_bullets(assessment)
+        return _cant_verify_bullets(assessment, forge)
     return []
 
 
@@ -193,34 +232,37 @@ def _gh_hint(card: ContextCard) -> str:
     return f" (gh pr view {digits})"
 
 
-def _cant_verify_bullets(assessment: WorkStartAssessment) -> list[str]:
+def _cant_verify_bullets(assessment: WorkStartAssessment, forge: str) -> list[str]:
     # Every important non-clear check gets a bullet, so none is dropped: the combined
     # GitHub-unreachable bullet (to avoid repeating the long fix text when both are unreachable),
     # plus a bullet for each important pending check.
     status = {s.check: s.status for s in assessment.checks}
     conflict_unreachable = status.get("conflict") == "unreachable"
     gate_unreachable = status.get("gate") == "unreachable"
-    fix = (
-        "teamctx couldn't reach GitHub. Either it has no access yet (set GITHUB_TOKEN, or "
-        "GITHUB_TOKEN_FILE with a path to a token file) or it's a temporary connection issue."
-    )
+    fix = _fix_text(forge)
     bullets: list[str] = []
     if conflict_unreachable and gate_unreachable:
-        bullets.append(f"  • Open PRs and failing checks: {fix} Until it's back you won't see "
-                       "colliding PRs or red CI on your files.")
+        bullets.append(
+            f"  • {_conflict_label(forge)} and {_gate_label(forge)}: {fix} "
+            f"Until it's back you won't see {_missing_both_phrase(forge)} on your files."
+        )
     elif conflict_unreachable:
         bullets.append(
-            f"  • Open PRs: {fix} Until it's back you won't see colliding PRs on your files."
+            f"  • {_conflict_label(forge)}: {fix} Until it's back you won't see "
+            f"{_colliding_review_phrase(forge)} on your files."
         )
     elif gate_unreachable:
         bullets.append(
-            f"  • Failing checks: {fix} Until it's back you won't see red CI on your files."
+            f"  • {_gate_label(forge).capitalize()}: {fix} Until it's back you won't see "
+            f"{_red_gate_phrase(forge)} on your files."
         )
     for state in assessment.checks:
         if state.status == "unbounded" and state.check in IMPORTANT_CHECKS:
-            label = "Open PRs" if state.check == "conflict" else "Failing checks"
-            note = state.note or RENDER_COPY[state.check].unreachable
-            bullets.append(f"  • {label}: {note} Glance at GitHub if this file is sensitive.")
+            label = _conflict_label(forge) if state.check == "conflict" else _gate_label(forge)
+            note = state.note or check_unreachable_copy(state.check, forge)
+            bullets.append(
+                f"  • {label}: {note} Glance at {_source_name(forge)} if this file is sensitive."
+            )
     for state in assessment.checks:
         if state.status == "pending" and state.check in IMPORTANT_CHECKS:
             bullets.append(_pending_bullet(state.check))
@@ -236,7 +278,7 @@ def _coverage_line(answer: BrokerAnswer, assessment: WorkStartAssessment) -> str
 
 
 def _clear_phrase(answer: BrokerAnswer, state: CheckState) -> str:
-    phrase = RENDER_COPY[state.check].clear
+    phrase = check_clear_copy(state.check, answer.request.forge)
     if state.check == "criteria":
         suffix = _criteria_provenance_suffix(answer)
         if suffix:
@@ -276,14 +318,14 @@ def _fyi_lines(selection: ContextSelection) -> list[str]:
     ]
 
 
-def _couldnt_check_line(assessment: WorkStartAssessment) -> str:
+def _couldnt_check_line(assessment: WorkStartAssessment, forge: str) -> str:
     # Surface every unreachable check that isn't already in the can't-verify bullets. Those
     # bullets only fire when kind == cant_verify and only for the important checks, so in any
     # other mode (a found check made it heads_up) the unreachable important checks must be
     # surfaced here too. Honest-UNKNOWN is never silently dropped.
     in_bullets = assessment.kind == "cant_verify"
     gaps = [
-        RENDER_COPY[s.check].unreachable
+        check_unreachable_copy(s.check, forge)
         for s in assessment.checks
         if s.status == "unreachable"
         and not (in_bullets and s.check in IMPORTANT_CHECKS)
@@ -338,6 +380,41 @@ def _not_applicable_line(assessment: WorkStartAssessment) -> str:
     if not gaps:
         return ""
     return "  Not applicable: " + "; ".join(gaps) + "."
+
+
+def _source_name(forge: str) -> str:
+    return "GitLab" if forge == "gitlab" else "GitHub"
+
+
+def _fix_text(forge: str) -> str:
+    source = _source_name(forge)
+    token = "GITLAB_TOKEN" if forge == "gitlab" else "GITHUB_TOKEN"
+    return (
+        f"teamctx couldn't reach {source}. Either it has no access yet (set {token}, or "
+        f"{token}_FILE with a path to a token file) or it's a temporary connection issue."
+    )
+
+
+def _conflict_label(forge: str) -> str:
+    return "Open MRs" if forge == "gitlab" else "Open PRs"
+
+
+def _gate_label(forge: str) -> str:
+    return "pipeline state" if forge == "gitlab" else "failing checks"
+
+
+def _colliding_review_phrase(forge: str) -> str:
+    return "colliding MRs" if forge == "gitlab" else "colliding PRs"
+
+
+def _red_gate_phrase(forge: str) -> str:
+    return "pipeline failures" if forge == "gitlab" else "red CI"
+
+
+def _missing_both_phrase(forge: str) -> str:
+    if forge == "gitlab":
+        return "colliding MRs or pipeline failures"
+    return "colliding PRs or red CI"
 
 
 def _authority_block(selection: ContextSelection) -> list[str]:
