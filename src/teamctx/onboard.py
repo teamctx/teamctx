@@ -237,6 +237,9 @@ _SNIPPET_START = "<!-- teamctx:start -->"
 _SNIPPET_END = "<!-- teamctx:end -->"
 _SNIPPET_HEADING = "## Team context (teamctx)"
 _KNOWN_BODIES = (CLAUDE_MD_SNIPPET, _LEGACY_SNIPPET_BODY)
+SnippetState = Literal[
+    "current", "outdated", "edited", "conflicted_markers", "legacy", "edited_heading", "absent"
+]
 
 
 def _marked_block() -> str:
@@ -257,6 +260,29 @@ def _marker_span(lines: list[str]) -> tuple[int, int] | None:
     return starts[0], ends[0]
 
 
+def classify_claude_md(existing: str) -> SnippetState:
+    """Classify the teamctx snippet state in a CLAUDE.md text. The one classifier used by
+    upsert (to decide the write) and status (to report), so they can never disagree."""
+
+    lines = existing.splitlines(keepends=True)
+    span = _marker_span(lines)
+    if span is None and (_SNIPPET_START in existing or _SNIPPET_END in existing):
+        return "conflicted_markers"
+    if span is not None:
+        start_i, end_i = span
+        body = "".join(lines[start_i + 1 : end_i])
+        if _normalize_ws(body) == _normalize_ws(CLAUDE_MD_SNIPPET):
+            return "current"
+        if _normalize_ws(body) in {_normalize_ws(b) for b in _KNOWN_BODIES}:
+            return "outdated"
+        return "edited"
+    if existing.count(_LEGACY_SNIPPET_BODY) == 1:
+        return "legacy"
+    if _SNIPPET_HEADING in existing:
+        return "edited_heading"
+    return "absent"
+
+
 def upsert_claude_md_snippet(root: Path, *, dry_run: bool) -> StepResult:
     """Write or refresh the teamctx snippet in CLAUDE.md, never destroying user content: manage
     only a single well-formed marker pair whose body teamctx generated, migrate an exact unedited
@@ -266,34 +292,34 @@ def upsert_claude_md_snippet(root: Path, *, dry_run: bool) -> StepResult:
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     lines = existing.splitlines(keepends=True)
     block = _marked_block()
-    known_norms = {_normalize_ws(b) for b in _KNOWN_BODIES}
+    state = classify_claude_md(existing)
 
-    span = _marker_span(lines)
-    if span is None and (_SNIPPET_START in existing or _SNIPPET_END in existing):
+    if state == "conflicted_markers":
         return StepResult(
             "claude_md", "skipped",
             "found teamctx markers in CLAUDE.md that aren't a clean single start/end pair; fix or "
             "remove them by hand, then re-run.",
         )
-    if span is not None:
-        start_i, end_i = span
-        body = "".join(lines[start_i + 1 : end_i])
-        if _normalize_ws(body) == _normalize_ws(CLAUDE_MD_SNIPPET):
-            return StepResult("claude_md", "already", "CLAUDE.md snippet already current.")
-        if _normalize_ws(body) not in known_norms:
-            return StepResult(
-                "claude_md", "skipped",
-                "the teamctx block in CLAUDE.md was hand-edited; left it untouched. Remove it and "
-                "re-run to let teamctx manage it.",
-            )
+    if state == "current":
+        return StepResult("claude_md", "already", "CLAUDE.md snippet already current.")
+    if state == "edited":
+        return StepResult(
+            "claude_md", "skipped",
+            "the teamctx block in CLAUDE.md was hand-edited; left it untouched. Remove it and "
+            "re-run to let teamctx manage it.",
+        )
+    if state == "outdated":
         if dry_run:
             return StepResult(
                 "claude_md", "skipped", "--dry-run: would refresh the CLAUDE.md snippet."
             )
+        span = _marker_span(lines)
+        assert span is not None
+        start_i, end_i = span
         _atomic_write(path, "".join(lines[:start_i]) + block + "".join(lines[end_i + 1 :]))
         return StepResult("claude_md", "wrote", "refreshed the CLAUDE.md snippet in place.")
 
-    if existing.count(_LEGACY_SNIPPET_BODY) == 1:  # exact, single -> confident migration
+    if state == "legacy":
         if dry_run:
             return StepResult(
                 "claude_md", "skipped", "--dry-run: would migrate the old CLAUDE.md snippet."
@@ -303,13 +329,14 @@ def upsert_claude_md_snippet(root: Path, *, dry_run: bool) -> StepResult:
             "claude_md", "wrote", "migrated the old CLAUDE.md snippet to the marked block."
         )
 
-    if _SNIPPET_HEADING in existing:  # a heading we can't confidently match -> never guess
+    if state == "edited_heading":
         return StepResult(
             "claude_md", "skipped",
             "found an edited '## Team context (teamctx)' block in CLAUDE.md; left it untouched. "
             "Remove it by hand and re-run.",
         )
 
+    assert state == "absent"
     if dry_run:
         return StepResult("claude_md", "skipped", "--dry-run: would add the CLAUDE.md snippet.")
     prefix = existing if existing == "" or existing.endswith("\n") else existing + "\n"
