@@ -92,12 +92,17 @@ build): `docs/superpowers/specs/2026-07-03-autodiscovery-and-structure.md`.
   `since` derivation **DONE 2026-07-03 (merged `b2a4773`, 502 tests, coverage 93.37%; codex
   built from the plan, Fable arbiter-reviewed + live smoke showing the precise not-run notes;
   discover.py from branch names + local trailers only, privacy boundary intact, provenance
-  bound into the replay digest)** · S5b docs relied-on semantics (plan
-  `docs/superpowers/plans/2026-07-03-s5b-docs-relied-on.md`; Opus building) · S5c onboard
-  docs detection + truthful snippet + README (plan
-  `docs/superpowers/plans/2026-07-03-s5c-onboard-docs-snippet.md`; Fable builds, codex
-  reviews). *Polish noted, non-blocking: a gate ref that does not exist on GitHub renders as
-  "couldn't reach GitHub"; a "this branch isn't on GitHub yet" line would be more precise.*
+  bound into the replay digest)** · S5b docs relied-on semantics **DONE (merged `0ad1286`,
+  505 tests; Opus built, Fable reviewed; clean scan is a real green)** · S5c onboard docs
+  detection + truthful snippet + README **DONE (merged `65b6a81`, 517 tests, coverage
+  93.58%; Fable built, codex adversarial loop took FOUR rounds, each catching a real copy
+  lie in the docs-step state matrix (existing-config path, empty dir, symlink-unsafe root,
+  malformed-config promise); the matrix (config present/missing/malformed x docs dir
+  ok/unsafe/empty/absent) is now enumerated with a test per cell)**. **PHASE 1 COMPLETE:
+  all four checks fire with zero flags in an onboarded repo; README quickstart samples are
+  regenerated through the real pipeline.** *Polish noted, non-blocking: a gate ref that does
+  not exist on GitHub renders as "couldn't reach GitHub"; a "this branch isn't on GitHub
+  yet" line would be more precise.*
 - **Phase 2, structural debt before breadth:** S6 registry consolidation (F5) **DONE
   2026-07-03 (merged `acd1779`, 471 tests; Opus 4.8 built in a worktree from the plan +
   rev-2 spec, Fable arbiter-reviewed with a per-worktree byte-identical render check; one
