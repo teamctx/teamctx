@@ -479,10 +479,25 @@ def test_doc_superseded_derives_for_a_relied_on_doc() -> None:
     assert witnesses(claim_cards[0].claim, no_superseded_docs_query(request)) == "refutes"
 
 
-def test_doc_superseded_ignores_an_unrelated_doc() -> None:
+def test_doc_superseded_derives_for_a_repo_doc_out_of_request_paths() -> None:
+    # Reliance = the declared docs set: a superseded doc in the same repo fires even when it is
+    # NOT among the request paths (repo-wide match), so it refutes no_superseded_docs.
     document = load_document()
+    request = document.request_context  # repo auth-service, paths [src/auth/token.py]
     signal = _typed_signal(
         "doc_superseded", "docs", {"repo": "auth-service", "doc": "src/other/x.py"}, "sig_doc_2"
+    )
+    claim_cards = derive_claims(request, [signal])
+    assert len(claim_cards) == 1
+    assert claim_cards[0].claim.predicate == "doc_superseded"
+    assert witnesses(claim_cards[0].claim, no_superseded_docs_query(request)) == "refutes"
+
+
+def test_doc_superseded_ignores_a_doc_in_another_repo() -> None:
+    # The repo gate stays: a superseded doc in a DIFFERENT repo never fires.
+    document = load_document()  # repo auth-service
+    signal = _typed_signal(
+        "doc_superseded", "docs", {"repo": "other/repo", "doc": "docs/old.md"}, "sig_doc_3"
     )
     assert derive_claims(document.request_context, [signal]) == []
 

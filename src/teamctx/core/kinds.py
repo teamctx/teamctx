@@ -126,7 +126,7 @@ def _derive_doc_superseded_claim(
     if signal.scope.get("repo") != request.repo:
         return None
     doc = signal.scope.get("doc")
-    if not isinstance(doc, str) or doc not in request.paths:
+    if not isinstance(doc, str):
         return None
     claim = Prop(
         predicate="doc_superseded",
@@ -322,7 +322,7 @@ CARD_KINDS: tuple[CardKind, ...] = (
         reason_prefix="doc",
         deps_family="docs",
         severity_base=0.4,
-        refutes_match="subject-overlap",
+        refutes_match="repo-wide",
         derive=_derive_doc_superseded_claim,
         query=no_superseded_docs_query,
         render=render_doc_superseded_claim,
@@ -364,7 +364,9 @@ PREDICATE_REGISTRY: dict[str, PropShape] = _build_predicate_registry()
 
 # Each pair is (card_predicate, query_predicate) mapped to the structural overlap a refutation
 # requires: a card asserting card_predicate REFUTES the universal query_predicate under that
-# match rule. All four kinds use subject-overlap today (shared repo + at least one shared item).
+# match rule. Collision, criteria, and gate use subject-overlap (shared repo + at least one
+# shared item); docs uses repo-wide (shared repo alone), because reliance is the whole declared
+# docs set, so a superseded doc anywhere in the repo refutes regardless of the request paths.
 _REFUTES_MATCH: dict[tuple[str, str], RefutesMatch] = {
     (kind.card_predicate, kind.query_predicate): kind.refutes_match for kind in CARD_KINDS
 }
