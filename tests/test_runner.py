@@ -48,7 +48,34 @@ def test_collision_only_when_no_optional_inputs(monkeypatch) -> None:
     inputs = WorkStartInputs(repo="teamctx/teamctx", paths=("src/x.py",))
     _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
     assert called == ["collision"]
-    assert len(documents) == 1
+    assert len(documents) == 4
+
+
+def test_skipped_connectors_emit_disabled_statuses(monkeypatch) -> None:
+    _record_calls(monkeypatch)
+    inputs = WorkStartInputs(repo="teamctx/teamctx", paths=("src/x.py",))
+
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+    disabled = {
+        status.source_id: status
+        for document in documents
+        for status in document.source_statuses
+        if status.status == "disabled"
+    }
+
+    assert set(disabled) == {"github_issues", "docs_supersession", "github_check_runs"}
+    assert disabled["github_issues"].safe_user_message == (
+        "spec changes (no issue could be derived from your branch or commits; name one "
+        "with --issue)"
+    )
+    assert disabled["docs_supersession"].safe_user_message == (
+        "docs (no docs root is configured; set work_start.docs_root to enable)"
+    )
+    assert disabled["github_check_runs"].safe_user_message == (
+        "failing checks (couldn't determine your branch; pass --branch or --ref)"
+    )
+    assert all(status.normal_context_visibility == "warning_when_relevant"
+               for status in disabled.values())
 
 
 def test_branch_enables_gate(monkeypatch) -> None:
@@ -62,8 +89,30 @@ def test_issues_require_since(monkeypatch) -> None:
     called = _record_calls(monkeypatch)
     # issues without since: criteria is NOT run (we have no reference point)
     inputs = WorkStartInputs(repo="teamctx/teamctx", paths=("src/x.py",), issues=("#42",))
-    run_work_start_connectors(inputs, observed_at=OBSERVED)
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
     assert "criteria" not in called
+    status = _status_for_source(documents, "github_issues")
+    assert status.safe_user_message == (
+        "spec changes (issue #42 was derived, but the start time couldn't be; pass --since)"
+    )
+
+
+def test_issue_skip_note_includes_cap_note(monkeypatch) -> None:
+    _record_calls(monkeypatch)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        issues=("#3", "#4", "#5", "#6", "#7"),
+        derived_issues_capped=True,
+    )
+
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    status = _status_for_source(documents, "github_issues")
+    assert status.safe_user_message == (
+        "spec changes (issue #3, #4, #5, #6, #7 was derived, but the start time couldn't be; "
+        "pass --since; capped at 5 issues; pass --issue to name others)"
+    )
 
 
 def test_issues_with_since_enables_criteria(monkeypatch) -> None:
@@ -140,3 +189,11 @@ def test_workstartinputs_normalizes_github_url() -> None:
     # never receives a raw URL to interpolate into the api.github.com path.
     inputs = WorkStartInputs(repo="https://github.com/owner/name.git", paths=("a.py",))
     assert inputs.repo == "owner/name"
+
+
+def _status_for_source(documents: list[CoreContractDocument], source_id: str):
+    for document in documents:
+        for status in document.source_statuses:
+            if status.source_id == source_id:
+                return status
+    raise AssertionError(f"missing status {source_id}")
