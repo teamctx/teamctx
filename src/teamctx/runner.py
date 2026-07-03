@@ -39,6 +39,12 @@ _GITLAB_UNWIRED_MESSAGE = (
     "This repo is on GitLab. The GitLab connector isn't wired yet; open MRs and pipeline state "
     "are not checked."
 )
+_GITLAB_ISSUES_DISABLED = (
+    "spec changes (this repo is on GitLab; GitLab issue tracking isn't wired yet)"
+)
+_GITLAB_ISSUES_MESSAGE = (
+    "This repo is on GitLab. GitLab issue tracking isn't wired yet; issue changes are not checked."
+)
 
 
 @dataclass(frozen=True)
@@ -136,7 +142,18 @@ def run_work_start_connectors(
                 )
             )
 
-    if inputs.issues and inputs.since:
+    if inputs.forge == "gitlab" and inputs.issues and inputs.since:
+        documents.append(
+            _disabled_document(
+                request_context,
+                source_id="gitlab_issues",
+                source_family="issue_tracker",
+                observed_at=observed_at,
+                safe_user_message=_GITLAB_ISSUES_DISABLED,
+                policy_reason=_GITLAB_ISSUES_MESSAGE,
+            )
+        )
+    elif inputs.issues and inputs.since:
         documents.append(
             run_github_issues_probe(
                 repo=inputs.repo,

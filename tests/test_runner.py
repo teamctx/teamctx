@@ -205,11 +205,14 @@ def test_gitlab_forge_emits_unwired_statuses_and_never_calls_github(monkeypatch)
 
     monkeypatch.setattr(runner, "run_github_pr_probe", fail_github_probe)
     monkeypatch.setattr(runner, "run_github_checks_probe", fail_github_probe)
+    monkeypatch.setattr(runner, "run_github_issues_probe", fail_github_probe)
     inputs = WorkStartInputs(
         repo="group/sub/project",
         forge="gitlab",
         paths=("src/x.py",),
         branch="feature",
+        issues=("#42",),
+        since=OBSERVED,
     )
 
     request_context, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
@@ -237,9 +240,11 @@ def test_gitlab_forge_emits_unwired_statuses_and_never_calls_github(monkeypatch)
     answer = broker_answer_from_documents(request_context, documents)
     verdicts = {label: valuation for label, valuation in answer.verdicts}
     assert verdicts["Conflict check"].value == "unknown"
+    assert verdicts["Criteria check"].value == "unknown"
     assert verdicts["Gate check"].value == "unknown"
     output = render_broker_answer(answer)
     assert "no other open PRs touch your files" not in output
+    assert "the linked issue's criteria are unchanged" not in output
     assert "no failing checks found" not in output
     assert "GitHub" not in output
     assert "open MRs and pipeline state" in output
