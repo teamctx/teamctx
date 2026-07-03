@@ -11,6 +11,8 @@ from teamctx.connectors.docs_supersession import (
     normalize_superseded_docs,
     unavailable_docs_document,
 )
+from teamctx.contract_render import render_broker_answer
+from teamctx.core.broker import broker_answer_from_documents
 from teamctx.core.contracts import RequestContext
 
 
@@ -49,7 +51,7 @@ def test_normalize_emits_doc_superseded_signal_with_scope() -> None:
         superseded_by="docs/superpowers/research/new.md",
     )
     document = normalize_superseded_docs(
-        _request(), [doc], observed_at="2026-06-20T00:00:00Z", relied_on_doc_in_scope=True
+        _request(), [doc], observed_at="2026-06-20T00:00:00Z"
     )
     assert len(document.source_signals) == 1
     signal = document.source_signals[0]
@@ -139,31 +141,63 @@ def _request_with_paths(paths: list[str]) -> RequestContext:
     )
 
 
-def test_normalize_not_applicable_when_no_relied_on_doc_in_scope() -> None:
+def test_normalize_completed_scan_with_no_superseded_docs_is_fresh() -> None:
+    # A completed, clean scan (no superseded docs anywhere) is a real green, never not_applicable.
     document = normalize_superseded_docs(
-        _request(), [], observed_at="2026-06-20T00:00:00Z", relied_on_doc_in_scope=False
+        _request(), [], observed_at="2026-06-20T00:00:00Z"
     )
-    assert document.source_statuses[0].status == "not_applicable"
+    assert document.source_statuses[0].status == "fresh"
+    assert document.source_signals == []
 
 
-def test_probe_not_applicable_when_scanned_docs_not_in_scope() -> None:
-    # a docs root is scanned, but none of the files in scope are docs we rely on.
+def test_probe_clean_scan_out_of_request_paths_is_fresh() -> None:
+    # Reliance is the whole declared docs set: a clean scan is a real green even when none of the
+    # files in scope are docs (out-of-scope no longer exists for docs).
     reader = lambda root: [("docs/guide.md", "# nothing declared\n")]  # noqa: E731
     document = run_docs_supersession_probe(
         repo="o/n", root="docs", request_context=_request_with_paths(["src/a.py"]),
         observed_at="2026-06-20T00:00:00Z", reader=reader,
     )
     assert document.source_signals == []
-    assert document.source_statuses[0].status == "not_applicable"
+    assert document.source_statuses[0].status == "fresh"
 
 
-def test_probe_fresh_when_a_scanned_doc_is_in_scope() -> None:
+def test_probe_clean_scan_with_a_doc_in_scope_is_fresh() -> None:
     reader = lambda root: [("docs/guide.md", "# nothing declared\n")]  # noqa: E731
     document = run_docs_supersession_probe(
         repo="o/n", root="docs", request_context=_request_with_paths(["docs/guide.md"]),
         observed_at="2026-06-20T00:00:00Z", reader=reader,
     )
     assert document.source_statuses[0].status == "fresh"
+
+
+def test_superseded_doc_out_of_request_paths_fires_end_to_end() -> None:
+    # A superseded doc that is NOT among the request paths still fires a Verify-before-relying
+    # card end to end (probe -> broker -> render): reliance is the whole declared docs set.
+    req = _request_with_paths(["src/app.py"])  # repo tempo-64/model-citizens
+    reader = lambda root: [  # noqa: E731
+        ("docs/old.md", "---\nsuperseded_by: docs/new.md\n---\n# Old\n"),
+    ]
+    document = run_docs_supersession_probe(
+        repo=req.repo, root="docs", request_context=req,
+        observed_at="2026-06-20T00:00:00Z", reader=reader,
+    )
+    text = render_broker_answer(broker_answer_from_documents(req, [document]))
+    assert "Before you start, here is what to handle first:" in text
+    assert "docs/new.md" in text  # names the current doc to rely on
+
+
+def test_clean_scan_renders_the_real_green() -> None:
+    # A configured, readable, clean scan reads the real green, never "not applicable".
+    req = _request_with_paths(["src/app.py"])
+    reader = lambda root: [("docs/guide.md", "# nothing declared\n")]  # noqa: E731
+    document = run_docs_supersession_probe(
+        repo=req.repo, root="docs", request_context=req,
+        observed_at="2026-06-20T00:00:00Z", reader=reader,
+    )
+    text = render_broker_answer(broker_answer_from_documents(req, [document]))
+    assert "the docs you rely on are current" in text
+    assert "Not applicable" not in text
 
 
 def test_default_reader_emits_repo_relative_for_absolute_root(tmp_path) -> None:
