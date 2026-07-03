@@ -108,10 +108,13 @@ build): `docs/superpowers/specs/2026-07-03-autodiscovery-and-structure.md`.
   each honest-UNKNOWN degradation), with expected-vs-actual surfacing recorded as evidence.
   This absorbs and extends the old "Edgar in N terminals" dogfood.
 
-**Edgar checkpoints (his calls, at their moments):** an Atlassian Cloud site + API token for
-the Jira/Confluence connectors and Phase 5 (free tier works; no Atlassian credential exists
-in `.secrets` today; GitHub + GitLab are covered) · PyPI publish · going public. Nothing in
-Phases 0 to 3 requires them.
+**Edgar checkpoints (his calls, at their moments):** ~~Atlassian credential~~ **RESOLVED
+2026-07-03: `.secrets/jira-stage` (Atlassian Cloud API token, basic auth with Edgar's email)
+against `https://stage-redhat.atlassian.net/`; read-verified live (whoami OK, 1742 Jira
+projects visible, Confluence v2 spaces list OK). Never commit the URL or instance data into
+repo fixtures (no Red Hat refs in the codebase).** Remaining Edgar inputs: a Jira project key
++ Confluence space key where Phase 5 may CREATE clearly-labeled test artifacts (reads need
+nothing; asked at the Phase 5 checkpoint) · PyPI publish · going public.
 
 ## The arc to product-complete (four sprints)
 
