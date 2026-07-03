@@ -13,23 +13,14 @@ from typing import Literal
 from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import ContextCard
 from teamctx.core.evaluate import Valuation
+from teamctx.core.kinds import LABEL_CHECK_PAIRS, REASON_PREFIX, CheckId
 
-CheckId = Literal["conflict", "criteria", "docs", "gate"]
 CheckStatus = Literal[
     "clear", "found", "unreachable", "not_configured", "pending", "not_applicable"
 ]
 
-# Verdict labels are CARD_KINDS[*].verdict_label in core/select.py. Keep in sync; a mismatch
-# makes verdicts.get(label) miss and the check fall to not_configured (caught by the render tests).
-_LABELS: tuple[tuple[str, CheckId], ...] = (
-    ("Conflict check", "conflict"),
-    ("Criteria check", "criteria"),
-    ("Docs check", "docs"),
-    ("Gate check", "gate"),
-)
-_REASON_PREFIX: dict[str, CheckId] = {
-    "collision": "conflict", "criteria": "criteria", "doc": "docs", "gate": "gate",
-}
+# The verdict-label-to-check pairs and reason-prefix routing are DERIVED from CARD_KINDS in
+# core/kinds.py, so a check can never drift out of sync with the kind that produces it.
 IMPORTANT_CHECKS: frozenset[CheckId] = frozenset({"conflict", "gate"})
 
 
@@ -64,7 +55,7 @@ def _status_for(valuation: Valuation) -> CheckStatus:
 
 
 def _check_of_card(card: ContextCard) -> CheckId | None:
-    return _REASON_PREFIX.get(card.reason_code.split(".", 1)[0])
+    return REASON_PREFIX.get(card.reason_code.split(".", 1)[0])
 
 
 def assess(answer: BrokerAnswer) -> WorkStartAssessment:
@@ -80,7 +71,7 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
             findings.append(card)
 
     states: list[CheckState] = []
-    for label, check in _LABELS:
+    for label, check in LABEL_CHECK_PAIRS:
         valuation = verdicts.get(label)
         status: CheckStatus = _status_for(valuation) if valuation is not None else "not_configured"
         states.append(CheckState(check=check, status=status, cards=tuple(cards_by_check[check])))

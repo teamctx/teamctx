@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from teamctx.assessment import (
     IMPORTANT_CHECKS,
-    CheckId,
     CheckState,
     WorkStartAssessment,
     assess,
@@ -15,6 +14,7 @@ from teamctx.core.contracts import (
     ContextCard,
     SourceOpenTarget,
 )
+from teamctx.core.kinds import CheckId
 from teamctx.core.select import ContextSelection
 
 _HEADLINE = {

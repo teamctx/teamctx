@@ -24,7 +24,8 @@ from teamctx.core.contracts import (
     SourceStatus,
 )
 from teamctx.core.evaluate import Valuation, evaluate
-from teamctx.core.select import CARD_KINDS, ContextSelection, select_context
+from teamctx.core.kinds import CARD_KINDS
+from teamctx.core.select import ContextSelection, select_context
 
 
 @dataclass(frozen=True)

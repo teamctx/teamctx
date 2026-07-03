@@ -50,30 +50,30 @@ EXPECTED_LABELS: tuple[tuple[str, str], ...] = (
 
 
 def test_predicate_registry_matches_pin() -> None:
-    from teamctx.core.prop import PREDICATE_REGISTRY
+    from teamctx.core.kinds import PREDICATE_REGISTRY
 
     assert dict(PREDICATE_REGISTRY) == EXPECTED_PREDICATE_REGISTRY
 
 
 def test_refutes_pairs_match_pin() -> None:
-    from teamctx.core.prop import REFUTES_PAIRS
+    from teamctx.core.kinds import REFUTES_PAIRS
 
     assert REFUTES_PAIRS == EXPECTED_REFUTES_PAIRS
 
 
 def test_deps_registry_matches_pin() -> None:
-    from teamctx.core.select import DEPS_REGISTRY
+    from teamctx.core.kinds import DEPS_REGISTRY
 
     assert dict(DEPS_REGISTRY) == EXPECTED_DEPS_REGISTRY
 
 
 def test_kind_base_matches_pin() -> None:
-    from teamctx.core.severity import KIND_BASE
+    from teamctx.core.kinds import KIND_BASE
 
     assert dict(KIND_BASE) == EXPECTED_KIND_BASE
 
 
 def test_verdict_label_check_pairs_match_pin() -> None:
-    from teamctx.assessment import _LABELS
+    from teamctx.core.kinds import LABEL_CHECK_PAIRS
 
-    assert tuple(_LABELS) == EXPECTED_LABELS
+    assert tuple(LABEL_CHECK_PAIRS) == EXPECTED_LABELS

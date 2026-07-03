@@ -15,8 +15,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from teamctx.core.prop import Prop, witnesses
-from teamctx.core.select import ClaimCard, ClosureEntry, Completeness
+from teamctx.core.kinds import ClaimCard, shape_of, witnesses
+from teamctx.core.prop import Prop
+from teamctx.core.select import ClosureEntry, Completeness
 
 
 @dataclass(frozen=True)
@@ -49,7 +50,7 @@ def evaluate(
         return Valuation("unknown", "conflicting-evidence")
 
     status = _closure_status(query, closure)
-    if query.shape == "universal":
+    if shape_of(query) == "universal":
         if refutes:
             return Valuation("false")  # one counterexample falsifies a universal
         if status == "complete":

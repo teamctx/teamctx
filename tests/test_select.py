@@ -22,23 +22,27 @@ from teamctx.core.contracts import (
     SourceStatus,
 )
 from teamctx.core.evaluate import Valuation, evaluate
-from teamctx.core.prop import Prop, SubjectRef, witnesses
-from teamctx.core.select import (
+from teamctx.core.kinds import (
     CARD_KINDS,
     ClaimCard,
     _derive_doc_superseded_claim,
     all_gates_pass_query,
-    assess_completeness,
-    build_coverage,
     criteria_changed_query,
     deps_for,
-    derive_cards,
-    derive_claims,
     no_conflict_query,
     no_superseded_docs_query,
-    project_visible_signals,
     render_collision_claim,
     render_doc_superseded_claim,
+    shape_of,
+    witnesses,
+)
+from teamctx.core.prop import Prop, SubjectRef
+from teamctx.core.select import (
+    assess_completeness,
+    build_coverage,
+    derive_cards,
+    derive_claims,
+    project_visible_signals,
     select_context,
 )
 
@@ -128,7 +132,7 @@ def test_collision_derives_a_typed_claim_that_witnesses_the_negation() -> None:
     claim_card = claim_cards[0]
     assert isinstance(claim_card, ClaimCard)
     assert claim_card.claim.predicate == "pr_conflicts_with_path"
-    assert claim_card.claim.shape == "existential"
+    assert shape_of(claim_card.claim) == "existential"
     assert claim_card.claim.args == ("sig_pr_482_collision",)
     # the card witnesses NOT "no conflict": a counterexample to the universal query.
     assert witnesses(claim_card.claim, no_conflict_query(request)) == "refutes"
