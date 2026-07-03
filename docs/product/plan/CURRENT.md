@@ -112,10 +112,16 @@ build): `docs/superpowers/specs/2026-07-03-autodiscovery-and-structure.md`.
   wire `incomplete[unbounded]` end to end (F7 + the truncation-copy follow-up).
 - **Phase 3 = Sprint 3 proof:** labelled conformance corpus + replay harness + the E4/E5
   numbers; OpenRouter for model-diverse A/B arms.
-- **Phase 4 = Sprint 4 breadth (goal expanded 2026-07-03):** GitLab (a token is on hand in
-  `.secrets/gitlab-token`, so it can be dogfooded live) + **Jira** (issue_tracker family) +
-  **Confluence** (docs family from a remote source, the first non-local docs connector) via
-  the ONBOARDERS registry seam + a provider field in the config schema.
+- **Phase 4 = Sprint 4 breadth (goal expanded 2026-07-03):** S8 GraphQL collision + unbounded
+  coverage **DONE (merged `a0bdc7d`, 541 tests; codex built from the twice-reviewed spec;
+  live-smoked on real GitHub)** · S8b API-root seam **DONE (merged `0db294c`; Fable built,
+  codex review caught the conftest isolation hole)** · S9a forge resolution + GitLab
+  onboarder + honestly-unwired reporting **DONE (merged `a0f9f7d`, 598 tests; codex built
+  and added a correct extra hardening commit the plan missed: a GitLab slug must never
+  query GitHub Issues; Fable's arbiter smoke caught two copy bugs (duplicate note; the
+  false-comfort "Looks clear" when NOTHING was checked, now "Nothing checked yet"))** ·
+  S9b GitLab connector (codex building) · S10 Jira · S11 Confluence. Write targets verified
+  live: Jira JIRAPLAY, Confluence TS.
 - **Phase 5, team-emulation validation (goal set by Edgar 2026-07-03):** test teamctx like a
   team of people + agents working across GitHub, GitLab, Jira, and Confluence, and verify it
   all works as expected. Fable runs it: multiple emulated actors (separate clones/worktrees,
