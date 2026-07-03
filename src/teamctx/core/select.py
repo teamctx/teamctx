@@ -364,6 +364,8 @@ class CoverageEntry:
     source_family: str
     status: str
     last_checked_at: str | None
+    note: str | None = None
+    visibility: str = "silent"
 
 
 @dataclass(frozen=True)
@@ -459,6 +461,8 @@ def build_coverage(statuses: Iterable[SourceStatus], delta: Delta = "none") -> C
             source_family=status.source_family,
             status=status.status,
             last_checked_at=status.last_checked_at,
+            note=status.safe_user_message,
+            visibility=status.normal_context_visibility,
         )
         for status in statuses
     )

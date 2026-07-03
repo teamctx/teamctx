@@ -251,6 +251,25 @@ def test_coverage_reports_each_checked_source_status() -> None:
     assert any(entry.status == "stale" for entry in coverage.entries)
 
 
+def test_build_coverage_carries_note_and_visibility() -> None:
+    message = (
+        "Your own open PR #12 for this branch touches these files; "
+        "not flagged as a collision."
+    )
+    status = _git_hosting_status("fresh").model_copy(
+        update={
+            "safe_user_message": message,
+            "normal_context_visibility": "warning_when_relevant",
+        }
+    )
+
+    coverage = build_coverage([status])
+
+    entry = coverage.entries[0]
+    assert entry.note == message
+    assert entry.visibility == "warning_when_relevant"
+
+
 def test_collision_closure_is_complete_only_when_git_hosting_is_fresh() -> None:
     fresh = assess_completeness(_collision_query(), build_coverage([_git_hosting_status("fresh")]))
     stale = assess_completeness(_collision_query(), build_coverage([_git_hosting_status("stale")]))
