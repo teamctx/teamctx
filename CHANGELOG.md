@@ -9,6 +9,7 @@ may change while the product is hardened.
 
 ### Added
 
+- Jira support: acceptance-criteria changes on PROJ-123 style issues derived from your branch or commits, with field-level change detail, alongside GitHub issues in one honest coverage picture.
 - GitLab support: open merge requests (collisions, with the own-MR FYI) and pipeline state (never assumed green) for repos whose origin is gitlab.com, with the same honest budgets and coverage reporting as GitHub.
 - Repos hosted on GitLab now resolve, onboard, and report honestly, laying the forge seam; config gains forge/jira/confluence blocks.
 - An emulation harness (`emulation/`) that drives the team-validation scenario matrix through the
