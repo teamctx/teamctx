@@ -22,7 +22,9 @@ GITHUB_API_ROOT = "https://api.github.com"
 def github_api_root() -> str:
     """The GitHub API root, env-overridable via ``TEAMCTX_GITHUB_API_ROOT`` (trailing slash
     stripped). The override exists for the emulation program: fabricated payloads can be driven
-    through the REAL pipeline against a local mock server. Read at call time, never cached."""
+    through the REAL pipeline against a local mock server. Read at call time, never cached.
+    Token-sensitive: requests to the override host carry the resolved token; this is an
+    intentional local-operator seam for tests and validation harnesses only."""
 
     import os
 
