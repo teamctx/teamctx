@@ -10,6 +10,9 @@ may change while the product is hardened.
 ### Added
 
 - Repos hosted on GitLab now resolve, onboard, and report honestly ("the GitLab connector isn't wired yet"), laying the forge seam; config gains forge/jira/confluence blocks.
+- An emulation harness (`emulation/`) that drives the team-validation scenario matrix through the
+  real CLI, hook, and MCP; GitHub rows run offline against a bundled mock; provider rows arrive
+  with their connectors.
 
 - `TEAMCTX_GITHUB_API_ROOT` env override for the GitHub API root, so validation harnesses can
   drive fabricated payloads through the real pipeline against a local mock server.
