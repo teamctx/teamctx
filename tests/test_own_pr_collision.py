@@ -156,19 +156,32 @@ class _FakeResponse:
 
 
 def _own_pr_opener(request: Request) -> _FakeResponse:
-    url = request.full_url
-    if url.endswith("/pulls?state=open&per_page=100"):
-        return _FakeResponse(
-            [
-                _raw_pr(
-                    7,
-                    head={"ref": "feat/x", "repo": {"full_name": "o/r"}},
-                )
-            ]
-        )
-    if url.endswith("/pulls/7/files?per_page=100"):
-        return _FakeResponse([{"filename": "src/a.py", "status": "modified"}])
-    raise AssertionError(f"unexpected URL in test opener: {url}")
+    assert request.full_url == "https://api.github.com/graphql"
+    return _FakeResponse(
+        {
+            "data": {
+                "repository": {
+                    "pullRequests": {
+                        "nodes": [
+                            {
+                                "number": 7,
+                                "url": "https://github.com/o/r/pull/7",
+                                "createdAt": "2026-07-01T00:00:00Z",
+                                "updatedAt": "2026-07-02T00:00:00Z",
+                                "headRefName": "feat/x",
+                                "headRepository": {"nameWithOwner": "o/r"},
+                                "files": {
+                                    "nodes": [{"path": "src/a.py"}],
+                                    "pageInfo": {"hasNextPage": False},
+                                },
+                            }
+                        ],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        }
+    )
 
 
 def test_end_to_end_own_pr_is_clear_with_fyi() -> None:

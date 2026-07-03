@@ -86,7 +86,7 @@ def _stub_github(monkeypatch, issue_opener, captured: dict[str, object]) -> None
     monkeypatch.setattr(
         gh,
         "fetch_github_pull_requests",
-        lambda **kw: ForgeReviewFetch(pull_requests=[], truncated=False),
+        lambda **kw: ForgeReviewFetch(pull_requests=[]),
     )
     monkeypatch.setattr(
         gc,

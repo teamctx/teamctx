@@ -56,7 +56,6 @@ def test_work_start_tool_surfaces_a_collision(monkeypatch, tmp_path) -> None:
                     updated_at="2026-06-25T11:00:00Z",
                 )
             ],
-            truncated=False,
         )
 
     monkeypatch.setattr(gh, "fetch_github_pull_requests", fake_prs)

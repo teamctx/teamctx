@@ -53,7 +53,7 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
 
     monkeypatch.setattr(
         gh, "fetch_github_pull_requests",
-        lambda **kw: ForgeReviewFetch(pull_requests=[], truncated=False),
+        lambda **kw: ForgeReviewFetch(pull_requests=[]),
     )
     from teamctx.connectors.github_checks import CheckRunsFetch
     monkeypatch.setattr(
@@ -142,7 +142,7 @@ def test_work_start_reads_token_from_file(monkeypatch, tmp_path: Path) -> None:
 
     def _fake_fetch(**kw: object) -> ForgeReviewFetch:
         captured.append(kw.get("token"))
-        return ForgeReviewFetch(pull_requests=[], truncated=False)
+        return ForgeReviewFetch(pull_requests=[])
 
     monkeypatch.setattr(gh, "fetch_github_pull_requests", _fake_fetch)
 
