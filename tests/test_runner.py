@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 
 import teamctx.runner as runner
+from teamctx.contract_render import render_broker_answer
+from teamctx.core.broker import broker_answer_from_documents
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.runner import WorkStartInputs, build_request_context, run_work_start_connectors
 
@@ -197,6 +199,61 @@ def test_full_profile_passes_three_page_collision_budget(monkeypatch) -> None:
     assert captured["max_pages"] == 3
 
 
+def test_gitlab_forge_emits_unwired_statuses_and_never_calls_github(monkeypatch) -> None:
+    def fail_github_probe(**kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"GitHub probe should not run: {kwargs}")
+
+    monkeypatch.setattr(runner, "run_github_pr_probe", fail_github_probe)
+    monkeypatch.setattr(runner, "run_github_checks_probe", fail_github_probe)
+    monkeypatch.setattr(runner, "run_github_issues_probe", fail_github_probe)
+    inputs = WorkStartInputs(
+        repo="group/sub/project",
+        forge="gitlab",
+        paths=("src/x.py",),
+        branch="feature",
+        issues=("#42",),
+        since=OBSERVED,
+    )
+
+    request_context, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    statuses = {
+        status.source_family: status
+        for document in documents
+        for status in document.source_statuses
+        if status.source_family in {"git_hosting", "ci_deploy"}
+    }
+    assert set(statuses) == {"git_hosting", "ci_deploy"}
+    assert statuses["git_hosting"].source_id == "gitlab_mr_metadata"
+    assert statuses["ci_deploy"].source_id == "gitlab_pipeline_state"
+    for status in statuses.values():
+        assert status.status == "disabled"
+        assert status.policy.decision_reason == (
+            "This repo is on GitLab. The GitLab connector isn't wired yet; open MRs and pipeline "
+            "state are not checked."
+        )
+    assert statuses["git_hosting"].safe_user_message == (
+        "open MRs (this repo is on GitLab; the GitLab connector isn't wired yet, next slice)"
+    )
+    assert statuses["ci_deploy"].safe_user_message == (
+        "pipeline state (this repo is on GitLab; the GitLab connector isn't wired yet, next slice)"
+    )
+
+    answer = broker_answer_from_documents(request_context, documents)
+    verdicts = {label: valuation for label, valuation in answer.verdicts}
+    assert verdicts["Conflict check"].value == "unknown"
+    assert verdicts["Criteria check"].value == "unknown"
+    assert verdicts["Gate check"].value == "unknown"
+    output = render_broker_answer(answer)
+    assert "no other open PRs touch your files" not in output
+    assert "the linked issue's criteria are unchanged" not in output
+    assert "no failing checks found" not in output
+    assert "GitHub" not in output
+    assert "open MRs (this repo is on GitLab" in output
+    assert "pipeline state (this repo is on GitLab" in output
+    assert not output.startswith("Looks clear to start.")
+
+
 def test_request_context_shares_paths_and_issues() -> None:
     inputs = WorkStartInputs(
         repo="teamctx/teamctx", paths=("src/x.py",), issues=("#42",), task="do a thing",
@@ -211,10 +268,11 @@ def test_request_context_shares_paths_and_issues() -> None:
 def test_workstartinputs_accepts_valid_github_slug() -> None:
     inputs = WorkStartInputs(repo="owner/name", paths=("a.py",))
     assert inputs.repo == "owner/name"
+    assert inputs.forge == "github"
 
 
 def test_workstartinputs_rejects_non_github_repo() -> None:
-    with pytest.raises(ValueError, match="GitHub repo"):
+    with pytest.raises(ValueError, match="github repo"):
         WorkStartInputs(repo="https://gitlab.com/owner/name", paths=("a.py",))
 
 
@@ -223,6 +281,26 @@ def test_workstartinputs_normalizes_github_url() -> None:
     # never receives a raw URL to interpolate into the api.github.com path.
     inputs = WorkStartInputs(repo="https://github.com/owner/name.git", paths=("a.py",))
     assert inputs.repo == "owner/name"
+
+
+def test_workstartinputs_accepts_valid_gitlab_slug() -> None:
+    inputs = WorkStartInputs(repo="group/sub/project", forge="gitlab", paths=("a.py",))
+    assert inputs.repo == "group/sub/project"
+    assert inputs.forge == "gitlab"
+
+
+def test_workstartinputs_normalizes_gitlab_url() -> None:
+    inputs = WorkStartInputs(
+        repo="https://gitlab.com/group/sub/project.git",
+        forge="gitlab",
+        paths=("a.py",),
+    )
+    assert inputs.repo == "group/sub/project"
+
+
+def test_workstartinputs_validates_repo_under_forge() -> None:
+    with pytest.raises(ValueError, match="github repo"):
+        WorkStartInputs(repo="group/sub/project", forge="github", paths=("a.py",))
 
 
 def _status_for_source(documents: list[CoreContractDocument], source_id: str):

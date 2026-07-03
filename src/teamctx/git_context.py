@@ -10,17 +10,42 @@ from __future__ import annotations
 
 import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
+
+type ForgeProvider = Literal["github", "gitlab"]
 
 
 def detect_repo(root: Path) -> str | None:
     """``owner/name`` of the ``origin`` remote at ``root`` when it is a github.com remote, else
     ``None`` (honest absence). A non-github origin fails closed: it never becomes a GitHub query."""
 
+    detected = detect_forge_repo(root)
+    if detected is None:
+        return None
+    slug, forge = detected
+    return slug if forge == "github" else None
+
+
+def detect_forge_repo(root: Path) -> tuple[str, ForgeProvider] | None:
+    """Repo slug and forge provider from the ``origin`` remote host, or ``None``.
+
+    Detection is host-gated: github.com becomes ``("owner/name", "github")``; gitlab.com becomes
+    ``("group[/sub]/project", "gitlab")``; any other host is honest absence.
+    """
+
     url = _run_git(root, "remote", "get-url", "origin")
     if url is None:
         return None
-    return parse_github_repo(url)
+    ref = _repo_ref(url)
+    if ref.host == "github.com":
+        slug = parse_github_repo(url)
+        return (slug, "github") if slug is not None else None
+    if ref.host == "gitlab.com":
+        slug = parse_gitlab_repo(url)
+        return (slug, "gitlab") if slug is not None else None
+    return None
 
 
 def detect_branch(root: Path) -> str | None:
@@ -35,30 +60,64 @@ def detect_branch(root: Path) -> str | None:
 _SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
+@dataclass(frozen=True)
+class _RepoRef:
+    host: str | None
+    rest: str
+
+
 def parse_github_repo(value: str) -> str | None:
     """Normalize a GitHub repo reference to ``owner/name``. Accepts a bare ``owner/name`` slug
     (github.com by the field's defined meaning) or a github.com URL (https or scp-style ssh).
     Returns ``None`` for a non-github host, the wrong number of path segments, or an unsafe
     segment, so a non-GitHub repo never enters a GitHub-bound path."""
 
+    ref = _repo_ref(value)
+    if ref.host is not None and ref.host != "github.com":
+        return None
+    return _parse_repo_segments(ref.rest, min_segments=2, max_segments=2)
+
+
+def parse_gitlab_repo(value: str) -> str | None:
+    """Normalize a GitLab repo reference.
+
+    Accepts a bare ``group/project`` or ``group/sub/project`` slug (gitlab.com by the field's
+    defined meaning), plus gitlab.com URL and scp-style ssh forms. GitLab nested groups are
+    preserved; unsafe segments and non-gitlab hosts fail closed.
+    """
+
+    ref = _repo_ref(value)
+    if ref.host is not None and ref.host != "gitlab.com":
+        return None
+    return _parse_repo_segments(ref.rest, min_segments=2, max_segments=None)
+
+
+def _repo_ref(value: str) -> _RepoRef:
     s = value.strip()
     if s.endswith(".git"):
         s = s[:-4]
     s = s.rstrip("/")
-    if "://" in s:  # scheme://[user@]host/owner/name
+    if "://" in s:
         after = s.split("://", 1)[1]
         host, _, rest = after.partition("/")
-        host = host.rsplit("@", 1)[-1]  # strip optional user@
-    elif "@" in s and ":" in s:  # git@host:owner/name (scp-style)
+        host = host.rsplit("@", 1)[-1]
+        return _RepoRef(host, rest)
+    if "@" in s and ":" in s:
         host, _, rest = s.split("@", 1)[1].partition(":")
-    elif ":" in s:  # host:owner/name
+        return _RepoRef(host, rest)
+    if ":" in s:
         host, _, rest = s.partition(":")
-    else:  # bare owner/name slug
-        host, rest = None, s
-    if host is not None and host != "github.com":
-        return None
+        return _RepoRef(host, rest)
+    return _RepoRef(None, s)
+
+
+def _parse_repo_segments(
+    rest: str, *, min_segments: int, max_segments: int | None
+) -> str | None:
     segments = [part for part in rest.strip("/").split("/") if part]
-    if len(segments) != 2:
+    if len(segments) < min_segments:
+        return None
+    if max_segments is not None and len(segments) > max_segments:
         return None
     if any(seg in (".", "..") or not _SAFE_SEGMENT.match(seg) for seg in segments):
         return None

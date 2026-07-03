@@ -394,3 +394,13 @@ def test_heads_up_finding_plus_not_applicable_docs() -> None:
     assert "PR #7" in text
     assert "Not applicable: docs" in text
     _no_jargon(text)
+
+
+def test_nothing_checked_never_reads_clear() -> None:
+    # All checks not configured (e.g. a GitLab repo before the connector exists): the ready
+    # headline would be false comfort, so the render says nothing was checked.
+    text = render_broker_answer(broker_answer(_request(), [], []))
+    assert not text.startswith("Looks clear to start.")
+    assert text.startswith("Nothing checked yet; here's why:")
+    assert "Not checked:" in text
+    _no_jargon(text)

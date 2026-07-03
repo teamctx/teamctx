@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+
+from teamctx.git_context import ForgeProvider
 
 DEFAULT_CONFIG_PATH = Path(".teamctx/config.json")
 
@@ -19,12 +21,36 @@ class StrictConfigModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class JiraConfig(StrictConfigModel):
+    base_url: str
+
+    @field_validator("base_url")
+    @classmethod
+    def normalize_base_url(cls, value: str) -> str:
+        return value.rstrip("/")
+
+
+class ConfluenceConfig(StrictConfigModel):
+    base_url: str
+
+    @field_validator("base_url")
+    @classmethod
+    def normalize_base_url(cls, value: str) -> str:
+        stripped = value.rstrip("/")
+        if stripped.endswith("/wiki"):
+            stripped = stripped.removesuffix("/wiki")
+        return stripped.rstrip("/")
+
+
 class WorkStartConfig(StrictConfigModel):
     """Project-stable inputs for the work-start broker, shared across actors (committed).
     Per-actor secrets (the token) live in the environment, never here."""
 
     repo: str | None = None
+    forge: ForgeProvider = "github"
     docs_root: str | None = None
+    jira: JiraConfig | None = None
+    confluence: ConfluenceConfig | None = None
 
 
 class ProjectConfig(StrictConfigModel):
@@ -33,11 +59,11 @@ class ProjectConfig(StrictConfigModel):
 
 
 def build_work_start_project_config(
-    *, repo: str, docs_root: str | None = None
+    *, repo: str, forge: ForgeProvider = "github", docs_root: str | None = None
 ) -> ProjectConfig:
     return ProjectConfig(
         schema_version="teamctx.project_config.v0",
-        work_start=WorkStartConfig(repo=repo, docs_root=docs_root),
+        work_start=WorkStartConfig(repo=repo, forge=forge, docs_root=docs_root),
     )
 
 

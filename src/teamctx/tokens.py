@@ -60,6 +60,18 @@ def resolve_github_token_with_source(
     return None, None
 
 
+def resolve_atlassian_auth() -> tuple[str, str] | None:
+    """Return the Atlassian Cloud basic-auth pair ``(email, api_token)`` when both halves are
+    present. A missing pair or exactly one present half returns ``None``; connectors will name the
+    missing half when they surface the unavailable status."""
+
+    email = os.environ.get("ATLASSIAN_EMAIL")
+    token = resolve_token("ATLASSIAN_API_TOKEN")
+    if email and token:
+        return email, token
+    return None
+
+
 def _gh_auth_token() -> str | None:
     try:
         result = subprocess.run(

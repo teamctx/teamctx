@@ -9,6 +9,8 @@ may change while the product is hardened.
 
 ### Added
 
+- Repos hosted on GitLab now resolve, onboard, and report honestly ("the GitLab connector isn't wired yet"), laying the forge seam; config gains forge/jira/confluence blocks.
+
 - `TEAMCTX_GITHUB_API_ROOT` env override for the GitHub API root, so validation harnesses can
   drive fabricated payloads through the real pipeline against a local mock server.
 

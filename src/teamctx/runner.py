@@ -20,7 +20,7 @@ from teamctx.connectors.github import run_github_pr_probe
 from teamctx.connectors.github_checks import run_github_checks_probe
 from teamctx.connectors.github_issues import run_github_issues_probe
 from teamctx.core.contracts import CoreContractDocument, RequestContext, SourceFamily
-from teamctx.git_context import parse_github_repo
+from teamctx.git_context import ForgeProvider, parse_github_repo, parse_gitlab_repo
 
 _CRITERIA_NO_ISSUE = (
     "spec changes (no issue could be derived from your branch or commits; name one with --issue)"
@@ -31,6 +31,22 @@ _CRITERIA_NO_SINCE = (
 _CAP_NOTE = "capped at 5 issues; pass --issue to name others"
 _DOCS_DISABLED = "docs (no docs root is configured; set work_start.docs_root to enable)"
 _GATE_DISABLED = "failing checks (couldn't determine your branch; pass --branch or --ref)"
+_GITLAB_MRS_NOTE = (
+    "open MRs (this repo is on GitLab; the GitLab connector isn't wired yet, next slice)"
+)
+_GITLAB_PIPELINE_NOTE = (
+    "pipeline state (this repo is on GitLab; the GitLab connector isn't wired yet, next slice)"
+)
+_GITLAB_UNWIRED_MESSAGE = (
+    "This repo is on GitLab. The GitLab connector isn't wired yet; open MRs and pipeline state "
+    "are not checked."
+)
+_GITLAB_ISSUES_DISABLED = (
+    "spec changes (this repo is on GitLab; GitLab issue tracking isn't wired yet)"
+)
+_GITLAB_ISSUES_MESSAGE = (
+    "This repo is on GitLab. GitLab issue tracking isn't wired yet; issue changes are not checked."
+)
 
 
 @dataclass(frozen=True)
@@ -52,12 +68,13 @@ class WorkStartInputs:
     derived_issues_capped: bool = False
     docs_root: str | None = None
     ref: str | None = None
+    forge: ForgeProvider = "github"
     profile: Literal["full", "reflex"] = "full"
 
     def __post_init__(self) -> None:
-        normalized = parse_github_repo(self.repo)
+        normalized = _parse_repo_for_forge(self.repo, self.forge)
         if normalized is None:
-            raise ValueError(f"not a valid GitHub repo slug: {self.repo!r}")
+            raise ValueError(f"not a valid {self.forge} repo slug: {self.repo!r}")
         object.__setattr__(self, "repo", normalized)
 
 
@@ -90,40 +107,55 @@ def run_work_start_connectors(
 
     request_context = build_request_context(inputs, observed_at=observed_at)
     max_pages = 1 if inputs.profile == "reflex" else 3
-    documents: list[CoreContractDocument] = [
-        run_github_pr_probe(
-            repo=inputs.repo,
-            token=inputs.token,
-            request_context=request_context,
-            observed_at=observed_at,
-            include_titles=inputs.include_titles,
-            max_pages=max_pages,
-        )
-    ]
-
-    gate_ref = inputs.ref or inputs.branch
-    if gate_ref:
+    documents: list[CoreContractDocument] = []
+    if inputs.forge == "gitlab":
+        documents.extend(_gitlab_unwired_documents(request_context, observed_at=observed_at))
+    else:
         documents.append(
-            run_github_checks_probe(
+            run_github_pr_probe(
                 repo=inputs.repo,
-                ref=gate_ref,
                 token=inputs.token,
                 request_context=request_context,
                 observed_at=observed_at,
-            )
-        )
-    else:
-        documents.append(
-            _disabled_document(
-                request_context,
-                source_id="github_check_runs",
-                source_family="ci_deploy",
-                observed_at=observed_at,
-                safe_user_message=_GATE_DISABLED,
+                include_titles=inputs.include_titles,
+                max_pages=max_pages,
             )
         )
 
-    if inputs.issues and inputs.since:
+        gate_ref = inputs.ref or inputs.branch
+        if gate_ref:
+            documents.append(
+                run_github_checks_probe(
+                    repo=inputs.repo,
+                    ref=gate_ref,
+                    token=inputs.token,
+                    request_context=request_context,
+                    observed_at=observed_at,
+                )
+            )
+        else:
+            documents.append(
+                _disabled_document(
+                    request_context,
+                    source_id="github_check_runs",
+                    source_family="ci_deploy",
+                    observed_at=observed_at,
+                    safe_user_message=_GATE_DISABLED,
+                )
+            )
+
+    if inputs.forge == "gitlab" and inputs.issues and inputs.since:
+        documents.append(
+            _disabled_document(
+                request_context,
+                source_id="gitlab_issues",
+                source_family="issue_tracker",
+                observed_at=observed_at,
+                safe_user_message=_GITLAB_ISSUES_DISABLED,
+                policy_reason=_GITLAB_ISSUES_MESSAGE,
+            )
+        )
+    elif inputs.issues and inputs.since:
         documents.append(
             run_github_issues_probe(
                 repo=inputs.repo,
@@ -176,6 +208,7 @@ def _disabled_document(
     source_family: SourceFamily,
     observed_at: str,
     safe_user_message: str,
+    policy_reason: str = "Source was not checked because required work-start input was absent.",
 ) -> CoreContractDocument:
     return unavailable_document(
         request_context,
@@ -186,7 +219,7 @@ def _disabled_document(
         status="disabled",
         safe_user_message=safe_user_message,
         visibility="warning_when_relevant",
-        policy_reason="Source was not checked because required work-start input was absent.",
+        policy_reason=policy_reason,
     )
 
 
@@ -198,3 +231,32 @@ def _criteria_disabled_message(inputs: WorkStartInputs) -> str:
     if inputs.derived_issues_capped:
         message = f"{message[:-1]}; {_CAP_NOTE})"
     return message
+
+
+def _parse_repo_for_forge(repo: str, forge: ForgeProvider) -> str | None:
+    if forge == "github":
+        return parse_github_repo(repo)
+    return parse_gitlab_repo(repo)
+
+
+def _gitlab_unwired_documents(
+    request_context: RequestContext, *, observed_at: str
+) -> list[CoreContractDocument]:
+    return [
+        _disabled_document(
+            request_context,
+            source_id="gitlab_mr_metadata",
+            source_family="git_hosting",
+            observed_at=observed_at,
+            safe_user_message=_GITLAB_MRS_NOTE,
+            policy_reason=_GITLAB_UNWIRED_MESSAGE,
+        ),
+        _disabled_document(
+            request_context,
+            source_id="gitlab_pipeline_state",
+            source_family="ci_deploy",
+            observed_at=observed_at,
+            safe_user_message=_GITLAB_PIPELINE_NOTE,
+            policy_reason=_GITLAB_UNWIRED_MESSAGE,
+        ),
+    ]

@@ -11,6 +11,7 @@ from teamctx.onboard import (
     _LEGACY_SNIPPET_BODY,
     CLAUDE_MD_SNIPPET,
     GithubOnboarder,
+    GitlabOnboarder,
     HealthReport,
     OnboardResult,
     StepResult,
@@ -107,12 +108,24 @@ def test_detect_returns_none_for_non_github_origin(tmp_path: Path) -> None:
     assert GithubOnboarder().detect(tmp_path) is None
 
 
+def test_gitlab_detect_returns_slug_for_gitlab_origin(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "git@gitlab.com:group/sub/project.git")
+    assert GitlabOnboarder().detect(tmp_path) == "group/sub/project"
+
+
+def test_gitlab_detect_returns_none_for_github_origin(tmp_path: Path) -> None:
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    assert GitlabOnboarder().detect(tmp_path) is None
+
+
 def test_detect_returns_none_outside_a_repo(tmp_path: Path) -> None:
     assert GithubOnboarder().detect(tmp_path) is None
+    assert GitlabOnboarder().detect(tmp_path) is None
 
 
 def test_propose_config_is_repo_fragment() -> None:
     assert GithubOnboarder().propose_config("acme/widgets") == {"repo": "acme/widgets"}
+    assert GitlabOnboarder().propose_config("group/sub/project") == {"repo": "group/sub/project"}
 
 
 def test_auth_status_reports_found_source(monkeypatch) -> None:
@@ -129,6 +142,30 @@ def test_auth_status_reports_missing_with_fix(monkeypatch) -> None:
     status = GithubOnboarder().auth_status()
     assert status.found is False and status.source is None
     assert "GITHUB_TOKEN" in status.message
+
+
+def test_gitlab_auth_status_uses_gitlab_env_file_only(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("GITLAB_TOKEN", raising=False)
+    token_file = tmp_path / "gitlab-token"
+    token_file.write_text("gl-token\n", encoding="utf-8")
+    monkeypatch.setenv("GITLAB_TOKEN_FILE", str(token_file))
+    monkeypatch.setattr("teamctx.tokens._gh_auth_token", lambda: "gh-token")
+
+    status = GitlabOnboarder().auth_status()
+
+    assert status.found is True and status.source == "file"
+    assert status.token == "gl-token"
+    assert "GITLAB_TOKEN_FILE" in status.message
+
+
+def test_gitlab_auth_status_reports_missing_with_fix(monkeypatch) -> None:
+    monkeypatch.delenv("GITLAB_TOKEN", raising=False)
+    monkeypatch.delenv("GITLAB_TOKEN_FILE", raising=False)
+
+    status = GitlabOnboarder().auth_status()
+
+    assert status.found is False and status.source is None and status.token is None
+    assert "GITLAB_TOKEN" in status.message
 
 
 def test_verify_health_exact_count() -> None:
@@ -155,6 +192,34 @@ def test_verify_health_unreachable_is_honest_not_a_verdict() -> None:
     )
     assert report.reachable is False
     assert "couldn't reach" in report.message.lower() or "no credential" in report.message.lower()
+
+
+def test_gitlab_verify_health_counts_open_mrs_and_uses_project_path() -> None:
+    urls: list[str] = []
+    report = GitlabOnboarder().verify_health(
+        "group/sub/project",
+        token="t",
+        opener=_capturing_opener(urls),
+    )
+
+    assert report.reachable is True
+    assert report.open_pr_count == 0 and report.count_is_floor is False
+    assert report.message == "reached GitLab: 0 open MRs."
+    assert urls == [
+        "https://gitlab.com/api/v4/projects/group%2Fsub%2Fproject/merge_requests"
+        "?state=opened&per_page=100"
+    ]
+
+
+def test_gitlab_verify_health_full_page_is_a_floor() -> None:
+    report = GitlabOnboarder().verify_health(
+        "group/sub/project",
+        token="t",
+        opener=_opener_returning([{"iid": i} for i in range(100)]),
+    )
+
+    assert report.count_is_floor is True
+    assert "100+" in report.message or "at least 100" in report.message
 
 
 def _git_init(root: Path) -> None:
@@ -269,6 +334,10 @@ def _github_origin(root: Path) -> None:
     _init_repo(root, "git@github.com:acme/widgets.git")
 
 
+def _gitlab_origin(root: Path) -> None:
+    _init_repo(root, "git@gitlab.com:group/sub/project.git")
+
+
 def test_run_onboard_happy_path_writes_everything(tmp_path: Path, monkeypatch) -> None:
     _github_origin(tmp_path)
     monkeypatch.setenv("GITHUB_TOKEN", "x")
@@ -304,7 +373,10 @@ def test_run_onboard_no_repo_stops_writing_nothing(tmp_path: Path) -> None:
     )
     assert result.ok is False
     assert not (tmp_path / ".teamctx").exists()
-    assert "repo" in result.steps[0].detail.lower()
+    assert result.steps[0].detail == (
+        "could not determine a repo: not a git repo with a github.com or gitlab.com 'origin', no "
+        ".teamctx/config.json, and no --repo. Re-run with --repo owner/name."
+    )
 
 
 def test_run_onboard_existing_config_needs_force(tmp_path: Path, monkeypatch) -> None:
@@ -342,6 +414,31 @@ def test_run_onboard_invalid_repo_override(tmp_path: Path) -> None:
     )
     assert result.ok is False
     assert "not-a-repo" in result.steps[0].detail
+
+
+def test_run_onboard_gitlab_origin_writes_forge_and_uses_gitlab_health(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _gitlab_origin(tmp_path)
+    monkeypatch.setenv("GITLAB_TOKEN", "x")
+    urls: list[str] = []
+
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_capturing_opener(urls)
+    )
+
+    assert result.ok is True
+    config = json.loads((tmp_path / ".teamctx" / "config.json").read_text(encoding="utf-8"))
+    assert config["work_start"]["repo"] == "group/sub/project"
+    assert config["work_start"]["forge"] == "gitlab"
+    assert urls == [
+        "https://gitlab.com/api/v4/projects/group%2Fsub%2Fproject/merge_requests"
+        "?state=opened&per_page=100"
+    ]
+    auth_step = next(s for s in result.steps if s.name == "auth")
+    assert "GITLAB_TOKEN" in auth_step.detail
+    health_step = next(s for s in result.steps if s.name == "health")
+    assert "GitLab" in health_step.detail
 
 
 def _capturing_opener(urls: list):  # type: ignore[no-untyped-def]
@@ -557,6 +654,49 @@ def test_onboard_health_matches_runtime_repo(
     )
     runtime = resolve_work_start_inputs(paths=("x.py",), root=tmp_path)
     assert urls and f"repos/{runtime.repo}/" in urls[0]
+
+
+@pytest.mark.parametrize(
+    ("origin", "token_env", "expected_repo", "expected_forge", "url_fragment"),
+    [
+        (
+            "git@github.com:acme/widgets.git",
+            "GITHUB_TOKEN",
+            "acme/widgets",
+            "github",
+            "repos/acme/widgets/",
+        ),
+        (
+            "git@gitlab.com:group/sub/project.git",
+            "GITLAB_TOKEN",
+            "group/sub/project",
+            "gitlab",
+            "projects/group%2Fsub%2Fproject/merge_requests",
+        ),
+    ],
+)
+def test_onboard_health_matches_runtime_repo_and_forge_per_provider(
+    tmp_path: Path,
+    monkeypatch,
+    origin: str,
+    token_env: str,
+    expected_repo: str,
+    expected_forge: str,
+    url_fragment: str,
+) -> None:
+    from teamctx.resolve import resolve_work_start_inputs
+
+    _init_repo(tmp_path, origin)
+    monkeypatch.setenv(token_env, "x")
+    urls: list[str] = []
+
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_capturing_opener(urls)
+    )
+
+    runtime = resolve_work_start_inputs(paths=("x.py",), root=tmp_path)
+    assert (runtime.repo, runtime.forge) == (expected_repo, expected_forge)
+    assert urls and url_fragment in urls[0]
 
 
 # --- S5c: docs detection + the truthful snippet ---

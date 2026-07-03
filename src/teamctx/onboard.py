@@ -15,7 +15,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 from urllib.parse import quote
 
 from teamctx.connectors.github import (
@@ -26,14 +26,14 @@ from teamctx.connectors.github import (
     github_api_root,
     split_repo,
 )
-from teamctx.git_context import detect_repo, parse_github_repo
+from teamctx.git_context import ForgeProvider, detect_forge_repo
 from teamctx.project_config import (
     ProjectConfig,
     ProjectConfigError,
     build_work_start_project_config,
     load_project_config,
 )
-from teamctx.resolve import resolve_github_repo
+from teamctx.resolve import resolve_forge_repo
 from teamctx.tokens import resolve_github_token_with_source
 
 # The honest snippet: all four checks, with the two conditional ones stating their conditions
@@ -89,6 +89,7 @@ class AuthStatus:
     found: bool
     source: str | None
     message: str
+    token: str | None = None
 
 
 @dataclass(frozen=True)
@@ -189,23 +190,54 @@ def _auth_missing_message(token_env: str) -> str:
     )
 
 
-class GithubOnboarder:
-    """The one source onboarder today. Host-aware detection reuses Part 1's ``detect_repo``, which
-    returns owner/name only for a github.com origin (fail-closed on any other host)."""
+def _auth_missing_message_for_provider(
+    provider_name: str, token_env: str, checked_things: str, *, gh_hint: bool
+) -> str:
+    gh = ", or run `gh auth login`" if gh_hint else ""
+    return (
+        f"no {provider_name} credential found. Set {token_env} in your environment (or "
+        f"{token_env}_FILE with a path to a token file){gh}. Until then teamctx can't check "
+        f"{checked_things} and will say so, never a false all-clear."
+    )
 
-    provider = "github"
+
+class SourceOnboarder(Protocol):
+    provider: ForgeProvider
+    default_token_env: str
+
+    def detect(self, root: Path) -> str | None: ...
+
+    def propose_config(self, repo: str) -> dict[str, str]: ...
+
+    def auth_status(self, token_env: str | None = None) -> AuthStatus: ...
+
+    def verify_health(
+        self, repo: str, *, token: str | None, opener: HttpOpener = DEFAULT_OPENER
+    ) -> HealthReport: ...
+
+
+class GithubOnboarder:
+    """GitHub source onboarder. Detection claims only github.com origins."""
+
+    provider: ForgeProvider = "github"
+    default_token_env = "GITHUB_TOKEN"
 
     def detect(self, root: Path) -> str | None:
-        return detect_repo(root)
+        detected = detect_forge_repo(root)
+        if detected is None:
+            return None
+        repo, forge = detected
+        return repo if forge == self.provider else None
 
     def propose_config(self, repo: str) -> dict[str, str]:
         return {"repo": repo}
 
-    def auth_status(self, token_env: str = "GITHUB_TOKEN") -> AuthStatus:
+    def auth_status(self, token_env: str | None = None) -> AuthStatus:
+        token_env = token_env or self.default_token_env
         token, source = resolve_github_token_with_source(token_env)
         if token:
-            return AuthStatus(True, source, _auth_found_message(token_env, source))
-        return AuthStatus(False, None, _auth_missing_message(token_env))
+            return AuthStatus(True, source, _auth_found_message(token_env, source), token)
+        return AuthStatus(False, None, _auth_missing_message(token_env), None)
 
     def verify_health(
         self, repo: str, *, token: str | None, opener: HttpOpener = DEFAULT_OPENER
@@ -244,7 +276,117 @@ class GithubOnboarder:
         return HealthReport(True, count, False, f"reached GitHub: {count} open PRs.")
 
 
-ONBOARDERS: list[GithubOnboarder] = [GithubOnboarder()]
+class GitlabOnboarder:
+    """GitLab source onboarder. Detection claims only gitlab.com origins."""
+
+    provider: ForgeProvider = "gitlab"
+    default_token_env = "GITLAB_TOKEN"
+
+    def detect(self, root: Path) -> str | None:
+        detected = detect_forge_repo(root)
+        if detected is None:
+            return None
+        repo, forge = detected
+        return repo if forge == self.provider else None
+
+    def propose_config(self, repo: str) -> dict[str, str]:
+        return {"repo": repo}
+
+    def auth_status(self, token_env: str | None = None) -> AuthStatus:
+        token_env = token_env or self.default_token_env
+        token, source = _resolve_env_file_token_with_source(token_env)
+        if token:
+            return AuthStatus(True, source, _auth_found_message(token_env, source), token)
+        return AuthStatus(
+            False,
+            None,
+            _auth_missing_message_for_provider(
+                "GitLab", token_env, "open MRs or pipeline state", gh_hint=False
+            ),
+            None,
+        )
+
+    def verify_health(
+        self, repo: str, *, token: str | None, opener: HttpOpener = DEFAULT_OPENER
+    ) -> HealthReport:
+        if not token:
+            return HealthReport(
+                False, None, False,
+                "no credential, so I couldn't reach GitLab to count open MRs.",
+            )
+        try:
+            url = (
+                "https://gitlab.com/api/v4/projects/"
+                f"{quote(repo, safe='')}/merge_requests?state=opened&per_page=100"
+            )
+            payload = get_json(url, token=token, opener=opener)
+        except (GitHubProbeError, OSError, ValueError):
+            return HealthReport(
+                False, None, False,
+                "couldn't reach GitLab just now (transient or access); teamctx will say so, "
+                "never a false all-clear.",
+            )
+        if not isinstance(payload, list):
+            return HealthReport(
+                False, None, False,
+                "GitLab returned an unexpected shape for open MRs; reporting it as unreachable "
+                "rather than guessing.",
+            )
+        count = len(payload)
+        if count >= 100:
+            return HealthReport(True, count, True, "reached GitLab: at least 100 open MRs (100+).")
+        return HealthReport(True, count, False, f"reached GitLab: {count} open MRs.")
+
+
+ONBOARDERS: list[SourceOnboarder] = [GithubOnboarder(), GitlabOnboarder()]
+
+
+def _resolve_env_file_token_with_source(token_env: str) -> tuple[str | None, str | None]:
+    token = os.environ.get(token_env)
+    if token:
+        return token, "env"
+    token_file = os.environ.get(f"{token_env}_FILE")
+    if token_file:
+        try:
+            value = Path(token_file).expanduser().read_text(encoding="utf-8").strip() or None
+        except OSError:
+            value = None
+        if value:
+            return value, "file"
+    return None, None
+
+
+def _detect_onboarder(root: Path) -> tuple[SourceOnboarder, str] | None:
+    for onboarder in ONBOARDERS:
+        repo = onboarder.detect(root)
+        if repo:
+            return onboarder, repo
+    return None
+
+
+def _detected_forge_repo(root: Path) -> tuple[str, ForgeProvider] | None:
+    detected = _detect_onboarder(root)
+    if detected is None:
+        return None
+    onboarder, repo = detected
+    return repo, onboarder.provider
+
+
+def _onboarder_for_provider(provider: ForgeProvider) -> SourceOnboarder:
+    for onboarder in ONBOARDERS:
+        if onboarder.provider == provider:
+            return onboarder
+    raise ValueError(f"unsupported forge provider: {provider}")
+
+
+def _token_env_for_onboarder(onboarder: SourceOnboarder, requested: str) -> str:
+    if requested == "GITHUB_TOKEN":
+        return onboarder.default_token_env
+    return requested
+
+
+def _provider_display(provider: ForgeProvider) -> str:
+    return "GitHub" if provider == "github" else "GitLab"
 
 
 _SNIPPET_START = "<!-- teamctx:start -->"
@@ -388,18 +530,19 @@ def _config_step_and_effective_repo(
     path: Path,
     *,
     override_repo: str | None,
-    detected: str | None,
+    detected: tuple[str, ForgeProvider] | None,
     existing: ProjectConfig | None,
     error: str | None,
     force: bool,
     dry_run: bool,
     detected_docs_root: str | None = None,
-) -> tuple[StepResult, str | None]:
-    """The config step plus the github.com owner/name work-start will actually resolve after
-    onboard (explicit > config > git-detect, normalized through ``parse_github_repo`` exactly like
-    ``resolve.py``), so onboard's report and health can never drift from runtime. The returned
-    ``effective_repo`` is None when nothing resolves; a config that names a non-github repo is a
-    failure here just as it is at runtime."""
+) -> tuple[StepResult, tuple[str, ForgeProvider] | None]:
+    """The config step plus the repo/forge work-start will actually resolve after onboard.
+
+    It calls the same provider-aware resolver as runtime, so onboard's report and health can never
+    drift from work-start. The returned pair is None when nothing resolves; an unusable config is a
+    failure here just as it is at runtime.
+    """
 
     # A malformed existing config: runtime raises before it resolves any repo, so there is nothing
     # to health-check (effective None) and it is a failure.
@@ -417,7 +560,8 @@ def _config_step_and_effective_repo(
     # rejects it. No drift.
     if existing is not None and not force:
         config_raw = existing.work_start.repo if existing.work_start is not None else None
-        effective, repo_error = resolve_github_repo(None, config_raw, detected)
+        config_forge = existing.work_start.forge if existing.work_start is not None else None
+        effective, repo_error = resolve_forge_repo(None, config_raw, config_forge, detected)
         if repo_error is not None:
             return (
                 StepResult(
@@ -427,43 +571,52 @@ def _config_step_and_effective_repo(
                 ),
                 None,
             )
+        assert effective is not None
+        effective_repo, effective_forge = effective
         if config_raw:
-            detail = f"{path} already configures {effective}; pass --force to overwrite."
-            if override_repo is not None and override_repo != effective:
+            detail = f"{path} already configures {effective_repo}; pass --force to overwrite."
+            if override_repo is not None and override_repo != effective_repo:
                 detail = (
-                    f"{path} already configures {effective}, not {override_repo}; pass --force to "
-                    "change it."
+                    f"{path} already configures {effective_repo}, not {override_repo}; pass "
+                    "--force to change it."
                 )
         else:
             detail = (
-                f"{path} exists with no repo set; work-start will use the git origin {effective}."
+                f"{path} exists with no repo set; work-start will use the git origin "
+                f"{effective_repo}."
             )
-        return StepResult("config", "already", detail), effective
+        return StepResult("config", "already", detail), (effective_repo, effective_forge)
     # Writing a new config: the written repo is explicit-or-git-detect, resolved the same way, so
     # the config we write is exactly what runtime will read back.
-    write_repo, repo_error = resolve_github_repo(override_repo, None, detected)
-    if repo_error is not None or write_repo is None:
+    resolved, repo_error = resolve_forge_repo(override_repo, None, None, detected)
+    if repo_error is not None or resolved is None:
         return (
             StepResult(
                 "config", "failed",
-                "can't determine a repo to write: not a git repo with a github.com 'origin', and "
-                "no --repo. Pass --repo owner/name.",
+                "can't determine a repo to write: not a git repo with a github.com or gitlab.com "
+                "'origin', and no --repo. Pass --repo owner/name.",
             ),
             None,
         )
+    write_repo, write_forge = resolved
     if dry_run:
         return (
             StepResult(
                 "config", "skipped",
                 f"--dry-run: would write .teamctx/config.json for {write_repo}.",
             ),
-            write_repo,
+            (write_repo, write_forge),
         )
-    config = build_work_start_project_config(repo=write_repo, docs_root=detected_docs_root)
+    config = build_work_start_project_config(
+        repo=write_repo, forge=write_forge, docs_root=detected_docs_root
+    )
     _atomic_write(
         path, json.dumps(config.model_dump(mode="json", exclude_defaults=True), indent=2) + "\n"
     )
-    return StepResult("config", "wrote", f"{path} (repo {write_repo})"), write_repo
+    return StepResult("config", "wrote", f"{path} (repo {write_repo})"), (
+        write_repo,
+        write_forge,
+    )
 
 
 DocsDirState = Literal["ok", "unsafe", "empty", "absent"]
@@ -564,22 +717,24 @@ def run_onboard(
     """Scaffold teamctx in ``root``. Additive and idempotent; each write atomic; a failed step
     fails only itself (and flips ``ok``); a missing token is reported, not fatal."""
 
-    # An empty --repo is treated as absent (falls back to config/git), exactly as runtime treats a
-    # falsy explicit repo; only a truthy-but-invalid --repo is an error.
-    override_repo = parse_github_repo(repo_override) if repo_override else None
-    if repo_override and override_repo is None:
-        return OnboardResult(
-            False,
-            (StepResult(
-                "detect", "failed",
-                f"{repo_override!r} is not a github.com owner/name; pass --repo owner/name.",
-            ),),
-            "re-run with --repo owner/name",
-        )
-
     config_path = root / ".teamctx" / "config.json"
     existing, config_error = _load_existing_config(config_path)
-    detected = detect_repo(root)
+    detected = _detected_forge_repo(root)
+
+    # An empty --repo is treated as absent (falls back to config/git), exactly as runtime treats a
+    # falsy explicit repo; only a truthy-but-invalid --repo is an error.
+    override_repo = repo_override or None
+    if override_repo:
+        resolved_override, override_error = resolve_forge_repo(override_repo, None, None, detected)
+        if resolved_override is None:
+            return OnboardResult(
+                False,
+                (StepResult(
+                    "detect", "failed",
+                    override_error or f"{repo_override!r} is not a supported repo.",
+                ),),
+                "re-run with --repo owner/name",
+            )
 
     # Case A: genuinely nothing to onboard (no config file at all, no --repo, no git origin) ->
     # stop and write nothing (spec 2.2 step 2). A config that EXISTS but is broken is handled by
@@ -589,14 +744,14 @@ def run_onboard(
             False,
             (StepResult(
                 "detect", "failed",
-                "could not determine a GitHub repo: not a git repo with a github.com 'origin', no "
-                ".teamctx/config.json, and no --repo. Re-run with --repo owner/name.",
+                "could not determine a repo: not a git repo with a github.com or gitlab.com "
+                "'origin', no .teamctx/config.json, and no --repo. Re-run with --repo owner/name.",
             ),),
             "re-run with --repo owner/name",
         )
 
     detected_docs = _detect_docs_root(root)
-    config_step, effective_repo = _config_step_and_effective_repo(
+    config_step, effective = _config_step_and_effective_repo(
         config_path, override_repo=override_repo, detected=detected,
         existing=existing, error=config_error, force=force, dry_run=dry_run,
         detected_docs_root=detected_docs,
@@ -620,15 +775,20 @@ def run_onboard(
     else:
         docs_step = _docs_step(existing_docs, wrote_detected=False, dir_state=docs_dir_state)
 
-    # Resolve the credential ONCE, so the reported source and the health check use the same token
-    # (the gh fallback is not re-evaluated) and cannot drift.
-    token, source = resolve_github_token_with_source(token_env)
-    auth_found = token is not None
-    auth_message = (
-        _auth_found_message(token_env, source) if auth_found else _auth_missing_message(token_env)
+    effective_onboarder = (
+        _onboarder_for_provider(effective[1])
+        if effective is not None
+        else _onboarder_for_provider(detected[1] if detected is not None else "github")
     )
-    if effective_repo is not None:
-        health = ONBOARDERS[0].verify_health(effective_repo, token=token, opener=opener)
+    resolved_token_env = _token_env_for_onboarder(effective_onboarder, token_env)
+    auth_status = effective_onboarder.auth_status(resolved_token_env)
+    auth_found = auth_status.found
+    auth_message = auth_status.message
+    if effective is not None:
+        effective_repo, _ = effective
+        health = effective_onboarder.verify_health(
+            effective_repo, token=auth_status.token, opener=opener
+        )
         health_message = health.message
     else:
         health_message = "no valid repo resolved, so no reachability check was run."
@@ -647,7 +807,11 @@ def run_onboard(
     next_step = (
         "Run `teamctx work-start --path <a file you're about to edit>` to see it work."
         if auth_found
-        else "Set a GitHub credential (see the auth line above), then run `teamctx work-start`."
+        else (
+            f"Set a {_provider_display(effective_onboarder.provider)} credential "
+            "(see the auth line above), "
+            "then run `teamctx work-start`."
+        )
     )
     return OnboardResult(ok, tuple(steps), next_step)
 
@@ -697,13 +861,15 @@ def _snippet_status_step(state: SnippetState) -> StepResult:
     return StepResult("claude_md", mark, detail)
 
 
-def _status_next_step(steps: list[StepResult], auth_found: bool) -> str:
+def _status_next_step(
+    steps: list[StepResult], auth_found: bool, provider: ForgeProvider
+) -> str:
     if any(s.status == "failed" for s in steps):
         return "Fix the failed line above (or run `teamctx onboard --force`)."
     if any(s.name in {"config", "hook", "claude_md"} and s.status == "noted" for s in steps):
         return "Run `teamctx onboard` to finish setup."
     if not auth_found:
-        return "Set a GitHub credential (see the credential line above)."
+        return f"Set a {_provider_display(provider)} credential (see the credential line above)."
     return "You're set. Run `teamctx work-start --path <a file you're about to edit>`."
 
 
@@ -719,10 +885,10 @@ def run_status(
 
     config_path = root / ".teamctx" / "config.json"
     existing, config_error = _load_existing_config(config_path)
-    detected = detect_repo(root)
+    detected = _detected_forge_repo(root)
 
     steps: list[StepResult] = []
-    effective_repo: str | None = None
+    effective: tuple[str, ForgeProvider] | None = None
     if config_error is not None:
         steps.append(StepResult(
             "config", "failed",
@@ -730,25 +896,31 @@ def run_status(
         ))
     elif existing is not None:
         config_raw = existing.work_start.repo if existing.work_start is not None else None
-        effective_repo, repo_error = resolve_github_repo(None, config_raw, detected)
+        config_forge = existing.work_start.forge if existing.work_start is not None else None
+        effective, repo_error = resolve_forge_repo(None, config_raw, config_forge, detected)
         if repo_error is not None:
             steps.append(StepResult(
                 "config", "failed",
                 f"{config_path} configures a repo work-start can't use: {repo_error}",
             ))
         elif config_raw:
+            assert effective is not None
+            effective_repo, _ = effective
             steps.append(StepResult(
                 "config", "ok", f"{config_path} configures {effective_repo}."
             ))
         else:
+            assert effective is not None
+            effective_repo, _ = effective
             steps.append(StepResult(
                 "config", "ok",
                 f"{config_path} exists with no repo set; work-start will use the git origin "
                 f"{effective_repo}.",
             ))
     else:
-        effective_repo, repo_error = resolve_github_repo(None, None, detected)
-        if effective_repo is not None:
+        effective, repo_error = resolve_forge_repo(None, None, None, detected)
+        if effective is not None:
+            effective_repo, _ = effective
             steps.append(StepResult(
                 "config", "noted",
                 f"no {config_path}; work-start will use the git origin {effective_repo}. "
@@ -810,19 +982,23 @@ def run_status(
     existing_text = claude_md.read_text(encoding="utf-8") if claude_md.exists() else ""
     steps.append(_snippet_status_step(classify_claude_md(existing_text)))
 
-    token, source = resolve_github_token_with_source(token_env)
-    auth_found = token is not None
+    provider = effective[1] if effective is not None else (detected[1] if detected else "github")
+    onboarder = _onboarder_for_provider(provider)
+    resolved_token_env = _token_env_for_onboarder(onboarder, token_env)
+    auth_status = onboarder.auth_status(resolved_token_env)
+    auth_found = auth_status.found
     steps.append(StepResult(
         "credential", "ok" if auth_found else "noted",
-        _auth_found_message(token_env, source) if auth_found else _auth_missing_message(token_env),
+        auth_status.message,
     ))
 
-    if effective_repo is not None:
-        health = ONBOARDERS[0].verify_health(effective_repo, token=token, opener=opener)
+    if effective is not None:
+        effective_repo, _ = effective
+        health = onboarder.verify_health(effective_repo, token=auth_status.token, opener=opener)
         steps.append(StepResult("reachability", "noted", health.message))
     else:
         steps.append(StepResult(
             "reachability", "noted", "no valid repo resolved, so no reachability check was run."
         ))
 
-    return StatusReport(tuple(steps), _status_next_step(steps, auth_found))
+    return StatusReport(tuple(steps), _status_next_step(steps, auth_found, provider))

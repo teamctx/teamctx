@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from teamctx.tokens import resolve_github_token, resolve_token
+from teamctx.tokens import resolve_atlassian_auth, resolve_github_token, resolve_token
 
 
 def test_env_value_wins(monkeypatch) -> None:
@@ -101,3 +101,40 @@ def test_resolve_github_token_with_source_none(monkeypatch) -> None:
     monkeypatch.delenv("GITHUB_TOKEN_FILE", raising=False)
     monkeypatch.setenv("TEAMCTX_DISABLE_GH_AUTH", "1")
     assert resolve_github_token_with_source() == (None, None)
+
+
+def test_resolve_atlassian_auth_reads_email_and_token(monkeypatch) -> None:
+    monkeypatch.setenv("ATLASSIAN_EMAIL", "person@example.com")
+    monkeypatch.setenv("ATLASSIAN_API_TOKEN", "token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN_FILE", raising=False)
+
+    assert resolve_atlassian_auth() == ("person@example.com", "token")
+
+
+def test_resolve_atlassian_auth_reads_token_file(monkeypatch, tmp_path: Path) -> None:
+    token_file = tmp_path / "atlassian-token"
+    token_file.write_text("file-token\n", encoding="utf-8")
+    monkeypatch.setenv("ATLASSIAN_EMAIL", "person@example.com")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+    monkeypatch.setenv("ATLASSIAN_API_TOKEN_FILE", str(token_file))
+
+    assert resolve_atlassian_auth() == ("person@example.com", "file-token")
+
+
+def test_resolve_atlassian_auth_returns_none_when_both_missing(monkeypatch) -> None:
+    monkeypatch.delenv("ATLASSIAN_EMAIL", raising=False)
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN_FILE", raising=False)
+
+    assert resolve_atlassian_auth() is None
+
+
+def test_resolve_atlassian_auth_returns_none_for_exactly_one_half(monkeypatch) -> None:
+    monkeypatch.setenv("ATLASSIAN_EMAIL", "person@example.com")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN_FILE", raising=False)
+    assert resolve_atlassian_auth() is None
+
+    monkeypatch.delenv("ATLASSIAN_EMAIL", raising=False)
+    monkeypatch.setenv("ATLASSIAN_API_TOKEN", "token")
+    assert resolve_atlassian_auth() is None
