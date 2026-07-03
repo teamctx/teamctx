@@ -784,8 +784,10 @@ def run_status(
         ))
     else:
         docs_state = _docs_dir_state(root)
-        if docs_state == "ok" and existing is None:
-            # no config yet: a fresh onboard WILL write the detection, so this promise is true
+        if docs_state == "ok" and existing is None and config_error is None:
+            # genuinely no config: a fresh onboard WILL write the detection, so the promise is
+            # true. A malformed config also parses to existing=None but onboard will NOT write
+            # over it without --force, so it takes the add-or-force copy below instead.
             steps.append(StepResult(
                 "docs", "noted",
                 "a docs/ folder exists but no docs_root is configured; `teamctx onboard` sets "

@@ -213,3 +213,18 @@ def test_status_empty_docs_dir_is_reported_truthfully(tmp_path) -> None:
     report = run_status(tmp_path)
     docs = next(s for s in report.steps if s.name == "docs")
     assert "has no markdown files" in docs.detail
+
+
+def test_status_malformed_config_with_docs_dir_never_promises_plain_onboard(tmp_path) -> None:
+    # Round-3 review P1: a malformed config parses to existing=None, but onboard will not write
+    # over it without --force, so the docs line must not promise that plain onboard sets it.
+    from teamctx.onboard import run_status
+
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "config.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "plan.md").write_text("x", encoding="utf-8")
+    report = run_status(tmp_path)
+    docs = next(s for s in report.steps if s.name == "docs")
+    assert "`teamctx onboard` sets it" not in docs.detail
+    assert "add work_start.docs_root" in docs.detail
