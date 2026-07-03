@@ -1,137 +1,178 @@
 # Spec: structural consolidation + auto-discovery (2026-07-03)
 
 ## Status
-Proposed by the CTO (Fable); goes through a codex adversarial spec review before any build.
-Covers S6, S7 (structural, built first) and S5a/S5b/S5c (auto-discovery). Sequencing decision
-recorded in CURRENT.md: S6+S7 land before S5 because S5b extends the exact registries S6
-consolidates; building S5 first would mean immediate rework.
+Revision 2, after a codex adversarial spec review (verdict on rev 1: REVISE-FIRST, no P0,
+six P1 + three P2, all accepted by the CTO-arbiter and pinned below). Ready to build.
+Covers S6, S7 (structural, built first) and S5a/S5b/S5c (auto-discovery). Sequencing
+decision recorded in CURRENT.md: S6+S7 land before S5 because S5b extends the exact
+registries S6 consolidates.
 
 ## Goal
 After this arc, `teamctx work-start --path <file>` in an onboarded repo fires ALL FOUR checks
 with zero extra flags: collision and gate (already automatic), criteria (issue + since derived,
 S5a), and docs (relied-on semantics, S5b), with every not-run check carrying a precise,
-in-band reason (F9). The CLAUDE.md snippet then claims all four (S5c). Structurally, adding a
-card kind or a source becomes a one-entry change (S6) with exactly one card-derivation path (S7).
+in-band reason (F9). The CLAUDE.md snippet then claims exactly what fires (S5c). Structurally,
+adding a card kind or a source becomes a one-entry change (S6) with exactly one card-derivation
+path (S7).
 
-## S6: registry consolidation (F5, locked design)
+## S6: registry consolidation (F5; design pinned, review P1-1 and P1-2)
 
-One `CardKind` entry carries everything a kind needs; every other table is DERIVED at import.
+### The one registry owner: `src/teamctx/core/kinds.py` (new)
+Pinned dependency direction (no cycles, one definition site per fact):
+
+- `core/prop.py` keeps the pure DATATYPES and MECHANISM only: `Prop`, `SubjectRef`,
+  `Witness`, and a parameterized `witnesses_with(claim, query, refutes_match)` helper.
+  Its tables (`PREDICATE_REGISTRY`, `REFUTES_PAIRS`) and `Prop.shape` MOVE OUT.
+- `core/severity.py` keeps the MECHANISM only: `compute_severity(kind_base, claim)`
+  takes the base as an argument; `KIND_BASE` moves out.
+- `core/kinds.py` imports contracts, prop, severity. It defines `CheckId` (moves here from
+  assessment.py), `CardKind`, the four kinds' derive/render functions (moved from select.py,
+  including `_render_claim_card`), `CARD_KINDS`, and DERIVES everything else at import:
+  `shape_of(prop)` (raising on unregistered predicates exactly as `Prop.shape` does today),
+  `witnesses(claim, query)` (dispatching each registered pair's `refutes_match` through
+  `prop.witnesses_with`), `deps_for(prop)`, `severity_base_for(predicate)`,
+  `reason_prefix` routing, and the `(verdict_label, check_id)` pairs assessment consumes.
+- `core/select.py` keeps the ENGINE only (projection, derive dispatch, coverage, closure,
+  `select_context`), importing kinds. `core/evaluate.py` switches `query.shape` to
+  `kinds.shape_of(query)`. `assessment.py` imports `CheckId` and the label pairs from kinds
+  (it already imports core; kinds imports no application module, so no cycle).
 
 ```python
 @dataclass(frozen=True)
 class CardKind:
     signal_type: str
-    card_predicate: str          # existential; registered shape derived
-    query_predicate: str         # universal;  registered shape derived
+    card_predicate: str            # existential
+    query_predicate: str           # universal
     verdict_label: str
-    check_id: CheckId            # today duplicated in assessment._LABELS
-    deps_family: str             # today DEPS_REGISTRY
-    severity_base: float         # today severity.KIND_BASE
-    refutes_match: Literal["subject-overlap", "repo-wide"]  # NEW: see S5b
+    check_id: CheckId
+    reason_prefix: str             # "collision" | "criteria" | "doc" | "gate" (assessment routing)
+    deps_family: str
+    severity_base: float
+    refutes_match: Literal["subject-overlap", "repo-wide"]
     derive: Callable[[RequestContext, SourceSignal], ClaimCard | None]
     query: Callable[[RequestContext], Prop]
     render: Callable[[ClaimCard], ContextCard]
 ```
 
-Derived at import from `CARD_KINDS` (definitions move next to it; `prop.py` and `severity.py`
-re-export or import from the registry owner to avoid an import cycle; the exact home is the
-builder's call within "one entry, everything derived"):
-- `PREDICATE_REGISTRY = {k.card_predicate: "existential", k.query_predicate: "universal" ...}`
-- `REFUTES_PAIRS`/match modes: `{(k.card_predicate, k.query_predicate): k.refutes_match}`
-- `DEPS_REGISTRY = {k.query_predicate: frozenset({k.deps_family})}`
-- `KIND_BASE = {k.card_predicate: k.severity_base}`
-- assessment's `_LABELS = tuple((k.verdict_label, k.check_id) for k in CARD_KINDS)`
+### Render copy stays human, but its completeness is enforced (P1-2)
+Per-check copy remains hand-written at the render edge (voice is owned by the CTO), but it
+consolidates into one struct so a new kind cannot silently lack copy:
 
-Behavior must be byte-identical (the whole suite is the net; zero test-copy changes expected
-except imports). Circular-import guard: `assessment.py` imports from core already; `CheckId`
-may need to move into core or stay a str in CardKind with a cast at the assessment edge; the
-builder proposes, the reviewer checks there is still exactly ONE definition site.
+```python
+@dataclass(frozen=True)
+class CheckCopy:            # in contract_render.py, one entry per CheckId
+    clear: str              # today _CLEAR_PHRASE
+    not_checked: str        # today _NOT_CHECKED_PHRASE (static fallback; see S5a note carrier)
+    unreachable: str        # today _UNREACHABLE_PHRASE
+    finding_action: str     # today _FINDING_ACTION
+    hook_clear: str         # today hook_signal._CLEAR_PHRASE
+    hook_gap: str | None    # today hook_signal._HOOK_GAP (None = not an important check)
+```
 
-`witnesses()` changes signature-compatibly: for a registered pair, `"subject-overlap"` keeps
-today's rule (shared repo + overlapping subject items); `"repo-wide"` refutes on shared repo
-alone. All four kinds ship as `"subject-overlap"` in S6 (no behavior change); S5b flips docs.
+`RENDER_COPY: dict[CheckId, CheckCopy]`, plus an import-time check (and a test) that
+`set(RENDER_COPY) == {k.check_id for k in CARD_KINDS}`: a kind without copy fails loud at
+import, never silently drops from the report. `hook_signal` reads the same struct.
+(`_PENDING_PHRASE` / `_NOT_APPLICABLE_PHRASE` keep their per-check overrides with generic
+fallbacks, unchanged.)
 
-## S7: forge_review dual-card removal (F4, locked design)
+### Behavior bar
+Byte-identical output; the whole suite passes with import-path edits only. A pin-the-refactor
+test asserts every derived table equals the pre-consolidation literals. The core purity test
+covers kinds.py. All four kinds ship `refutes_match="subject-overlap"` (S5b flips docs later).
+
+## S7: forge_review dual-card removal (F4, unchanged from rev 1)
 
 `normalize_forge_review_prs` stops constructing `ContextCard`s (the broker ignores them; the
-core derives collision cards in select.py; the two texts have already drifted). The connector
-emits signals + statuses + open targets only. Tests asserting on `document.context_cards`
-re-point to the core-derived cards (`derive_cards` / `broker_answer`). The dev probe
-`github-pr-probe` output shrinks accordingly (its JSON is a raw contract dump; document that
-cards are derived downstream). No other connector builds cards (verified in the review).
+core derives collision cards; the two texts have already drifted). The connector emits
+signals + statuses + open targets only. Tests asserting `document.context_cards` re-point to
+core-derived cards. No other connector builds cards (reviewer verified).
 
-## S5a: linked-issue + `since` auto-derivation (locked design)
+## S5a: linked-issue + `since` auto-derivation (pins from P1-4, P1-5, P2-7, P2-8, P2-9)
 
-**Privacy boundary is binding: no PR bodies, no comments.** Derivation uses only:
-1. **Branch name**: first `#?(\d+)` group in the current branch name in the common shapes
-   (`123-fix-x`, `feat/123-x`, `issue-123`, `fix/#123`). A branch with no number derives
-   nothing (honest absence). Never derive from branch names like `v2` version tags: require
-   the number to be delimited (start, `/`, `-`, `_`, `#`).
-2. **Local commit trailers**: closing keywords (`fixes|closes|resolves #N`, case-insensitive)
-   in `git log` messages on `merge-base(default_branch, HEAD)..HEAD`. Local git is the user's
-   own workspace, not a remote body read. Default branch from
-   `git symbolic-ref refs/remotes/origin/HEAD`, falling back to `main` then `master` if those
-   refs exist, else honest absence.
+**Privacy boundary (pinned wording):** no REMOTE bodies ever (PR/issue bodies, comments,
+patches: unchanged exclusion). Local commit messages are the user's own workspace metadata;
+the parser extracts ONLY closing-keyword issue numbers; messages are never stored, surfaced,
+or sent anywhere. If `docs/engineering/build-plan.md`'s exclusion wording reads as forbidding
+local commit-message parsing, update it in the same slice to say exactly this (provenance
+preserved).
 
-`since` = the committer timestamp of `merge-base(default_branch, HEAD)` ("issue changes after
-you branched"), ISO-8601 UTC. Detached HEAD, no default branch, or no merge-base: honest
-absence.
+**Derivation (pinned, executable):** new module `src/teamctx/discover.py`, read-only git,
+fail-closed conventions of git_context.py.
+- Branch: first match of `(?:^|[/_-])#?(\d{1,6})(?=[/_-]|$)` against the branch name,
+  rejected when the digits are immediately preceded by `v` or `V` (release branches).
+- Trailers: every match of `\b(?:fixes|closes|resolves)\s+#(\d{1,6})\b` (case-insensitive)
+  in `git log --format=%B merge-base..HEAD` messages.
+- Result = union of both, deduped, numerically sorted, capped at 5 (a cap hit is recorded in
+  the disabled/derived note, never silent).
+- `since` = committer timestamp of `merge-base(default_branch, HEAD)`, ISO-8601 UTC. Default
+  branch: `git symbolic-ref refs/remotes/origin/HEAD`, else `main`, else `master` (existing
+  refs only), else honest absence. Detached HEAD or no merge-base: honest absence.
+- Precedence unchanged: explicit > derived > honest-absent. Explicit `--issue` disables ALL
+  issue derivation (no mixing); explicit `--since` disables since-derivation.
 
-Precedence (matches the resolution doctrine): explicit `--issue`/`--since` > derived >
-honest-absent. Derived values are visible: the work-start render's criteria line names the
-derivation ("issue #123 from your branch name") so a wrong guess is judgeable, and `--issue`
-overrides it. A derived issue with no derivable `since` falls back to... nothing: the criteria
-check needs both; the not-run reason says exactly which half is missing (F9).
+**`since` parsing (pinned):** both sides of every comparison go through one
+`parse_since(text)` using `datetime.fromisoformat` (3.12 accepts `Z`); naive values are
+assumed UTC; date-only input is ACCEPTED as midnight UTC. Unparseable explicit `--since` is a
+precise input error at resolve time (ClickException path), never a silent lexical compare.
 
-New module `src/teamctx/discover.py` (read-only git, same fail-closed conventions as
-git_context.py); `resolve_work_start_inputs` calls it when issues/since are not explicit.
-The hook inherits automatically (it calls the same resolver).
+**Provenance carrier (P1-5, pinned):** `RequestContext` gains
+`input_provenance: dict[str, str] = {}` (schema-additive; e.g. `"issue:#123": "your branch
+name"`, `"issue:#7": "a commit message trailer"`, `"since": "when you branched (merge-base
+abc1234)"`). The replay digest already hashes the whole request, so provenance is bound
+automatically. `BrokerAnswer` gains `request: RequestContext` so the render can see it. The
+criteria line names derived inputs: clear reads "the linked issue's criteria are unchanged
+(issue #123 from your branch name)"; a finding's card copy is unchanged (the card already
+names the issue).
 
-**F9/F13 absorbed here.** The runner, when it skips a connector for a missing input, now emits
-an explicit `disabled` SourceStatus whose `safe_user_message` names the exact missing input
-and the exact fix. `assess_completeness` treats a family whose statuses are all `disabled` as
-`incomplete[policy-gap]` (we never looked; NOT stale-dep, which would read "couldn't reach").
-The render's "Not checked:" line prefers the in-band note from the coverage entry (S1's
-note/visibility pass-through) over the static fallback phrase. `since` comparisons normalize
-both sides through one parse (`datetime.fromisoformat`, Z-tolerant) instead of lexical string
-compare; an unparseable user `since` is a precise input error, not a silent miscompare.
+**Missing-input notes reach the render (P1-4, pinned):** when the runner skips a connector it
+emits a `disabled` SourceStatus whose `safe_user_message` names the exact missing input and
+fix ("no issue could be derived from your branch or commits; name one with --issue", "an
+issue was derived but the start time could not be (no merge-base); pass --since"). Mapping:
+`assess_completeness` treats a family whose present statuses are ALL `disabled` as
+`incomplete[policy-gap]` (never stale-dep). `CheckState` gains `note: str | None`; `assess()`
+fills it from the disabled coverage entry of the check's `deps_family` (S1's CoverageEntry
+note field). `_not_checked_line` prefers `state.note` over the static `CheckCopy.not_checked`
+fallback. F9's wrong copy dies here; F13's lexical compare dies above.
 
-## S5b: docs relied-on semantics (locked design)
+## S5b: docs relied-on semantics (pins from P1-3)
 
-Reliance = the team's declared docs set. When `docs_root` is configured, ANY doc under it whose
-frontmatter declares `superseded_by` fires a "Verify before relying" card at work-start, no
-matter which files the request touches. Rationale: editing a superseded doc is rare; relying
-on it while editing code is the real hazard, and the declared docs_root IS the reliance
-declaration. Noise is self-limiting: the card names the current doc to use; a team that keeps
-a superseded doc forever is choosing to see it (and the hook fires once per session).
+Reliance = the declared docs set. With `docs_root` configured, ANY doc under it whose
+frontmatter declares `superseded_by` fires a "Verify before relying" card, regardless of
+request paths. Mechanics: docs kind flips to `refutes_match="repo-wide"`; the
+`doc in request.paths` gate in the derive function is removed.
 
-Mechanics: docs kind flips to `refutes_match="repo-wide"` (S6's field), so a superseded-doc
-claim refutes `no_superseded_docs` on shared repo alone. `not_applicable` narrows to: docs_root
-configured, scanned clean, nothing superseded (then the check is `clear`, a real green);
-`not_applicable[out-of-scope]` remains only for the scanned-but-nothing-declared-relied case
-that S5b removes; if it becomes unreachable, delete it honestly rather than keep dead states.
-The `_derive_doc_superseded_claim` gate `doc in request.paths` is removed; the docs connector
-already emits one signal per superseded doc. The card copy already names the replacement
-(`superseded_by`).
+**Honesty pins (P1-3):** a configured, readable, clean docs scan emits `fresh` (a real green:
+"the docs you rely on are current"). The docs connector STOPS emitting `not_applicable`
+entirely (with reliance = the whole declared set, out-of-scope no longer exists for docs).
+`not_applicable` is NEVER mapped to clear anywhere; the contract literal and its
+assessment/render handling remain for future kinds; `not_applicable[out-of-scope]` handling
+in `assess_completeness` stays as-is (dead for docs, correct in general). Unreadable root and
+symlink-escape keep failing closed to unavailable/UNKNOWN.
 
-**README/claims update rides the slice** (the docs bullet gets its full strength back).
+README's docs bullet gets its full strength back in the same slice.
 
-## S5c: snippet claims all four + copy truthing
+## S5c: onboard detects docs, snippet claims exactly what fires (pins from P1-6)
 
-`CLAUDE_MD_SNIPPET` expands to claim all four checks (they now auto-fire). The old body moves
-into `_KNOWN_BODIES` so onboard migrates marked, unedited old snippets (the S3 classifier
-already handles `outdated`). install-hook prints the same new snippet. README quickstart
-sample refreshes to a four-check "Checked:" line generated through the real pipeline.
+- **onboard gains docs detection:** if a top-level `docs/` directory exists containing at
+  least one `*.md` (recursive), onboard writes `docs_root: "docs"` into the config it creates
+  and reports it as its own step ("docs: found a docs/ folder; superseded docs there will be
+  flagged"). No docs folder: the step reports how to enable it. Existing configs are NOT
+  modified (the config step's existing already/force semantics are untouched).
+- **Snippet copy states conditions, not wishes (final copy, CTO-owned):** claims open PRs and
+  failing checks unconditionally; criteria "when an issue is linked from your branch or
+  commits"; docs "when a docs folder is configured". The old snippet bodies join
+  `_KNOWN_BODIES` so the S3 classifier migrates unedited old blocks (`outdated` state).
+- README quickstart sample regenerates through the real pipeline with all four checks firing.
 
-## Test bars (each slice)
-- S6: whole suite green with zero behavioral test edits; a new test asserts every derived
-  table matches the pre-consolidation literal values (pin-the-refactor test, may be deleted
-  after one release).
-- S7: no `context_cards` construction outside core; collision copy asserted in exactly one place.
-- S5a: derivation matrix (branch shapes incl. non-matches, trailer multi-issue, no-default-
-  branch, detached HEAD, explicit-override, derived-visible-in-render); disabled-status reasons
-  for each missing-input combination; fromisoformat tolerance (Z, offset, date-only rejected
-  or handled, pick one and test it).
-- S5b: superseded doc outside request paths fires; clean docs_root reads clear; unreadable root
-  stays unreachable-UNKNOWN; symlink-escape still fails closed.
-- S5c: snippet migration from both old bodies; README sample regenerated.
+## Test bars
+- S6: suite green with import-path-only edits; pin-the-refactor equality test; copy
+  completeness test; purity test covers kinds.py.
+- S7: no card construction outside core; collision copy asserted in exactly one place.
+- S5a: derivation matrix (branch shapes incl. `v2` rejection and delimiter rules, trailer
+  multi-issue + cap, union/dedupe/sort, no-default-branch, detached HEAD, explicit-override
+  disables derivation, provenance rendered on clear lines, disabled-note per missing-input
+  combination, date-only and Z-suffix since, unparseable explicit since errors precisely).
+- S5b: superseded doc outside request paths fires; clean scan reads the real green; docs
+  connector emits no not_applicable; unreadable root and symlink-escape stay UNKNOWN.
+- S5c: docs/ detection on/off; config-untouched-when-existing; snippet migration from all
+  prior known bodies; README sample regenerated.
