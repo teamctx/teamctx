@@ -51,8 +51,9 @@ EXACTLY one of the pair present -> None PLUS the connector-side unavailable mess
 missing half (fail closed, never partial). The hook resolves identically (it calls the same
 resolver). CLI gains no new flags in v1 (env-only, like GitHub).
 
-**Runner profile (P2-5, pinned):** `WorkStartInputs.profile: Literal["full", "reflex"] =
-"full"`. The hook sets `reflex`; in reflex profile the Confluence connector is NOT run and
+**Runner profile (P2-5, pinned; the field itself is INTRODUCED BY S8, which lands first;
+this spec inherits it):** `WorkStartInputs.profile: Literal["full", "reflex"] = "full"`.
+The hook sets `reflex`; in reflex profile the Confluence connector is NOT run and
 the runner emits its standard `disabled` docs status with the note: `Confluence docs are
 skipped in the quick pre-edit check; run teamctx work-start for the full scan.` Every
 surface stays honest about the skip; the hook's glanceable line is unaffected (docs is not an
