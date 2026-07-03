@@ -10,8 +10,8 @@ import pytest
 from emulation.evidence import ProgramResult
 from emulation.runner import run_program
 
-_IMPLEMENTED = {"01", "03", "05", "07", "09", "10", "11", "12"}
-_STUBS = {"02", "04", "06", "08"}
+_IMPLEMENTED = {"01", "02", "03", "04", "05", "07", "09", "10", "11", "12"}
+_STUBS = {"06", "08"}
 
 
 @pytest.fixture(scope="module")
@@ -24,7 +24,7 @@ def test_no_row_fails(program: ProgramResult) -> None:
     assert failures == {}, failures
 
 
-def test_implemented_github_rows_pass(program: ProgramResult) -> None:
+def test_implemented_offline_rows_pass(program: ProgramResult) -> None:
     passed = {row.row_id for row in program.rows if row.status == "PASS"}
     assert passed >= _IMPLEMENTED
 

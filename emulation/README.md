@@ -14,8 +14,9 @@ Design and scenarios are binding:
 The harness never makes a live network call and never touches real GitHub, GitLab, or Atlassian.
 Every offline row runs against:
 
-- local tmp git repos built by `actors.py`,
-- the bundled mock server (`mockgh.py`) reached only through the `TEAMCTX_GITHUB_API_ROOT` seam,
+- local tmp git repos built by `actors.py` (a github.com or gitlab.com origin selects the forge),
+- the bundled mock servers (`mockgh.py`, `mockgl.py`) reached only through the
+  `TEAMCTX_GITHUB_API_ROOT` / `TEAMCTX_GITLAB_API_ROOT` seams,
 - synthetic PreToolUse events carrying exactly the fields `teamctx.hook` reads.
 
 `runner.py` refuses to run without `--offline`, so the rail is enforced in code. LIVE execution
@@ -40,9 +41,9 @@ they need; a FAIL exits non-zero.
 | Row | Scenario | Offline status |
 | --- | --- | --- |
 | 01 | Collision, GitHub (+ own-PR FYI) | runnable |
-| 02 | Collision, GitLab (+ own-MR FYI) | stub (GitLab MR connector) |
+| 02 | Collision, GitLab (+ own-MR FYI) | runnable |
 | 03 | Gate, GitHub (failing / pending / no-token / zero-runs asymmetry) | runnable |
-| 04 | Gate, GitLab (cancel recipe; zero-pipelines disabled note) | stub (GitLab pipeline connector) |
+| 04 | Gate, GitLab (cancel recipe; zero-pipelines disabled note) | runnable |
 | 05 | Criteria, GitHub (changed; unchanged with provenance) | runnable |
 | 06 | Criteria, Jira | stub (Jira connector) |
 | 07 | Docs, local (superseded; clean tree clear) | runnable |
@@ -66,10 +67,14 @@ a row PASSES when every required block matches and no forbidden literal (for exa
 `actors.SubprocessEnv` builds the env for a CLI/hook subprocess:
 
 - `PYTHONPATH` is pinned to this worktree's `src`, so the harness drives THIS branch's teamctx.
-- `TEAMCTX_GITHUB_API_ROOT` points at the mock, so every GitHub call is bounded to `127.0.0.1`.
-- `GITHUB_TOKEN` is a synthetic operator token (it authenticates only to the mock). The token
-  keys nothing in the product: collision keys on the PR head branch vs the request branch, criteria
-  keys on timestamps, so ONE token stages every actor role (spec rev 2, P1-1).
+- `TEAMCTX_GITHUB_API_ROOT` / `TEAMCTX_GITLAB_API_ROOT` point at the matching mock, so every
+  GitHub or GitLab call is bounded to `127.0.0.1`. A GitHub row passes `api_root`; a GitLab row
+  passes `gitlab_api_root` (and `gitlab_token`); the credential env for the forge NOT under test
+  is cleared so a real ambient token can never leak into a live call.
+- `GITHUB_TOKEN` / `GITLAB_TOKEN` are synthetic operator tokens (they authenticate only to the
+  mock). The token keys nothing in the product: collision keys on the PR/MR source branch vs the
+  request branch, criteria keys on timestamps, so ONE token stages every actor role (spec rev 2,
+  P1-1).
 - `TEAMCTX_DISABLE_GH_AUTH=1` keeps token resolution deterministic (no `gh` fallback).
 - `TEAMCTX_HOOK_CACHE` is a fresh dir and each hook event carries a fresh `session_id`, so the
   once-per-session marker never turns a second hook run into a silent no-op.
