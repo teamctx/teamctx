@@ -88,10 +88,13 @@ class HealthReport:
     message: str
 
 
+StepStatus = Literal["wrote", "already", "skipped", "failed", "noted", "ok"]
+
+
 @dataclass(frozen=True)
 class StepResult:
     name: str
-    status: Literal["wrote", "already", "skipped", "failed", "noted"]
+    status: StepStatus
     detail: str
 
 
@@ -352,6 +355,12 @@ class OnboardResult:
     next_step: str
 
 
+@dataclass(frozen=True)
+class StatusReport:
+    steps: tuple[StepResult, ...]
+    next_step: str
+
+
 def _load_existing_config(path: Path) -> tuple[ProjectConfig | None, str | None]:
     """(config, None) if a valid config exists, (None, error) if it exists but is malformed, or
     (None, None) if absent."""
@@ -537,3 +546,147 @@ def run_onboard(
         else "Set a GitHub credential (see the auth line above), then run `teamctx work-start`."
     )
     return OnboardResult(ok, tuple(steps), next_step)
+
+
+def _hook_status_step(settings_path: Path) -> StepResult:
+    from teamctx.cli import _has_hook_entry, _load_settings  # local: break the cli<->onboard cycle
+
+    try:
+        settings = _load_settings(settings_path)
+    except Exception:
+        return StepResult(
+            "hook", "noted", f"couldn't read {settings_path}; can't tell if the hook is installed."
+        )
+    if _has_hook_entry(settings):
+        return StepResult("hook", "ok", f"the reflex hook is installed in {settings_path}.")
+    return StepResult(
+        "hook", "noted",
+        f"the reflex hook is not installed in {settings_path}; `teamctx onboard` installs it.",
+    )
+
+
+SnippetStatusMark = Literal["ok", "noted"]
+
+
+_SNIPPET_STATUS_DETAIL: dict[SnippetState, tuple[SnippetStatusMark, str]] = {
+    "current": ("ok", "the CLAUDE.md snippet is current."),
+    "outdated": ("noted", "the CLAUDE.md snippet is outdated; `teamctx onboard` refreshes it."),
+    "edited": (
+        "noted", "the teamctx block in CLAUDE.md was hand-edited; teamctx leaves it to you."
+    ),
+    "conflicted_markers": (
+        "noted",
+        "CLAUDE.md has teamctx markers that aren't a clean single start/end pair; fix or remove "
+        "them by hand.",
+    ),
+    "legacy": ("noted", "CLAUDE.md has the old unmarked snippet; `teamctx onboard` migrates it."),
+    "edited_heading": (
+        "noted",
+        "CLAUDE.md has an edited '## Team context (teamctx)' block; teamctx leaves it to you.",
+    ),
+    "absent": ("noted", "no teamctx snippet in CLAUDE.md; `teamctx onboard` adds it."),
+}
+
+
+def _snippet_status_step(state: SnippetState) -> StepResult:
+    mark, detail = _SNIPPET_STATUS_DETAIL[state]
+    return StepResult("claude_md", mark, detail)
+
+
+def _status_next_step(steps: list[StepResult], auth_found: bool) -> str:
+    if any(s.status == "failed" for s in steps):
+        return "Fix the failed line above (or run `teamctx onboard --force`)."
+    if any(s.name in {"config", "hook", "claude_md"} and s.status == "noted" for s in steps):
+        return "Run `teamctx onboard` to finish setup."
+    if not auth_found:
+        return "Set a GitHub credential (see the credential line above)."
+    return "You're set. Run `teamctx work-start --path <a file you're about to edit>`."
+
+
+def run_status(
+    root: Path,
+    *,
+    token_env: str = "GITHUB_TOKEN",
+    opener: HttpOpener = DEFAULT_OPENER,
+) -> StatusReport:
+    """The read-only twin of run_onboard: report exactly what onboard would find, through the
+    same resolvers, writing nothing. Never a verdict; reachability is a live check, not a health
+    judgment."""
+
+    config_path = root / ".teamctx" / "config.json"
+    existing, config_error = _load_existing_config(config_path)
+    detected = detect_repo(root)
+
+    steps: list[StepResult] = []
+    effective_repo: str | None = None
+    if config_error is not None:
+        steps.append(StepResult(
+            "config", "failed",
+            f"{config_path} exists but is not valid teamctx config ({config_error}).",
+        ))
+    elif existing is not None:
+        config_raw = existing.work_start.repo if existing.work_start is not None else None
+        effective_repo, repo_error = resolve_github_repo(None, config_raw, detected)
+        if repo_error is not None:
+            steps.append(StepResult(
+                "config", "failed",
+                f"{config_path} configures a repo work-start can't use: {repo_error}",
+            ))
+        elif config_raw:
+            steps.append(StepResult(
+                "config", "ok", f"{config_path} configures {effective_repo}."
+            ))
+        else:
+            steps.append(StepResult(
+                "config", "ok",
+                f"{config_path} exists with no repo set; work-start will use the git origin "
+                f"{effective_repo}.",
+            ))
+    else:
+        effective_repo, repo_error = resolve_github_repo(None, None, detected)
+        if effective_repo is not None:
+            steps.append(StepResult(
+                "config", "noted",
+                f"no {config_path}; work-start will use the git origin {effective_repo}. "
+                "Run `teamctx onboard` to make it explicit and shareable.",
+            ))
+        else:
+            steps.append(StepResult(
+                "config", "noted",
+                f"no {config_path} and no git origin to detect a repo from. "
+                "Run `teamctx onboard --repo owner/name`.",
+            ))
+
+    if not _is_git_repo(root):
+        steps.append(StepResult("tracking", "noted", "not a git repo; nothing to track."))
+    elif _config_is_trackable(root):
+        steps.append(StepResult("tracking", "ok", ".teamctx/config.json is trackable in git."))
+    else:
+        steps.append(StepResult(
+            "tracking", "noted",
+            ".teamctx/config.json is ignored by .gitignore; `teamctx onboard` can fix that.",
+        ))
+
+    settings_path = root / ".claude" / "settings.json"
+    steps.append(_hook_status_step(settings_path))
+
+    claude_md = root / "CLAUDE.md"
+    existing_text = claude_md.read_text(encoding="utf-8") if claude_md.exists() else ""
+    steps.append(_snippet_status_step(classify_claude_md(existing_text)))
+
+    token, source = resolve_github_token_with_source(token_env)
+    auth_found = token is not None
+    steps.append(StepResult(
+        "credential", "ok" if auth_found else "noted",
+        _auth_found_message(token_env, source) if auth_found else _auth_missing_message(token_env),
+    ))
+
+    if effective_repo is not None:
+        health = ONBOARDERS[0].verify_health(effective_repo, token=token, opener=opener)
+        steps.append(StepResult("reachability", "noted", health.message))
+    else:
+        steps.append(StepResult(
+            "reachability", "noted", "no valid repo resolved, so no reachability check was run."
+        ))
+
+    return StatusReport(tuple(steps), _status_next_step(steps, auth_found))

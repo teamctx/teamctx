@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+import subprocess
+from pathlib import Path
+
 import pytest
 
 from teamctx.onboard import (
@@ -10,6 +14,8 @@ from teamctx.onboard import (
     CLAUDE_MD_SNIPPET,
     SnippetState,
     classify_claude_md,
+    run_onboard,
+    run_status,
 )
 
 
@@ -45,3 +51,96 @@ from teamctx.onboard import (
 )
 def test_classify_claude_md_states(existing: str, state: SnippetState) -> None:
     assert classify_claude_md(existing) == state
+
+
+class _Resp:
+    def __init__(self, body: bytes) -> None:
+        self._b = body
+
+    def read(self) -> bytes:
+        return self._b
+
+    def __enter__(self):  # type: ignore[no-untyped-def]
+        return self
+
+    def __exit__(self, *a: object) -> None:
+        return None
+
+
+def _opener_returning(payload: object):  # type: ignore[no-untyped-def]
+    return lambda request: _Resp(json.dumps(payload).encode())
+
+
+def _github_origin(root: Path) -> None:
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "remote", "add", "origin", "git@github.com:acme/widgets.git"],
+        check=True,
+    )
+
+
+def _step(report_steps, name: str):  # type: ignore[no-untyped-def]
+    return next(step for step in report_steps if step.name == name)
+
+
+def test_run_status_empty_non_git_reports_setup_gaps(tmp_path: Path) -> None:
+    report = run_status(tmp_path, opener=_opener_returning([]))
+
+    config = _step(report.steps, "config")
+    assert config.status == "noted"
+    assert "Run `teamctx onboard --repo owner/name`." in config.detail
+    assert _step(report.steps, "tracking").detail == "not a git repo; nothing to track."
+    assert (
+        _step(report.steps, "reachability").detail
+        == "no valid repo resolved, so no reachability check was run."
+    )
+    assert report.next_step == "Run `teamctx onboard` to finish setup."
+
+
+def test_run_status_after_onboard_reports_read_only_twin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    opener = _opener_returning([])
+
+    onboard = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=opener
+    )
+    before = {
+        path.relative_to(tmp_path): path.read_text(encoding="utf-8")
+        for path in tmp_path.rglob("*")
+        if path.is_file() and ".git" not in path.parts
+    }
+    report = run_status(tmp_path, opener=opener)
+    after = {
+        path.relative_to(tmp_path): path.read_text(encoding="utf-8")
+        for path in tmp_path.rglob("*")
+        if path.is_file() and ".git" not in path.parts
+    }
+
+    assert before == after
+    assert _step(report.steps, "config").status == "ok"
+    assert "configures acme/widgets" in _step(report.steps, "config").detail
+    assert _step(report.steps, "tracking").status == "ok"
+    assert _step(report.steps, "hook").status == "ok"
+    assert _step(report.steps, "claude_md").status == "ok"
+    assert _step(report.steps, "credential").status == "ok"
+    assert _step(report.steps, "reachability").status == "noted"
+    assert _step(report.steps, "reachability").detail == _step(onboard.steps, "health").detail
+    assert (
+        report.next_step
+        == "You're set. Run `teamctx work-start --path <a file you're about to edit>`."
+    )
+
+
+def test_run_status_invalid_config_json_names_fix(tmp_path: Path) -> None:
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "config.json").write_text("{ not valid json", encoding="utf-8")
+
+    report = run_status(tmp_path, opener=_opener_returning([]))
+
+    config = _step(report.steps, "config")
+    assert config.status == "failed"
+    assert "exists but is not valid teamctx config" in config.detail
+    assert report.next_step == "Fix the failed line above (or run `teamctx onboard --force`)."
