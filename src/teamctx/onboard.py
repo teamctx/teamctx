@@ -466,14 +466,35 @@ def _config_step_and_effective_repo(
     return StepResult("config", "wrote", f"{path} (repo {write_repo})"), write_repo
 
 
-def _detect_docs_root(root: Path) -> str | None:
-    """A conventional docs folder worth configuring: a top-level ``docs/`` directory containing
-    at least one markdown file (recursive). Anything else is honest absence, never a guess."""
+DocsDirState = Literal["ok", "unsafe", "absent"]
+
+
+def _docs_dir_state(root: Path) -> DocsDirState:
+    """Whether a conventional top-level ``docs/`` folder is safely configurable, mirroring the
+    runtime scan's fail-closed rules (connectors/docs.py): the directory and every markdown file
+    in it must resolve inside the project root, else the runtime scan would read unavailable.
+    ``absent`` also covers a docs/ dir with no markdown (nothing to scan)."""
 
     docs_dir = root / "docs"
     if not docs_dir.is_dir():
-        return None
-    return "docs" if any(docs_dir.rglob("*.md")) else None
+        return "absent"
+    try:
+        base = root.resolve()
+        docs_dir.resolve().relative_to(base)
+        markdown = list(docs_dir.rglob("*.md"))
+        if not markdown:
+            return "absent"
+        for path in markdown:
+            path.resolve().relative_to(base)
+    except (OSError, ValueError):
+        return "unsafe"
+    return "ok"
+
+
+def _detect_docs_root(root: Path) -> str | None:
+    """``"docs"`` when a conventional docs folder is safely configurable, else None."""
+
+    return "docs" if _docs_dir_state(root) == "ok" else None
 
 
 _DOCS_FOUND = "found a docs/ folder; superseded docs there will be flagged."
@@ -481,11 +502,22 @@ _DOCS_NOT_FOUND = (
     "no docs/ folder found; set work_start.docs_root in .teamctx/config.json to flag "
     "superseded docs."
 )
+_DOCS_EXISTS_UNCONFIGURED = (
+    "a docs/ folder exists but the existing config has no docs_root; add work_start.docs_root "
+    "to .teamctx/config.json (or re-run with --force) to flag superseded docs."
+)
+_DOCS_UNSAFE = (
+    "a docs/ folder exists but couldn't be safely configured (it or a file in it resolves "
+    "outside the repo); set work_start.docs_root by hand if this is intended."
+)
 
 
-def _docs_step(configured_docs_root: str | None, wrote_detected: bool) -> StepResult:
-    """Report the docs configuration honestly: what IS configured after the config step, or how
-    to enable it. ``wrote_detected`` marks the fresh-detection case (this run set it)."""
+def _docs_step(
+    configured_docs_root: str | None, wrote_detected: bool, dir_state: DocsDirState
+) -> StepResult:
+    """Report the docs configuration honestly in every branch: what IS configured after the
+    config step, or the true reason nothing is, with the fix. Never claims a folder is absent
+    when it exists, and never blesses a root the runtime scan would fail closed on."""
 
     if wrote_detected:
         return StepResult("docs", "noted", _DOCS_FOUND)
@@ -495,6 +527,10 @@ def _docs_step(configured_docs_root: str | None, wrote_detected: bool) -> StepRe
             f"docs_root '{configured_docs_root}' is configured; superseded docs there will be "
             "flagged.",
         )
+    if dir_state == "ok":
+        return StepResult("docs", "noted", _DOCS_EXISTS_UNCONFIGURED)
+    if dir_state == "unsafe":
+        return StepResult("docs", "noted", _DOCS_UNSAFE)
     return StepResult("docs", "noted", _DOCS_NOT_FOUND)
 
 
@@ -571,14 +607,15 @@ def run_onboard(
         if existing is not None and existing.work_start is not None
         else None
     )
+    docs_dir_state = _docs_dir_state(root)
     if detected_docs is not None and would_write_config:
         docs_step = StepResult(
             "docs", "skipped", f"--dry-run: would set docs_root to '{detected_docs}'."
         )
     elif detected_docs is not None and wrote_fresh_config:
-        docs_step = _docs_step(detected_docs, wrote_detected=True)
+        docs_step = _docs_step(detected_docs, wrote_detected=True, dir_state=docs_dir_state)
     else:
-        docs_step = _docs_step(existing_docs, wrote_detected=False)
+        docs_step = _docs_step(existing_docs, wrote_detected=False, dir_state=docs_dir_state)
 
     # Resolve the credential ONCE, so the reported source and the health check use the same token
     # (the gh fallback is not re-evaluated) and cannot drift.
@@ -742,11 +779,13 @@ def run_status(
             f"docs_root '{configured_docs}' is configured; superseded docs there will be "
             "flagged.",
         ))
-    elif _detect_docs_root(root) is not None:
+    elif _docs_dir_state(root) == "ok":
         steps.append(StepResult(
             "docs", "noted",
             "a docs/ folder exists but no docs_root is configured; `teamctx onboard` sets it.",
         ))
+    elif _docs_dir_state(root) == "unsafe":
+        steps.append(StepResult("docs", "noted", _DOCS_UNSAFE))
     else:
         steps.append(StepResult("docs", "noted", _DOCS_NOT_FOUND))
 

@@ -65,8 +65,8 @@ export GITHUB_TOKEN_FILE=~/.config/teamctx/token
 #    credential and a live reachability check. Idempotent; re-run any time. --dry-run previews.
 teamctx onboard
 
-# 2. Before you edit, see what changed around your files (samples below are from a branch
-#    named 42-fix-auth in a repo with a docs/ folder, so all four checks fire).
+# 2. Before you edit, see what changed around your files (the next three samples are from a
+#    branch named 42-fix-auth in a repo with a docs/ folder, so all four checks fire).
 teamctx work-start --path src/auth/token.py
 ```
 
@@ -94,7 +94,9 @@ Looks clear to start.
   FYI: Your own open PR #12 for this branch touches these files; not flagged as a collision.
 ```
 
-And when it could not verify something that matters, it says so rather than guessing:
+And when it could not verify something that matters, it says so rather than guessing. This
+last sample is a different situation: a branch with no derivable issue, no docs folder
+configured, and GitHub unreachable:
 
 ```
 Heads up: I can't confirm the important things yet:

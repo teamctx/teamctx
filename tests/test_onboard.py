@@ -646,3 +646,40 @@ def test_previous_snippet_body_migrates_as_outdated(tmp_path: Path) -> None:
     from teamctx.onboard import CLAUDE_MD_SNIPPET
 
     assert CLAUDE_MD_SNIPPET in (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+
+
+def test_onboard_existing_config_without_docs_root_names_the_real_state(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # P1 from the S5c review: an existing config (no docs_root) + a real docs/ folder must NOT
+    # read "no docs/ folder found"; it names the true state and the fix.
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    _write_config(tmp_path, "acme/widgets")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "plan.md").write_text("x", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    docs_step = next(s for s in result.steps if s.name == "docs")
+    assert "a docs/ folder exists but the existing config has no docs_root" in docs_step.detail
+    config = json.loads((tmp_path / ".teamctx" / "config.json").read_text(encoding="utf-8"))
+    assert "docs_root" not in config.get("work_start", {})  # existing config untouched
+
+
+def test_docs_detection_mirrors_runtime_symlink_fail_closed(tmp_path: Path, monkeypatch) -> None:
+    # P2 from the S5c review: a docs/ folder whose markdown escapes the repo must not be
+    # configured (the runtime scan would fail closed to unavailable); the step says why.
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.md"
+    outside.write_text("x", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "escape.md").symlink_to(outside)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    config = json.loads((tmp_path / ".teamctx" / "config.json").read_text(encoding="utf-8"))
+    assert "docs_root" not in config.get("work_start", {})
+    docs_step = next(s for s in result.steps if s.name == "docs")
+    assert "couldn't be safely configured" in docs_step.detail
