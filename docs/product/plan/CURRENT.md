@@ -91,9 +91,13 @@ build): `docs/superpowers/specs/2026-07-03-autodiscovery-and-structure.md`.
 - **Phase 1, auto-discovery (was "next slice"; absorbs F9, F13):** S5a linked-issue +
   `since` derived from branch/PR/commits · S5b docs path-gating (docs become a firing check
   for relied-on docs) · S5c CLAUDE.md snippet claims all four checks once they auto-fire.
-- **Phase 2, structural debt before breadth:** S6 registry consolidation (F5) · S7
-  forge_review dual-card removal (F4) · S8 server-side path-filtered PR search + wire
-  `incomplete[unbounded]` end to end (F7 + the truncation-copy follow-up).
+- **Phase 2, structural debt before breadth:** S6 registry consolidation (F5) **DONE
+  2026-07-03 (merged `acd1779`, 471 tests; Opus 4.8 built in a worktree from the plan +
+  rev-2 spec, Fable arbiter-reviewed with a per-worktree byte-identical render check; one
+  registry owner `core/kinds.py`, copy completeness enforced at import)** · S7
+  forge_review dual-card removal (F4) **DONE 2026-07-03 (merged `549f5d9`; codex built,
+  Fable reviewed; collision copy has one home)** · S8 server-side path-filtered PR search +
+  wire `incomplete[unbounded]` end to end (F7 + the truncation-copy follow-up).
 - **Phase 3 = Sprint 3 proof:** labelled conformance corpus + replay harness + the E4/E5
   numbers; OpenRouter for model-diverse A/B arms.
 - **Phase 4 = Sprint 4 breadth (goal expanded 2026-07-03):** GitLab (a token is on hand in
