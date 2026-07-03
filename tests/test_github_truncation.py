@@ -20,6 +20,7 @@ from teamctx.connectors.github import (
 from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import RequestContext
 from teamctx.core.evaluate import Valuation
+from teamctx.core.select import derive_cards
 
 OBS = "2026-06-28T00:00:00Z"
 REPO = "acme/widgets"
@@ -132,6 +133,7 @@ def test_truncated_pr_list_no_collision_gives_stale_status_and_unknown_verdict()
         f"expected stale, got {document.source_statuses[0].status!r}"
     )
     # No collision card (nothing overlaps in the fetched page)
+    assert derive_cards(document.request_context, document.source_signals) == []
     assert document.context_cards == []
 
     # End-to-end: the conflict verdict through the real broker is UNKNOWN, not clear
@@ -165,9 +167,14 @@ def test_truncated_pr_list_with_visible_collision_still_emits_collision_card() -
     # Status is stale (truncated)
     assert document.source_statuses[0].status == "stale"
     # Collision card for PR #3 must be present
-    assert len(document.context_cards) == 1
-    assert "PR #3" in document.context_cards[0].text
-    assert "src/x.py" in document.context_cards[0].text
+    cards = derive_cards(document.request_context, document.source_signals)
+    assert len(cards) == 1
+    assert "PR #3" in cards[0].text
+    assert "src/x.py" in cards[0].text
+    assert cards[0].source_body == "status_only"
+    assert cards[0].reason_code == "collision.same_path"
+    assert cards[0].source_open_target_id is None
+    assert document.source_open_targets[0].id == "open_github_pr_3"
 
     # End-to-end: a visible collision falsifies the conflict universal even under
     # truncation. The verdict is FALSE (collision found), not UNKNOWN.
@@ -198,6 +205,7 @@ def test_small_pr_list_no_collision_gives_fresh_status() -> None:
     )
 
     assert document.source_statuses[0].status == "fresh"
+    assert derive_cards(document.request_context, document.source_signals) == []
     assert document.context_cards == []
 
 

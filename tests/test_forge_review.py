@@ -19,6 +19,7 @@ from teamctx.connectors.github import (
     run_github_pr_probe,
 )
 from teamctx.core.contracts import RequestContext
+from teamctx.core.select import derive_cards
 
 OBSERVED_AT = "2026-06-16T12:00:00Z"
 
@@ -59,9 +60,12 @@ def test_forge_review_normalizer_emits_collision_card() -> None:
 
     assert [signal.id for signal in document.source_signals] == ["sig_github_pr_482_collision"]
     assert document.source_signals[0].policy.can_include_source_text is False
-    assert document.context_cards[0].text == "Open PR #482 changed src/auth/token.py."
-    assert document.context_cards[0].source_body == "status_only"
-    assert document.context_cards[0].source_open_target_id == "open_github_pr_482"
+    cards = derive_cards(document.request_context, document.source_signals)
+    assert cards[0].text == "Open PR #482 changed src/auth/token.py."
+    assert cards[0].source_body == "status_only"
+    assert cards[0].reason_code == "collision.same_path"
+    assert cards[0].source_open_target_id is None
+    assert document.source_open_targets[0].id == "open_github_pr_482"
     assert document.source_open_targets[0].body_availability == "status_only"
 
 
@@ -85,6 +89,7 @@ def test_forge_review_normalizer_omits_non_overlapping_prs() -> None:
     )
 
     assert document.source_signals == []
+    assert derive_cards(document.request_context, document.source_signals) == []
     assert document.context_cards == []
     assert document.source_statuses[0].status == "fresh"
 
@@ -132,6 +137,7 @@ def test_github_probe_missing_token_returns_unavailable_status() -> None:
     )
 
     assert document.source_signals == []
+    assert derive_cards(document.request_context, document.source_signals) == []
     assert document.context_cards == []
     assert document.source_statuses[0].status == "unavailable"
     assert "no token" in document.source_statuses[0].safe_user_message
