@@ -89,8 +89,15 @@ Phase 0 → S6+S7 → S5a/b/c → S8 → Phase 4 breadth → Phase 5 emulation �
 Design spec for S6/S7/S5 (locked designs, pending codex adversarial spec review before
 build): `docs/superpowers/specs/2026-07-03-autodiscovery-and-structure.md`.
 - **Phase 1, auto-discovery (was "next slice"; absorbs F9, F13):** S5a linked-issue +
-  `since` derived from branch/PR/commits · S5b docs path-gating (docs become a firing check
-  for relied-on docs) · S5c CLAUDE.md snippet claims all four checks once they auto-fire.
+  `since` derivation **DONE 2026-07-03 (merged `b2a4773`, 502 tests, coverage 93.37%; codex
+  built from the plan, Fable arbiter-reviewed + live smoke showing the precise not-run notes;
+  discover.py from branch names + local trailers only, privacy boundary intact, provenance
+  bound into the replay digest)** · S5b docs relied-on semantics (plan
+  `docs/superpowers/plans/2026-07-03-s5b-docs-relied-on.md`; Opus building) · S5c onboard
+  docs detection + truthful snippet + README (plan
+  `docs/superpowers/plans/2026-07-03-s5c-onboard-docs-snippet.md`; Fable builds, codex
+  reviews). *Polish noted, non-blocking: a gate ref that does not exist on GitHub renders as
+  "couldn't reach GitHub"; a "this branch isn't on GitHub yet" line would be more precise.*
 - **Phase 2, structural debt before breadth:** S6 registry consolidation (F5) **DONE
   2026-07-03 (merged `acd1779`, 471 tests; Opus 4.8 built in a worktree from the plan +
   rev-2 spec, Fable arbiter-reviewed with a per-worktree byte-identical render check; one
