@@ -99,7 +99,8 @@ def run_github_pr_probe(
         fetch.pull_requests,
         observed_at=observed_at,
         source_id="github_pr_metadata",
-        coverage_truncated=fetch.unbounded_list or bool(fetch.unbounded_files_prs),
+        coverage_unbounded_list=fetch.unbounded_list,
+        unbounded_files_prs=fetch.unbounded_files_prs,
     )
 
 

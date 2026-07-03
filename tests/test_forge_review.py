@@ -94,6 +94,88 @@ def test_forge_review_normalizer_omits_non_overlapping_prs() -> None:
     assert document.source_statuses[0].status == "fresh"
 
 
+def test_unbounded_list_sets_status_and_verbatim_note() -> None:
+    document = normalize_forge_review_prs(
+        request_context(),
+        [
+            ForgeReviewPullRequest(
+                provider="github",
+                repo="org/app",
+                number=17,
+                state="open",
+                url="https://github.com/org/app/pull/17",
+                title=None,
+                changed_paths=("docs/readme.md",),
+                created_at="2026-06-16T11:00:00Z",
+                updated_at="2026-06-16T11:49:00Z",
+            )
+        ],
+        observed_at=OBSERVED_AT,
+        coverage_unbounded_list=True,
+    )
+
+    status = document.source_statuses[0]
+    assert status.status == "unbounded"
+    assert status.safe_user_message == (
+        "Checked the 1 most recently updated open PRs; more exist, so this is not a "
+        "complete check."
+    )
+
+
+def test_unbounded_files_sets_status_and_verbatim_note() -> None:
+    document = normalize_forge_review_prs(
+        request_context(),
+        [
+            ForgeReviewPullRequest(
+                provider="github",
+                repo="org/app",
+                number=17,
+                state="open",
+                url="https://github.com/org/app/pull/17",
+                title=None,
+                changed_paths=("docs/readme.md",),
+                created_at="2026-06-16T11:00:00Z",
+                updated_at="2026-06-16T11:49:00Z",
+            )
+        ],
+        observed_at=OBSERVED_AT,
+        unbounded_files_prs=[17],
+    )
+
+    status = document.source_statuses[0]
+    assert status.status == "unbounded"
+    assert status.safe_user_message == (
+        "Open PR #17 changes more files than teamctx checked; it may touch yours."
+    )
+
+
+def test_unbounded_list_and_files_notes_concatenate_in_order() -> None:
+    document = normalize_forge_review_prs(
+        request_context(),
+        [
+            ForgeReviewPullRequest(
+                provider="github",
+                repo="org/app",
+                number=17,
+                state="open",
+                url="https://github.com/org/app/pull/17",
+                title=None,
+                changed_paths=("docs/readme.md",),
+                created_at="2026-06-16T11:00:00Z",
+                updated_at="2026-06-16T11:49:00Z",
+            )
+        ],
+        observed_at=OBSERVED_AT,
+        coverage_unbounded_list=True,
+        unbounded_files_prs=[17],
+    )
+
+    assert document.source_statuses[0].safe_user_message == (
+        "Checked the 1 most recently updated open PRs; more exist, so this is not a "
+        "complete check. Open PR #17 changes more files than teamctx checked; it may touch yours."
+    )
+
+
 def test_github_parser_omits_titles_unless_allowed() -> None:
     pulls_payload: list[dict[str, Any]] = [
         {

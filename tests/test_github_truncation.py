@@ -142,9 +142,9 @@ def test_truncated_pr_list_no_collision_gives_stale_status_and_unknown_verdict()
         opener=opener,
     )
 
-    # Source status must be non-fresh (stale) because the list was truncated
-    assert document.source_statuses[0].status == "stale", (
-        f"expected stale, got {document.source_statuses[0].status!r}"
+    # Source status must be non-fresh because the list exceeded the budget
+    assert document.source_statuses[0].status == "unbounded", (
+        f"expected unbounded, got {document.source_statuses[0].status!r}"
     )
     # No collision card (nothing overlaps in the fetched page)
     assert derive_cards(document.request_context, document.source_signals) == []
@@ -184,8 +184,8 @@ def test_truncated_pr_list_with_visible_collision_still_emits_collision_card() -
         opener=opener,
     )
 
-    # Status is stale (truncated)
-    assert document.source_statuses[0].status == "stale"
+    # Status is unbounded because more PRs exist past the budget
+    assert document.source_statuses[0].status == "unbounded"
     # Collision card for PR #3 must be present
     cards = derive_cards(document.request_context, document.source_signals)
     assert len(cards) == 1

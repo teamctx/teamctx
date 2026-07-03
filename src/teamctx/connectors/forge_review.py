@@ -57,23 +57,30 @@ def normalize_forge_review_prs(
     observed_at: str,
     expires_at: str = "next_refresh",
     source_id: str = "github_pr_metadata",
-    coverage_truncated: bool = False,
+    coverage_unbounded_list: bool = False,
+    unbounded_files_prs: Iterable[int] = (),
 ) -> CoreContractDocument:
     source_signals: list[SourceSignal] = []
     source_open_targets: list[SourceOpenTarget] = []
     requested_paths = set(request_context.paths)
     own_branch_prs: list[int] = []
+    pull_request_list = list(pull_requests)
+    unbounded_file_pr_numbers = set(unbounded_files_prs)
+    relevant_unbounded_files_prs: list[int] = []
 
-    for pr in pull_requests:
+    for pr in pull_request_list:
         overlap = sorted(requested_paths.intersection(pr.changed_paths))
-        if not overlap:
-            continue
         if (
             request_context.branch is not None
             and pr.head_ref == request_context.branch
             and pr.head_repo == pr.repo
         ):
-            own_branch_prs.append(pr.number)
+            if overlap:
+                own_branch_prs.append(pr.number)
+            continue
+        if not overlap:
+            if pr.number in unbounded_file_pr_numbers:
+                relevant_unbounded_files_prs.append(pr.number)
             continue
 
         signal_id = f"sig_{pr.provider}_pr_{pr.number}_collision"
@@ -124,12 +131,17 @@ def normalize_forge_review_prs(
             )
         )
 
-    status: SourceStatusValue = "stale" if coverage_truncated else "fresh"
+    coverage_unbounded = coverage_unbounded_list or bool(relevant_unbounded_files_prs)
+    status: SourceStatusValue = "unbounded" if coverage_unbounded else "fresh"
     messages: list[str] = []
-    if coverage_truncated:
+    if coverage_unbounded_list:
         messages.append(
-            "Checked the most recent 100 open PRs; there are more open PRs not included, "
+            f"Checked the {len(pull_request_list)} most recently updated open PRs; more exist, "
             "so this is not a complete check."
+        )
+    for number in relevant_unbounded_files_prs:
+        messages.append(
+            f"Open PR #{number} changes more files than teamctx checked; it may touch yours."
         )
     if own_branch_prs:
         numbers = ", ".join(f"#{number}" for number in own_branch_prs)

@@ -128,17 +128,31 @@ def test_missing_head_data_never_matches_own() -> None:
     assert len(doc.source_signals) == 1
 
 
-def test_truncated_and_own_pr_keeps_truncation_precedence() -> None:
+def test_unbounded_list_and_own_pr_keeps_unbounded_precedence() -> None:
     doc = normalize_forge_review_prs(
         _request(),
         [_pr(12, "feat/x", "o/r")],
         observed_at="2026-07-03T00:00:00Z",
-        coverage_truncated=True,
+        coverage_unbounded_list=True,
     )
     status = doc.source_statuses[0]
-    assert status.status == "stale"
-    assert "most recent 100" in status.safe_user_message
+    assert status.status == "unbounded"
+    assert "most recently updated open PRs" in status.safe_user_message
     assert "#12" in status.safe_user_message
+
+
+def test_own_branch_pr_with_unbounded_files_never_makes_source_unbounded() -> None:
+    doc = normalize_forge_review_prs(
+        _request(),
+        [_pr(12, "feat/x", "o/r")],
+        observed_at="2026-07-03T00:00:00Z",
+        unbounded_files_prs=[12],
+    )
+
+    status = doc.source_statuses[0]
+    assert status.status == "fresh"
+    assert "changes more files than teamctx checked" not in status.safe_user_message
+    assert "Your own open PR #12" in status.safe_user_message
 
 
 class _FakeResponse:
