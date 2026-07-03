@@ -9,7 +9,7 @@ may change while the product is hardened.
 
 ### Added
 
-- Repos hosted on GitLab now resolve, onboard, and report honestly ("the GitLab connector isn't wired yet"), laying the forge seam; config gains forge/jira/confluence blocks.
+- GitLab support: open merge requests (collisions, with the own-MR FYI) and pipeline state (never assumed green) for repos whose origin is gitlab.com, with the same honest budgets and coverage reporting as GitHub.
 
 - `TEAMCTX_GITHUB_API_ROOT` env override for the GitHub API root, so validation harnesses can
   drive fabricated payloads through the real pipeline against a local mock server.
