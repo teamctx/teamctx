@@ -172,6 +172,73 @@ def test_events_before_since_are_ignored() -> None:
     assert changes[0].change_kinds == ("body_edited",)
 
 
+def test_issue_updated_at_comparison_is_chronological_not_lexical() -> None:
+    opener = _fake_opener({
+        "/issues/42": _issue_payload(updated_at="2026-07-01T10:30:00Z"),
+        "/issues/42/events": _events_payload(),
+    })
+
+    changes = fetch_issue_changes(
+        repo="teamctx/teamctx",
+        issues=["#42"],
+        since="2026-07-01T12:00:00+02:00",
+        token="t",
+        opener=opener,
+    )
+
+    assert len(changes) == 1
+
+
+def test_event_created_at_comparison_is_chronological_not_lexical() -> None:
+    opener = _fake_opener({
+        "/issues/42": _issue_payload(updated_at="2026-07-01T10:45:00Z"),
+        "/issues/42/events": _events_payload([
+            {"event": "closed", "created_at": "2026-07-01T10:30:00Z"},
+        ]),
+    })
+
+    changes = fetch_issue_changes(
+        repo="teamctx/teamctx",
+        issues=["#42"],
+        since="2026-07-01T12:00:00+02:00",
+        token="t",
+        opener=opener,
+    )
+
+    assert len(changes) == 1
+    assert changes[0].change_kinds == ("state_changed",)
+
+
+def test_unparseable_github_issue_timestamp_surfaces_the_change() -> None:
+    opener = _fake_opener({
+        "/issues/42": _issue_payload(updated_at="not-a-timestamp"),
+        "/issues/42/events": _events_payload(),
+    })
+
+    changes = fetch_issue_changes(
+        repo="teamctx/teamctx", issues=["#42"], since=SINCE, token="t", opener=opener,
+    )
+
+    assert len(changes) == 1
+    assert changes[0].change_kinds == ("body_edited",)
+
+
+def test_unparseable_github_event_timestamp_surfaces_the_change_kind() -> None:
+    opener = _fake_opener({
+        "/issues/42": _issue_payload(updated_at="2026-06-25T10:00:00Z"),
+        "/issues/42/events": _events_payload([
+            {"event": "closed", "created_at": "not-a-timestamp"},
+        ]),
+    })
+
+    changes = fetch_issue_changes(
+        repo="teamctx/teamctx", issues=["#42"], since=SINCE, token="t", opener=opener,
+    )
+
+    assert len(changes) == 1
+    assert changes[0].change_kinds == ("state_changed",)
+
+
 def test_probe_without_token_returns_unavailable() -> None:
     doc = run_github_issues_probe(
         repo="teamctx/teamctx", issues=["#42"], since=SINCE,

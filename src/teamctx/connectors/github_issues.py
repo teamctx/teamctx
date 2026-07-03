@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from urllib.parse import quote
 
+from teamctx.clock import parse_since
 from teamctx.connectors.github import (
     DEFAULT_OPENER,
     GITHUB_API_ROOT,
@@ -89,14 +91,18 @@ def _probe_single_issue(
     token: str,
     opener: HttpOpener,
 ) -> IssueCriteriaChange | None:
+    since_time = parse_since(since)
     issue_data = get_json(f"{base}/issues/{number}", token=token, opener=opener)
     if not isinstance(issue_data, dict):
         return None
-    updated_at = issue_data.get("updated_at")
-    if not isinstance(updated_at, str) or updated_at <= since:
+    updated_at_raw = issue_data.get("updated_at")
+    if not isinstance(updated_at_raw, str):
+        return None
+    updated_at = updated_at_raw
+    if not _github_time_after(updated_at, since_time):
         return None
 
-    change_kinds = _classify_changes(base, number, since, token, opener)
+    change_kinds = _classify_changes(base, number, since_time, token, opener)
 
     state = issue_data.get("state", "unknown")
     title = issue_data.get("title", "")
@@ -118,7 +124,7 @@ def _probe_single_issue(
 
 
 def _classify_changes(
-    base: str, number: int, since: str, token: str, opener: HttpOpener,
+    base: str, number: int, since_time: datetime, token: str, opener: HttpOpener,
 ) -> tuple[str, ...]:
     try:
         events_data = get_json(
@@ -133,7 +139,7 @@ def _classify_changes(
             if not isinstance(event, dict):
                 continue
             created_at = event.get("created_at", "")
-            if not isinstance(created_at, str) or created_at <= since:
+            if not _github_time_after(created_at, since_time):
                 continue
             event_type = event.get("event")
             if event_type in ("closed", "reopened") and "state_changed" not in kinds:
@@ -144,6 +150,15 @@ def _classify_changes(
     if not kinds:
         kinds.append("body_edited")
     return tuple(kinds)
+
+
+def _github_time_after(value: object, since_time: datetime) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        return parse_since(value) > since_time
+    except ValueError:
+        return True
 
 
 def _extract_labels(labels_payload: object) -> tuple[str, ...]:
