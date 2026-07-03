@@ -48,6 +48,8 @@ class ForgeReviewPullRequest:
     labels: tuple[str, ...] = ()
     head_ref: str | None = None
     head_repo: str | None = None
+    source_project_id: int | None = None
+    target_project_id: int | None = None
 
 
 def normalize_forge_review_prs(
