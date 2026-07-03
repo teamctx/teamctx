@@ -5,7 +5,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from click.testing import CliRunner
 
+from teamctx.cli import main
 from teamctx.onboard import (
     _LEGACY_SNIPPET_BODY,
     _SNIPPET_END,
@@ -17,6 +19,8 @@ from teamctx.onboard import (
     run_onboard,
     run_status,
 )
+
+_OLD_STATUS_STUB_PARTS = ("teamctx is initialized. No sources", " are configured yet.")
 
 
 @pytest.mark.parametrize(
@@ -144,3 +148,32 @@ def test_run_status_invalid_config_json_names_fix(tmp_path: Path) -> None:
     assert config.status == "failed"
     assert "exists but is not valid teamctx config" in config.detail
     assert report.next_step == "Fix the failed line above (or run `teamctx onboard --force`)."
+
+
+def test_status_cli_scaffolded_repo_reports_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _github_origin(tmp_path)
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, ["status"], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.output
+    assert "teamctx status for" in result.output
+    assert "configures acme/widgets" in result.output
+    assert "".join(_OLD_STATUS_STUB_PARTS) not in result.output
+
+
+def test_status_cli_empty_dir_recommends_onboard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, ["status"], catch_exceptions=False)
+
+    assert result.exit_code == 0, result.output
+    assert "Run `teamctx onboard` to finish setup." in result.output
+    assert "".join(_OLD_STATUS_STUB_PARTS) not in result.output

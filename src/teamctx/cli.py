@@ -62,10 +62,22 @@ def dev() -> None:
 
 
 @main.command()
-def status() -> None:
-    """Show local teamctx status."""
+@click.option(
+    "--token-env", default="GITHUB_TOKEN", show_default=True,
+    help="Name of the env var holding the GitHub token.",
+)
+def status(token_env: str) -> None:
+    """Report teamctx setup in this repo, read-only: config, hook, snippet, credential, and
+    a live reachability check. Writes nothing; never a verdict."""
 
-    click.echo("teamctx is initialized. No sources are configured yet.")
+    from teamctx.onboard import run_status
+
+    root = resolve_project_root()
+    report = run_status(root, token_env=token_env)
+    click.echo(f"teamctx status for {root}:")
+    for step in report.steps:
+        click.echo(f"  [{_STEP_MARK[step.status]}] {step.name}: {step.detail}")
+    click.echo(f"\nNext: {report.next_step}")
 
 
 @main.command("init")
@@ -641,7 +653,7 @@ def install_hook_into_settings(settings_path: Path) -> bool:
 
 _STEP_MARK = {
     "wrote": "wrote", "already": "already set", "skipped": "skipped",
-    "failed": "FAILED", "noted": "checked",
+    "failed": "FAILED", "noted": "checked", "ok": "ok",
 }
 
 
