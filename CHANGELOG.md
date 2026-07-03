@@ -9,6 +9,10 @@ may change while the product is hardened.
 
 ### Added
 
+- `teamctx onboard` detects a conventional docs/ folder and configures it, and the CLAUDE.md
+  snippet now claims all four checks with their conditions stated; `teamctx status` reports the
+  docs configuration.
+
 - work-start now derives the linked issue and the start time from your branch name, local commit trailers, and the merge-base, with the derivation named in the output; explicit --issue/--since override it.
 - `teamctx onboard`: a single command to set up a repo with zero flags and zero false confidence.
   It detects the GitHub repo, writes a trackable `.teamctx/config.json`, installs the reflex hook,

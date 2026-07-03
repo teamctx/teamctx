@@ -36,9 +36,20 @@ from teamctx.project_config import (
 from teamctx.resolve import resolve_github_repo
 from teamctx.tokens import resolve_github_token_with_source
 
-# The honest snippet: only what the hook auto-fires today (open PRs on your files, failing checks).
-# Do NOT claim changed specs / superseded docs until they auto-fire (the next slice).
+# The honest snippet: all four checks, with the two conditional ones stating their conditions
+# (criteria fires when an issue is derivable or named; docs when a docs folder is configured).
 CLAUDE_MD_SNIPPET = (
+    "## Team context (teamctx)\n"
+    "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
+    "into your plan. It surfaces open pull requests touching your files, failing checks on your "
+    "branch, acceptance criteria that changed when an issue is linked from your branch or "
+    "commits, and superseded docs when a docs folder is configured. Tell your human collaborator "
+    "anything relevant in plain terms so they can decide.\n"
+)
+
+# The two-check snippet body written between Phase 3 and the auto-discovery slice, kept verbatim
+# so the upsert recognizes and refreshes an unedited managed block. Never used for new writes.
+_SNIPPET_BODY_2026_07 = (
     "## Team context (teamctx)\n"
     "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
     "into your plan. It surfaces open pull requests touching your files and failing checks on your "
@@ -239,7 +250,7 @@ ONBOARDERS: list[GithubOnboarder] = [GithubOnboarder()]
 _SNIPPET_START = "<!-- teamctx:start -->"
 _SNIPPET_END = "<!-- teamctx:end -->"
 _SNIPPET_HEADING = "## Team context (teamctx)"
-_KNOWN_BODIES = (CLAUDE_MD_SNIPPET, _LEGACY_SNIPPET_BODY)
+_KNOWN_BODIES = (CLAUDE_MD_SNIPPET, _SNIPPET_BODY_2026_07, _LEGACY_SNIPPET_BODY)
 SnippetState = Literal[
     "current", "outdated", "edited", "conflicted_markers", "legacy", "edited_heading", "absent"
 ]
@@ -382,6 +393,7 @@ def _config_step_and_effective_repo(
     error: str | None,
     force: bool,
     dry_run: bool,
+    detected_docs_root: str | None = None,
 ) -> tuple[StepResult, str | None]:
     """The config step plus the github.com owner/name work-start will actually resolve after
     onboard (explicit > config > git-detect, normalized through ``parse_github_repo`` exactly like
@@ -447,11 +459,43 @@ def _config_step_and_effective_repo(
             ),
             write_repo,
         )
-    config = build_work_start_project_config(repo=write_repo)
+    config = build_work_start_project_config(repo=write_repo, docs_root=detected_docs_root)
     _atomic_write(
         path, json.dumps(config.model_dump(mode="json", exclude_defaults=True), indent=2) + "\n"
     )
     return StepResult("config", "wrote", f"{path} (repo {write_repo})"), write_repo
+
+
+def _detect_docs_root(root: Path) -> str | None:
+    """A conventional docs folder worth configuring: a top-level ``docs/`` directory containing
+    at least one markdown file (recursive). Anything else is honest absence, never a guess."""
+
+    docs_dir = root / "docs"
+    if not docs_dir.is_dir():
+        return None
+    return "docs" if any(docs_dir.rglob("*.md")) else None
+
+
+_DOCS_FOUND = "found a docs/ folder; superseded docs there will be flagged."
+_DOCS_NOT_FOUND = (
+    "no docs/ folder found; set work_start.docs_root in .teamctx/config.json to flag "
+    "superseded docs."
+)
+
+
+def _docs_step(configured_docs_root: str | None, wrote_detected: bool) -> StepResult:
+    """Report the docs configuration honestly: what IS configured after the config step, or how
+    to enable it. ``wrote_detected`` marks the fresh-detection case (this run set it)."""
+
+    if wrote_detected:
+        return StepResult("docs", "noted", _DOCS_FOUND)
+    if configured_docs_root:
+        return StepResult(
+            "docs", "noted",
+            f"docs_root '{configured_docs_root}' is configured; superseded docs there will be "
+            "flagged.",
+        )
+    return StepResult("docs", "noted", _DOCS_NOT_FOUND)
 
 
 def _install_hook_step(root: Path, *, dry_run: bool) -> StepResult:
@@ -512,10 +556,29 @@ def run_onboard(
             "re-run with --repo owner/name",
         )
 
+    detected_docs = _detect_docs_root(root)
     config_step, effective_repo = _config_step_and_effective_repo(
         config_path, override_repo=override_repo, detected=detected,
         existing=existing, error=config_error, force=force, dry_run=dry_run,
+        detected_docs_root=detected_docs,
     )
+    # The docs step reports what IS configured after the config step (never a wish): a fresh
+    # write includes the detection; an existing config keeps its own docs_root; dry-run previews.
+    wrote_fresh_config = config_step.status == "wrote"
+    would_write_config = config_step.status == "skipped" and dry_run
+    existing_docs = (
+        existing.work_start.docs_root
+        if existing is not None and existing.work_start is not None
+        else None
+    )
+    if detected_docs is not None and would_write_config:
+        docs_step = StepResult(
+            "docs", "skipped", f"--dry-run: would set docs_root to '{detected_docs}'."
+        )
+    elif detected_docs is not None and wrote_fresh_config:
+        docs_step = _docs_step(detected_docs, wrote_detected=True)
+    else:
+        docs_step = _docs_step(existing_docs, wrote_detected=False)
 
     # Resolve the credential ONCE, so the reported source and the health check use the same token
     # (the gh fallback is not re-evaluated) and cannot drift.
@@ -533,6 +596,7 @@ def run_onboard(
     steps: list[StepResult] = [
         config_step,
         ensure_config_trackable(root, dry_run=dry_run),
+        docs_step,
         StepResult("auth", "noted", auth_message),
         _install_hook_step(root, dry_run=dry_run),
         upsert_claude_md_snippet(root, dry_run=dry_run),
@@ -666,6 +730,25 @@ def run_status(
             "tracking", "noted",
             ".teamctx/config.json is ignored by .gitignore; `teamctx onboard` can fix that.",
         ))
+
+    configured_docs = (
+        existing.work_start.docs_root
+        if existing is not None and existing.work_start is not None
+        else None
+    )
+    if configured_docs:
+        steps.append(StepResult(
+            "docs", "ok",
+            f"docs_root '{configured_docs}' is configured; superseded docs there will be "
+            "flagged.",
+        ))
+    elif _detect_docs_root(root) is not None:
+        steps.append(StepResult(
+            "docs", "noted",
+            "a docs/ folder exists but no docs_root is configured; `teamctx onboard` sets it.",
+        ))
+    else:
+        steps.append(StepResult("docs", "noted", _DOCS_NOT_FOUND))
 
     settings_path = root / ".claude" / "settings.json"
     steps.append(_hook_status_step(settings_path))
