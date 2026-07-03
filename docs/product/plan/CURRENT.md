@@ -67,9 +67,12 @@ below until the arc completes.
 
 **Phases (each slice complete to the bar; sequencing is not scope-cutting):**
 - **Phase 0, review hardening (before the multi-actor dogfood):**
-  S1 own-PR collision fix (F1; plan `docs/superpowers/plans/2026-07-03-s1-own-pr-collision.md`) ·
+  S1 own-PR collision fix **DONE 2026-07-03 (merged `6cada7b`, 443 tests; codex built from the
+  plan, Fable arbiter-reviewed + one copy fix; own-branch PRs set aside with an FYI line and
+  recorded on the forge source status)** ·
   S2 README refresh + docs-claim tightening + gh-hint repo flag (F3, F11; Fable builds, codex
-  reviews) · S3 `status` made real as onboard's read-only twin (F2) · S4 small batch:
+  reviews) · S3 `status` made real as onboard's read-only twin (F2; plan
+  `docs/superpowers/plans/2026-07-03-s3-status-real.md`) · S4 small batch:
   authority.json fail-closed, CI 3.13 matrix + coverage gate wired-or-dropped, teamctx-mcp
   friendly import guard (F6, F8, F10).
 - **Phase 1, auto-discovery (was "next slice"; absorbs F9, F13):** S5a linked-issue +
