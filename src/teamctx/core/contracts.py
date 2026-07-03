@@ -255,6 +255,7 @@ class RequestContext(ContractModel):
     task: str
     paths: list[str] = Field(default_factory=list)
     linked_issues: list[str] = Field(default_factory=list)
+    input_provenance: dict[str, str] = Field(default_factory=dict)
     requested_at: str
     requesting_principal: str | None = None
 

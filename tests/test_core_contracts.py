@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from teamctx.core.contracts import (
     CoreContractDocument,
     PolicyDecision,
+    RequestContext,
     SourceStatus,
     load_core_contract_document,
 )
@@ -168,6 +169,37 @@ def test_source_status_accepts_new_coverage_states(status: str) -> None:
     )
 
     assert source_status.status == status
+
+
+def test_request_context_carries_input_provenance() -> None:
+    request = RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id="test",
+        repo="owner/name",
+        task="work",
+        paths=["src/a.py"],
+        linked_issues=["#42"],
+        requested_at="2026-07-03T00:00:00Z",
+        requesting_principal=None,
+        input_provenance={"issue:#42": "your branch name"},
+    )
+
+    assert request.input_provenance == {"issue:#42": "your branch name"}
+
+
+def test_request_context_input_provenance_defaults_empty() -> None:
+    request = RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id="test",
+        repo="owner/name",
+        task="work",
+        paths=[],
+        linked_issues=[],
+        requested_at="2026-07-03T00:00:00Z",
+        requesting_principal=None,
+    )
+
+    assert request.input_provenance == {}
 
 
 def test_core_package_has_no_file_or_runtime_side_effect_imports() -> None:

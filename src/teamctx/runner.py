@@ -36,6 +36,8 @@ class WorkStartInputs:
     include_titles: bool = False
     issues: tuple[str, ...] = ()
     since: str | None = None
+    input_provenance: tuple[tuple[str, str], ...] = ()
+    derived_issues_capped: bool = False
     docs_root: str | None = None
     ref: str | None = None
 
@@ -55,6 +57,7 @@ def build_request_context(inputs: WorkStartInputs, *, observed_at: str) -> Reque
         task=inputs.task,
         paths=list(inputs.paths),
         linked_issues=list(inputs.issues),
+        input_provenance=dict(inputs.input_provenance),
         requested_at=observed_at,
         requesting_principal=None,
     )
