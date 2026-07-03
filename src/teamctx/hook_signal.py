@@ -12,7 +12,7 @@ from teamctx.assessment import IMPORTANT_CHECKS, CheckState, WorkStartAssessment
 from teamctx.core.broker import BrokerAnswer
 
 _CLEAR_PHRASE = {
-    "conflict": "no open pull requests touch these files",
+    "conflict": "no other open pull requests touch these files",
     "gate": "no failing checks found",
     "docs": "the docs you rely on are current",
     "criteria": "the linked issue's criteria are unchanged",

@@ -23,7 +23,7 @@ _HEADLINE = {
     "cant_verify": "Heads up: I can't confirm the important things yet:",
 }
 _CLEAR_PHRASE: dict[CheckId, str] = {
-    "conflict": "no open PRs touch your files",
+    "conflict": "no other open PRs touch your files",
     "gate": "no failing checks found",
     "docs": "the docs you rely on are current",
     "criteria": "the linked issue's criteria are unchanged",
@@ -92,6 +92,7 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
     coverage = _coverage_line(assessment)
     if coverage:
         lines.append(coverage)
+    lines.extend(_fyi_lines(answer.selection))
     couldnt = _couldnt_check_line(assessment)
     if couldnt:
         lines.append(couldnt)
@@ -175,6 +176,16 @@ def _coverage_line(assessment: WorkStartAssessment) -> str:
         return ""
     label = "Checked: " if assessment.kind == "ready" else "Also checked: "
     return "  " + label + "; ".join(clear) + "."
+
+
+def _fyi_lines(selection: ContextSelection) -> list[str]:
+    return [
+        f"  FYI: {entry.note}"
+        for entry in selection.coverage.entries
+        if entry.status == "fresh"
+        and entry.visibility == "warning_when_relevant"
+        and entry.note
+    ]
 
 
 def _couldnt_check_line(assessment: WorkStartAssessment) -> str:

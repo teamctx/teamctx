@@ -94,7 +94,8 @@ def test_ready_names_the_clear_checks_no_lowstakes_hedge() -> None:
     text = hook_signal(answer, file_path="src/app.py", token_present=True)
     assert "looks clear" in text.lower()
     assert "src/app.py" in text
-    assert "pull request" in text.lower()
+    assert "no other open pull requests touch these files" in text
+    assert "FYI:" not in text
     assert "couldn't" not in text.lower()
 
 
