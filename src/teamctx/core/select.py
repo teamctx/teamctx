@@ -1,9 +1,12 @@
-"""Deterministic card derivation from source signals + the request context.
+"""The card-derivation engine: source signals + request context -> an honest selection.
 
-This is the broker's heart: it DERIVES context cards from typed source signals by
-computing structural relevance against the request, rather than rendering authored cards.
-Pure and deterministic: no I/O, time, or randomness (enforced by the core purity test),
-so every derived card is replayable and its reason names the overlap it came from.
+This is the broker's heart: it DERIVES context cards from typed source signals by computing
+structural relevance against the request, rather than rendering authored cards. The card kinds
+themselves (how each is derived, what universal it refutes, how it renders, its cost and
+dependencies) live in ``core/kinds.py``; this module is the engine that dispatches over
+``CARD_KINDS`` and assembles coverage, closure, and the replayable selection. Pure and
+deterministic: no I/O, time, or randomness (enforced by the core purity test), so every derived
+card is replayable and its reason names the overlap it came from.
 """
 
 from __future__ import annotations
@@ -16,12 +19,11 @@ from teamctx.core.authority import AuthorityDecl, AuthorityEntry, assess_authori
 from teamctx.core.contracts import (
     ContextCard,
     RequestContext,
-    SectionName,
     SourceSignal,
     SourceStatus,
 )
-from teamctx.core.prop import Prop, SubjectRef
-from teamctx.core.severity import compute_severity
+from teamctx.core.kinds import CARD_KINDS, CardKind, ClaimCard, deps_for
+from teamctx.core.prop import Prop
 from teamctx.core.snapshot import snapshot_digest as _snapshot_digest
 
 Delta = Literal["none", "count", "identity"]
@@ -42,55 +44,6 @@ class Hint:
     source: str
 
 
-@dataclass(frozen=True)
-class ClaimCard:
-    """A derived typed claim paired with the source signal it was derived from.
-
-    ``claim`` is the proposition the card asserts (and witnesses); ``signal`` carries the
-    render inputs. The render card is a pure function of this pair (``render_collision_claim``).
-    """
-
-    claim: Prop
-    signal: SourceSignal
-
-
-def no_conflict_query(request: RequestContext) -> Prop:
-    """The universal a collision card refutes: 'no open PR conflicts with my paths'."""
-
-    return Prop(
-        predicate="no_pr_conflicts_with_paths",
-        subject=SubjectRef(repo=request.repo, paths=tuple(request.paths)),
-    )
-
-
-def criteria_changed_query(request: RequestContext) -> Prop:
-    """The universal a criteria-changed card refutes: 'no acceptance criteria changed for
-    my linked issues'."""
-
-    return Prop(
-        predicate="no_criteria_changed_for_issues",
-        subject=SubjectRef(repo=request.repo, paths=tuple(request.linked_issues)),
-    )
-
-
-def no_superseded_docs_query(request: RequestContext) -> Prop:
-    """The universal a doc-superseded card refutes: 'no doc I rely on was superseded'."""
-
-    return Prop(
-        predicate="no_superseded_docs",
-        subject=SubjectRef(repo=request.repo, paths=tuple(request.paths)),
-    )
-
-
-def all_gates_pass_query(request: RequestContext) -> Prop:
-    """The universal a missed-gate card refutes: 'all gates pass for my change'."""
-
-    return Prop(
-        predicate="all_gates_pass",
-        subject=SubjectRef(repo=request.repo, paths=tuple(request.paths)),
-    )
-
-
 def derive_claims(
     request: RequestContext, signals: Iterable[SourceSignal]
 ) -> list[ClaimCard]:
@@ -106,223 +59,6 @@ def derive_claims(
             claims.append(claim_card)
     return claims
 
-
-def _derive_collision_claim(
-    request: RequestContext, signal: SourceSignal
-) -> ClaimCard | None:
-    if signal.scope.get("repo") != request.repo:
-        return None
-    candidate_files = signal.scope.get("files")
-    candidate = candidate_files if isinstance(candidate_files, list) else []
-    shared = sorted(set(request.paths) & set(candidate))
-    if not shared:
-        return None
-    claim = Prop(
-        predicate="pr_conflicts_with_path",
-        subject=SubjectRef(repo=request.repo, paths=tuple(shared)),
-        args=(signal.id,),
-    )
-    return ClaimCard(claim=claim, signal=signal)
-
-
-def _render_claim_card(
-    claim_card: ClaimCard,
-    *,
-    section: SectionName,
-    why_this_matters: str,
-    reason: str,
-    reason_code: str,
-) -> ContextCard:
-    """The shared render skeleton. Every kind's card differs only in section, why, reason,
-    and reason_code; the rest (status-only body, verify-before-relying, severity) is uniform."""
-
-    claim = claim_card.claim
-    signal = claim_card.signal
-    return ContextCard(
-        schema_version="teamctx.context_card.v0",
-        id=f"card_{signal.id}",
-        section=section,
-        text=signal.evidence_summary,
-        why_this_matters=why_this_matters,
-        source_display=signal.source_display,
-        refs=[signal.id],
-        reason=reason,
-        scope=dict(signal.scope),
-        freshness=signal.freshness,
-        confidence=signal.confidence,
-        source_body="status_only",
-        source_open_target_id=None,
-        agent_instruction="verify_before_relying",
-        reason_code=reason_code,
-        severity=compute_severity(claim.predicate, claim),
-    )
-
-
-def render_collision_claim(claim_card: ClaimCard) -> ContextCard:
-    """Render a collision claim into a human-plane ``ContextCard``.
-
-    Pure: the render card is a function of the claim plus its signal. Output matches the
-    pre-typed collision derivation byte for byte.
-    """
-
-    claim = claim_card.claim
-    overlap = ", ".join(claim.subject.paths)
-    return _render_claim_card(
-        claim_card,
-        section="Needs attention",
-        why_this_matters=f"you are editing {claim.subject.paths[0]}.",  # most-salient path
-        reason=f"same repository and file path as the current task: {overlap}",
-        reason_code="collision.same_path",
-    )
-
-
-def _derive_criteria_changed_claim(
-    request: RequestContext, signal: SourceSignal
-) -> ClaimCard | None:
-    issue = signal.scope.get("issue")
-    if not isinstance(issue, str) or issue not in request.linked_issues:
-        return None
-    claim = Prop(
-        predicate="issue_criteria_changed",
-        subject=SubjectRef(repo=request.repo, paths=(issue,)),
-        args=(signal.id,),
-    )
-    return ClaimCard(claim=claim, signal=signal)
-
-
-def render_criteria_changed_claim(claim_card: ClaimCard) -> ContextCard:
-    """Render a criteria-changed claim into a human-plane ``ContextCard``."""
-
-    issue = claim_card.claim.subject.paths[0]
-    return _render_claim_card(
-        claim_card,
-        section="Verify before relying",
-        why_this_matters=f"acceptance criteria for {issue} changed; re-check before relying.",
-        reason=f"linked issue {issue} had its acceptance criteria changed",
-        reason_code="criteria.changed",
-    )
-
-
-def _derive_doc_superseded_claim(
-    request: RequestContext, signal: SourceSignal
-) -> ClaimCard | None:
-    if signal.scope.get("repo") != request.repo:
-        return None
-    doc = signal.scope.get("doc")
-    if not isinstance(doc, str) or doc not in request.paths:
-        return None
-    claim = Prop(
-        predicate="doc_superseded",
-        subject=SubjectRef(repo=request.repo, paths=(doc,)),
-        args=(signal.id,),
-    )
-    return ClaimCard(claim=claim, signal=signal)
-
-
-def _derive_missed_gate_claim(
-    request: RequestContext, signal: SourceSignal
-) -> ClaimCard | None:
-    if signal.scope.get("repo") != request.repo:
-        return None
-    covered = signal.scope.get("files")
-    covered_list = covered if isinstance(covered, list) else []
-    shared = sorted(set(request.paths) & set(covered_list))
-    if not shared:
-        return None
-    claim = Prop(
-        predicate="gate_failed",
-        subject=SubjectRef(repo=request.repo, paths=tuple(shared)),
-        args=(signal.id,),
-    )
-    return ClaimCard(claim=claim, signal=signal)
-
-
-def render_doc_superseded_claim(claim_card: ClaimCard) -> ContextCard:
-    """Render a doc-superseded claim into a human-plane ``ContextCard``.
-
-    Names the superseding doc when the signal carries ``scope["superseded_by"]`` (so the card
-    says WHAT to open, not only THAT the doc is stale); falls back byte-for-byte otherwise."""
-
-    claim = claim_card.claim
-    signal = claim_card.signal
-    doc = claim.subject.paths[0]
-    superseded_by = signal.scope.get("superseded_by")
-    current = superseded_by if isinstance(superseded_by, str) and superseded_by else None
-    if current is not None:
-        why = f"{doc} was superseded; rely on {current} instead, not {doc}."
-        reason = f"the doc {doc} was superseded by {current}"
-    else:
-        why = f"the doc {doc} was superseded; verify it is current before relying."
-        reason = f"a doc you rely on ({doc}) was superseded"
-    return _render_claim_card(
-        claim_card,
-        section="Verify before relying",
-        why_this_matters=why,
-        reason=reason,
-        reason_code="doc.superseded",
-    )
-
-
-def render_missed_gate_claim(claim_card: ClaimCard) -> ContextCard:
-    """Render a missed-gate claim into a human-plane ``ContextCard``."""
-
-    overlap = ", ".join(claim_card.claim.subject.paths)
-    return _render_claim_card(
-        claim_card,
-        section="Needs attention",
-        why_this_matters=f"a check is failing on files you are changing: {overlap}.",
-        reason=f"a check is failing on {overlap}",
-        reason_code="gate.failed",
-    )
-
-
-@dataclass(frozen=True)
-class CardKind:
-    """One registered card kind: how to derive it, what universal it refutes, how to render
-    it. New kinds are added by appending an entry; the engine's control flow is unchanged."""
-
-    signal_type: str
-    card_predicate: str
-    verdict_label: str
-    derive: Callable[[RequestContext, SourceSignal], ClaimCard | None]
-    query: Callable[[RequestContext], Prop]
-    render: Callable[[ClaimCard], ContextCard]
-
-
-CARD_KINDS: tuple[CardKind, ...] = (
-    CardKind(
-        signal_type="collision",
-        card_predicate="pr_conflicts_with_path",
-        verdict_label="Conflict check",
-        derive=_derive_collision_claim,
-        query=no_conflict_query,
-        render=render_collision_claim,
-    ),
-    CardKind(
-        signal_type="criteria_changed",
-        card_predicate="issue_criteria_changed",
-        verdict_label="Criteria check",
-        derive=_derive_criteria_changed_claim,
-        query=criteria_changed_query,
-        render=render_criteria_changed_claim,
-    ),
-    CardKind(
-        signal_type="doc_superseded",
-        card_predicate="doc_superseded",
-        verdict_label="Docs check",
-        derive=_derive_doc_superseded_claim,
-        query=no_superseded_docs_query,
-        render=render_doc_superseded_claim,
-    ),
-    CardKind(
-        signal_type="missed_gate",
-        card_predicate="gate_failed",
-        verdict_label="Gate check",
-        derive=_derive_missed_gate_claim,
-        query=all_gates_pass_query,
-        render=render_missed_gate_claim,
-    ),
-)
 
 _KIND_BY_SIGNAL_TYPE: dict[str, CardKind] = {kind.signal_type: kind for kind in CARD_KINDS}
 _RENDER_BY_PREDICATE: dict[str, Callable[[ClaimCard], ContextCard]] = {
@@ -386,27 +122,6 @@ Completeness = Literal[
     "incomplete[unmodeled-ref]",
     "not_applicable[out-of-scope]",
 ]
-
-# deps_G: the trusted, mandated source families a proposition's truth depends on. A
-# predicate is registered here as its card kind is added. An unregistered predicate fails
-# loud; we never silently certify a query whose dependencies we have not modeled.
-DEPS_REGISTRY: dict[str, frozenset[str]] = {
-    "no_pr_conflicts_with_paths": frozenset({"git_hosting"}),
-    "no_criteria_changed_for_issues": frozenset({"issue_tracker"}),
-    "no_superseded_docs": frozenset({"docs"}),
-    "all_gates_pass": frozenset({"ci_deploy"}),
-}
-
-
-def deps_for(prop: Prop) -> frozenset[str]:
-    """The mandated source families whose state can affect ``prop`` (deps_G)."""
-
-    try:
-        return DEPS_REGISTRY[prop.predicate]
-    except KeyError as exc:
-        raise ValueError(
-            f"no dependency closure registered for predicate {prop.predicate!r}"
-        ) from exc
 
 
 def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:

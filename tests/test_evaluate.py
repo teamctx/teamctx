@@ -5,7 +5,8 @@ from __future__ import annotations
 from teamctx.connectors.forge_review import ForgeReviewPullRequest, normalize_forge_review_prs
 from teamctx.core.contracts import RequestContext
 from teamctx.core.evaluate import Valuation, evaluate
-from teamctx.core.select import ClaimCard, ClosureEntry, derive_claims, no_conflict_query
+from teamctx.core.kinds import ClaimCard, no_conflict_query
+from teamctx.core.select import ClosureEntry, derive_claims
 
 
 def _request(paths: tuple[str, ...]) -> RequestContext:

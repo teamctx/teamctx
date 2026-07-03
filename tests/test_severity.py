@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from teamctx.core.kinds import severity_base_for
 from teamctx.core.prop import Prop, SubjectRef
 from teamctx.core.severity import compute_severity
 
@@ -11,7 +12,9 @@ def _claim(predicate: str, paths: tuple[str, ...]) -> Prop:
 
 
 def test_collision_severity_conformance_golden() -> None:
-    sev = compute_severity("pr_conflicts_with_path", _claim("pr_conflicts_with_path", ("a.py",)))
+    sev = compute_severity(
+        severity_base_for("pr_conflicts_with_path"), _claim("pr_conflicts_with_path", ("a.py",))
+    )
     # kind_base 0.8, magnitude_norm = 1/5 = 0.2, scope_mult 1.0
     # value = clamp01(0.8 * (1 + 0.5*0.2) * 1.0) = 0.88
     assert sev.kind_base == 0.8
@@ -23,7 +26,7 @@ def test_collision_severity_conformance_golden() -> None:
 def test_severity_value_is_clamped_to_one() -> None:
     # five overlapping paths -> magnitude_norm clamps at 1.0; high kind_base stays <= 1.
     sev = compute_severity(
-        "pr_conflicts_with_path",
+        severity_base_for("pr_conflicts_with_path"),
         _claim("pr_conflicts_with_path", ("a", "b", "c", "d", "e", "f")),
     )
     assert sev.magnitude_norm == 1.0
@@ -31,7 +34,7 @@ def test_severity_value_is_clamped_to_one() -> None:
 
 
 def test_each_kind_has_a_registered_base() -> None:
-    from teamctx.core.severity import KIND_BASE
+    from teamctx.core.kinds import KIND_BASE
 
     for predicate in (
         "pr_conflicts_with_path",
@@ -46,4 +49,4 @@ def test_unregistered_predicate_severity_raises() -> None:
     import pytest
 
     with pytest.raises(ValueError, match="no severity base"):
-        compute_severity("nope", _claim("pr_conflicts_with_path", ("a.py",)))
+        severity_base_for("nope")

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from teamctx.core.prop import REFUTES_PAIRS, Prop, SubjectRef, witnesses
+from teamctx.core.kinds import REFUTES_PAIRS, shape_of, witnesses
+from teamctx.core.prop import Prop, SubjectRef
 
 
 def test_prop_shape_comes_from_the_predicate_registry() -> None:
@@ -16,14 +17,14 @@ def test_prop_shape_comes_from_the_predicate_registry() -> None:
         predicate="no_pr_conflicts_with_paths",
         subject=SubjectRef(repo="svc", paths=("a.py",)),
     )
-    assert existential.shape == "existential"
-    assert universal.shape == "universal"
+    assert shape_of(existential) == "existential"
+    assert shape_of(universal) == "universal"
 
 
 def test_unregistered_predicate_is_rejected() -> None:
     bad = Prop(predicate="not_a_real_predicate", subject=SubjectRef(repo="svc"))
     with pytest.raises(ValueError, match="unregistered predicate"):
-        _ = bad.shape
+        shape_of(bad)
 
 
 def test_collision_claim_refutes_the_no_conflict_universal() -> None:
@@ -91,7 +92,7 @@ def test_claim_with_empty_paths_is_unrelated() -> None:
 
 
 def test_every_refutes_pair_is_registered_and_distinct() -> None:
-    from teamctx.core.prop import PREDICATE_REGISTRY
+    from teamctx.core.kinds import PREDICATE_REGISTRY
 
     for card_pred, query_pred in REFUTES_PAIRS:
         assert card_pred in PREDICATE_REGISTRY
