@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from typing import Literal
 
 
 def resolve_token(token_env: str = "GITHUB_TOKEN") -> str | None:
@@ -65,11 +66,21 @@ def resolve_atlassian_auth() -> tuple[str, str] | None:
     present. A missing pair or exactly one present half returns ``None``; connectors will name the
     missing half when they surface the unavailable status."""
 
+    return resolve_atlassian_auth_with_state()[0]
+
+
+def resolve_atlassian_auth_with_state() -> tuple[
+    tuple[str, str] | None, Literal["present", "missing", "partial"]
+]:
+    """Resolve Atlassian auth and name whether no credential or exactly one half was present."""
+
     email = os.environ.get("ATLASSIAN_EMAIL")
     token = resolve_token("ATLASSIAN_API_TOKEN")
     if email and token:
-        return email, token
-    return None
+        return (email, token), "present"
+    if email or token:
+        return None, "partial"
+    return None, "missing"
 
 
 def _gh_auth_token() -> str | None:

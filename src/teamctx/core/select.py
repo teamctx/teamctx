@@ -129,13 +129,15 @@ def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
 
     Precedence: an absent mandated family is ``incomplete[policy-gap]`` (we never looked). A
     present family whose entries are all ``disabled`` is also ``incomplete[policy-gap]`` (we knew
-    the connector exists but did not have the required input). Among present, non-disabled
-    families the worst status wins: any stale/unavailable/blocked, or any unrecognized status,
-    gives ``incomplete[stale-dep]`` (a real unreachable dominates), then ``unbounded`` gives
-    ``incomplete[unbounded]``, then ``pending`` gives ``incomplete[pending]``, then a family
-    whose only non-fresh status is ``not_applicable`` gives ``not_applicable[out-of-scope]``,
-    else ``complete``. Treating an unrecognized status as stale-dep preserves the prior
-    "non-fresh means stale-dep" default.
+    the connector exists but did not have the required input). A ``disabled`` source mixed with a
+    fresh sibling is ``incomplete[stale-dep]``: one provider in the family was checked, but another
+    provider was explicitly not checked, so the family cannot certify clear. Among present,
+    non-disabled families the worst status wins: any stale/unavailable/blocked, or any unrecognized
+    status, gives ``incomplete[stale-dep]`` (a real unreachable dominates), then ``unbounded`` gives
+    ``incomplete[unbounded]``, then ``pending`` gives ``incomplete[pending]``, then a family whose
+    only non-fresh status is ``not_applicable`` gives ``not_applicable[out-of-scope]``, else
+    ``complete``. Treating an unrecognized status as stale-dep preserves the prior "non-fresh means
+    stale-dep" default.
     """
 
     entries_by_family: dict[str, list[CoverageEntry]] = {}
@@ -150,6 +152,8 @@ def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
         family_statuses = [entry.status for entry in family_entries]
         if all(status == "disabled" for status in family_statuses):
             return "incomplete[policy-gap]"
+        if "disabled" in family_statuses and "fresh" in family_statuses:
+            return "incomplete[stale-dep]"
         statuses.extend(family_statuses)
 
     if any(

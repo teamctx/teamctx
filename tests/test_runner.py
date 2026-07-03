@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 
 import teamctx.runner as runner
+from teamctx.connectors.issue_criteria import normalize_issue_changes
+from teamctx.core.broker import broker_answer_from_documents
 from teamctx.core.contracts import CoreContractDocument, RequestContext
+from teamctx.core.evaluate import Valuation
 from teamctx.runner import WorkStartInputs, build_request_context, run_work_start_connectors
 
 OBSERVED = "2026-06-25T12:00:00Z"
@@ -39,6 +42,7 @@ def _record_calls(monkeypatch):
     monkeypatch.setattr(runner, "run_github_pr_probe", fake("collision"))
     monkeypatch.setattr(runner, "run_github_checks_probe", fake("gate"))
     monkeypatch.setattr(runner, "run_github_issues_probe", fake("criteria"))
+    monkeypatch.setattr(runner, "run_jira_issues_probe", fake("jira"))
     monkeypatch.setattr(runner, "run_docs_supersession_probe", fake("docs"))
     return called
 
@@ -122,6 +126,168 @@ def test_issues_with_since_enables_criteria(monkeypatch) -> None:
     )
     run_work_start_connectors(inputs, observed_at=OBSERVED)
     assert "criteria" in called
+
+
+def test_mixed_numeric_and_jira_issues_dispatch_to_both_trackers(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_github_issues(**kwargs):  # type: ignore[no-untyped-def]
+        captured["github"] = kwargs
+        return _empty_doc(kwargs["request_context"])
+
+    def fake_jira_issues(**kwargs):  # type: ignore[no-untyped-def]
+        captured["jira"] = kwargs
+        return _empty_doc(kwargs["request_context"])
+
+    monkeypatch.setattr(
+        runner,
+        "run_github_pr_probe",
+        lambda **kw: _empty_doc(kw["request_context"]),
+    )
+    monkeypatch.setattr(runner, "run_github_issues_probe", fake_github_issues)
+    monkeypatch.setattr(runner, "run_jira_issues_probe", fake_jira_issues)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        token="gh-token",
+        issues=("#42", "PROJ-123", "7"),
+        since=OBSERVED,
+        jira_base_url="https://jira.example.test",
+        atlassian_auth=("person@example.com", "atlassian-token"),
+    )
+
+    request_context, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    assert len(documents) == 5
+    assert captured["github"]["issues"] == ["#42", "7"]
+    assert captured["github"]["token"] == "gh-token"
+    assert captured["jira"]["base_url"] == "https://jira.example.test"
+    assert captured["jira"]["issues"] == ["PROJ-123"]
+    assert captured["jira"]["auth"] == ("person@example.com", "atlassian-token")
+    assert request_context.linked_issues == ["#42", "PROJ-123", "7"]
+
+
+def test_unconfigured_jira_key_emits_verbatim_disabled_note(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runner,
+        "run_github_pr_probe",
+        lambda **kw: _empty_doc(kw["request_context"]),
+    )
+
+    def fail_jira(**kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"Jira probe should not run: {kwargs}")
+
+    monkeypatch.setattr(runner, "run_jira_issues_probe", fail_jira)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        issues=("PROJ-123",),
+        since=OBSERVED,
+    )
+
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    status = _status_for_source(documents, "jira_issues")
+    assert status.status == "disabled"
+    assert status.safe_user_message == (
+        "issue PROJ-123 looks like a Jira issue, but no Jira is configured; add "
+        "work_start.jira to .teamctx/config.json"
+    )
+
+
+def test_mixed_fresh_github_and_unconfigured_jira_stays_stale_dep(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runner,
+        "run_github_pr_probe",
+        lambda **kw: _empty_doc(kw["request_context"]),
+    )
+
+    def fresh_github_issues(**kwargs):  # type: ignore[no-untyped-def]
+        return normalize_issue_changes(
+            kwargs["request_context"],
+            [],
+            observed_at=kwargs["observed_at"],
+            source_id="github_issues",
+        )
+
+    monkeypatch.setattr(runner, "run_github_issues_probe", fresh_github_issues)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        issues=("#42", "PROJ-123"),
+        since=OBSERVED,
+    )
+
+    request_context, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+    answer = broker_answer_from_documents(request_context, documents)
+
+    verdicts = dict(answer.verdicts)
+    assert verdicts["Criteria check"] == Valuation("unknown", "incomplete[stale-dep]")
+
+
+def test_mixed_fresh_github_and_fresh_jira_criteria_is_complete(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runner,
+        "run_github_pr_probe",
+        lambda **kw: _empty_doc(kw["request_context"]),
+    )
+
+    def fresh_issues(**kwargs):  # type: ignore[no-untyped-def]
+        source_id = "jira_issues" if "base_url" in kwargs else "github_issues"
+        return normalize_issue_changes(
+            kwargs["request_context"],
+            [],
+            observed_at=kwargs["observed_at"],
+            source_id=source_id,
+        )
+
+    monkeypatch.setattr(runner, "run_github_issues_probe", fresh_issues)
+    monkeypatch.setattr(runner, "run_jira_issues_probe", fresh_issues)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        issues=("#42", "PROJ-123"),
+        since=OBSERVED,
+        jira_base_url="https://jira.example.test",
+        atlassian_auth=("person@example.com", "atlassian-token"),
+    )
+
+    request_context, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+    answer = broker_answer_from_documents(request_context, documents)
+
+    verdicts = dict(answer.verdicts)
+    assert verdicts["Criteria check"] == Valuation("true")
+
+
+def test_half_atlassian_credential_emits_verbatim_unavailable_note(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runner,
+        "run_github_pr_probe",
+        lambda **kw: _empty_doc(kw["request_context"]),
+    )
+
+    def fail_jira(**kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"Jira probe should not run with a half credential: {kwargs}")
+
+    monkeypatch.setattr(runner, "run_jira_issues_probe", fail_jira)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        issues=("PROJ-123",),
+        since=OBSERVED,
+        jira_base_url="https://jira.example.test",
+        atlassian_auth=None,
+        atlassian_auth_missing_half=True,
+    )
+
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    status = _status_for_source(documents, "jira_issues")
+    assert status.status == "unavailable"
+    assert status.safe_user_message == (
+        "Jira is configured but only half the Atlassian credential is set; both ATLASSIAN_EMAIL "
+        "and ATLASSIAN_API_TOKEN are needed."
+    )
 
 
 def test_docs_root_enables_docs(monkeypatch) -> None:
