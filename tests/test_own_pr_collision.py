@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import json
+from urllib.request import Request
+
 from teamctx.connectors.forge_review import (
     ForgeReviewPullRequest,
     normalize_forge_review_prs,
 )
-from teamctx.connectors.github import parse_github_pull_requests
+from teamctx.connectors.github import parse_github_pull_requests, run_github_pr_probe
+from teamctx.contract_render import render_broker_answer
+from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import RequestContext
 
 
@@ -134,3 +139,55 @@ def test_truncated_and_own_pr_keeps_truncation_precedence() -> None:
     assert status.status == "stale"
     assert "most recent 100" in status.safe_user_message
     assert "#12" in status.safe_user_message
+
+
+class _FakeResponse:
+    def __init__(self, payload: object) -> None:
+        self._data = json.dumps(payload).encode()
+
+    def read(self) -> bytes:
+        return self._data
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        pass
+
+
+def _own_pr_opener(request: Request) -> _FakeResponse:
+    url = request.full_url
+    if url.endswith("/pulls?state=open&per_page=100"):
+        return _FakeResponse(
+            [
+                _raw_pr(
+                    7,
+                    head={"ref": "feat/x", "repo": {"full_name": "o/r"}},
+                )
+            ]
+        )
+    if url.endswith("/pulls/7/files?per_page=100"):
+        return _FakeResponse([{"filename": "src/a.py", "status": "modified"}])
+    raise AssertionError(f"unexpected URL in test opener: {url}")
+
+
+def test_end_to_end_own_pr_is_clear_with_fyi() -> None:
+    """A repo whose only overlapping open PR is the current branch's own PR must read as a
+    clear conflict check (verdict true), with the FYI naming the PR, never a heads-up."""
+
+    request = _request()
+    doc = run_github_pr_probe(
+        repo="o/r",
+        token="tok",
+        request_context=request,
+        observed_at="2026-07-03T00:00:00Z",
+        opener=_own_pr_opener,
+    )
+    answer = broker_answer(request, doc.source_signals, doc.source_statuses)
+
+    conflict_verdict = dict(answer.verdicts)["Conflict check"]
+    output = render_broker_answer(answer)
+    assert conflict_verdict.value == "true"
+    assert "Looks clear to start." in output
+    assert "FYI: Your own open PR #7" in output
+    assert "Before you start" not in output
