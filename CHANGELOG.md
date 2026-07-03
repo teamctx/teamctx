@@ -37,6 +37,8 @@ may change while the product is hardened.
 ### Fixed
 
 - work-start no longer flags the open PR of the branch you are on as a collision; it is set aside with an FYI line and recorded on the forge source status.
+- The `gh pr view N` hint on a conflict finding now carries `--repo owner/name`, so it works from
+  any directory and matches the `open-source` command.
 - A malformed GitHub check-runs response now fails closed to an honest "unavailable" instead of a
   false all-clear (non-object runs, a failing run missing its name or url, or a non-integer
   total_count).
