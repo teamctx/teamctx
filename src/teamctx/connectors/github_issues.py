@@ -8,10 +8,10 @@ from urllib.parse import quote
 from teamctx.clock import parse_since
 from teamctx.connectors.github import (
     DEFAULT_OPENER,
-    GITHUB_API_ROOT,
     GitHubProbeError,
     HttpOpener,
     get_json,
+    github_api_root,
     split_repo,
 )
 from teamctx.connectors.issue_criteria import (
@@ -66,7 +66,7 @@ def fetch_issue_changes(
     opener: HttpOpener = DEFAULT_OPENER,
 ) -> list[IssueCriteriaChange]:
     owner, name = split_repo(repo)
-    base = f"{GITHUB_API_ROOT}/repos/{quote(owner)}/{quote(name)}"
+    base = f"{github_api_root()}/repos/{quote(owner)}/{quote(name)}"
     changes: list[IssueCriteriaChange] = []
     for issue_ref in issues:
         number = _parse_issue_number(issue_ref)

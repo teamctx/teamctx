@@ -9,6 +9,9 @@ may change while the product is hardened.
 
 ### Added
 
+- `TEAMCTX_GITHUB_API_ROOT` env override for the GitHub API root, so validation harnesses can
+  drive fabricated payloads through the real pipeline against a local mock server.
+
 - `teamctx onboard` detects a conventional docs/ folder and configures it, and the CLAUDE.md
   snippet now claims all four checks with their conditions stated; `teamctx status` reports the
   docs configuration.

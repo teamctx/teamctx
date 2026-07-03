@@ -20,10 +20,10 @@ from urllib.parse import quote
 
 from teamctx.connectors.github import (
     DEFAULT_OPENER,
-    GITHUB_API_ROOT,
     GitHubProbeError,
     HttpOpener,
     get_json,
+    github_api_root,
     split_repo,
 )
 from teamctx.git_context import detect_repo, parse_github_repo
@@ -221,7 +221,7 @@ class GithubOnboarder:
         try:
             owner, name = split_repo(repo)  # inside the try: a bad repo string must never crash
             url = (
-                f"{GITHUB_API_ROOT}/repos/{quote(owner)}/{quote(name)}/pulls?state=open&per_page=100"
+                f"{github_api_root()}/repos/{quote(owner)}/{quote(name)}/pulls?state=open&per_page=100"
             )
             payload = get_json(url, token=token, opener=opener)
         except (GitHubProbeError, OSError, ValueError):
