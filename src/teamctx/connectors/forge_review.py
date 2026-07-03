@@ -153,11 +153,16 @@ def normalize_forge_review_prs(
         )
     if own_branch_prs:
         numbers = ", ".join(f"#{number}" for number in own_branch_prs)
-        plural = "PRs" if len(own_branch_prs) > 1 else "PR"
-        messages.append(
-            f"Your own open {plural} {numbers} for this branch touches these files; "
-            "not flagged as a collision."
-        )
+        if len(own_branch_prs) > 1:
+            messages.append(
+                f"Your own open PRs {numbers} for this branch touch these files; "
+                "not flagged as collisions."
+            )
+        else:
+            messages.append(
+                f"Your own open PR {numbers} for this branch touches these files; "
+                "not flagged as a collision."
+            )
     if not messages:
         messages.append("Git-host PR metadata refreshed.")
     safe_user_message = " ".join(messages)

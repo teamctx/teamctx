@@ -191,3 +191,17 @@ def test_end_to_end_own_pr_is_clear_with_fyi() -> None:
     assert "Looks clear to start." in output
     assert "FYI: Your own open PR #7" in output
     assert "Before you start" not in output
+
+
+def test_two_own_prs_use_plural_copy() -> None:
+    doc = normalize_forge_review_prs(
+        _request(),
+        [_pr(12, "feat/x", "o/r"), _pr(14, "feat/x", "o/r")],
+        observed_at="2026-07-03T00:00:00Z",
+    )
+    status = doc.source_statuses[0]
+    assert status.scope["own_branch_prs"] == ["12", "14"]
+    message = status.safe_user_message
+    assert "PRs #12, #14" in message
+    assert "touch these files" in message
+    assert "not flagged as collisions" in message
