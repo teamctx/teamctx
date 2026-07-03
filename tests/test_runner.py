@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 
 import teamctx.runner as runner
+from teamctx.contract_render import render_broker_answer
+from teamctx.core.broker import broker_answer_from_documents
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.runner import WorkStartInputs, build_request_context, run_work_start_connectors
 
@@ -195,6 +197,52 @@ def test_full_profile_passes_three_page_collision_budget(monkeypatch) -> None:
     run_work_start_connectors(inputs, observed_at=OBSERVED)
 
     assert captured["max_pages"] == 3
+
+
+def test_gitlab_forge_emits_unwired_statuses_and_never_calls_github(monkeypatch) -> None:
+    def fail_github_probe(**kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"GitHub probe should not run: {kwargs}")
+
+    monkeypatch.setattr(runner, "run_github_pr_probe", fail_github_probe)
+    monkeypatch.setattr(runner, "run_github_checks_probe", fail_github_probe)
+    inputs = WorkStartInputs(
+        repo="group/sub/project",
+        forge="gitlab",
+        paths=("src/x.py",),
+        branch="feature",
+    )
+
+    request_context, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    statuses = {
+        status.source_family: status
+        for document in documents
+        for status in document.source_statuses
+        if status.source_family in {"git_hosting", "ci_deploy"}
+    }
+    assert set(statuses) == {"git_hosting", "ci_deploy"}
+    assert statuses["git_hosting"].source_id == "gitlab_mr_metadata"
+    assert statuses["ci_deploy"].source_id == "gitlab_pipeline_state"
+    for status in statuses.values():
+        assert status.status == "disabled"
+        assert status.safe_user_message == (
+            "open MRs and pipeline state (this repo is on GitLab; the GitLab connector isn't "
+            "wired yet, next slice)"
+        )
+        assert status.policy.decision_reason == (
+            "This repo is on GitLab. The GitLab connector isn't wired yet; open MRs and pipeline "
+            "state are not checked."
+        )
+
+    answer = broker_answer_from_documents(request_context, documents)
+    verdicts = {label: valuation for label, valuation in answer.verdicts}
+    assert verdicts["Conflict check"].value == "unknown"
+    assert verdicts["Gate check"].value == "unknown"
+    output = render_broker_answer(answer)
+    assert "no other open PRs touch your files" not in output
+    assert "no failing checks found" not in output
+    assert "GitHub" not in output
+    assert "open MRs and pipeline state" in output
 
 
 def test_request_context_shares_paths_and_issues() -> None:
