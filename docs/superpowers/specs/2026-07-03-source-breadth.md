@@ -1,151 +1,165 @@
 # Spec: source breadth: GitLab, Jira, Confluence (Phase 4)
 
 ## Status
-Revision 1, proposed by the CTO 2026-07-03; goes through a codex adversarial spec review
-before build. Grounded in live read-only API recon of a real GitLab account and a real
-Atlassian Cloud instance (credentials live in the operator's environment, never in the repo;
-no instance names or captured payloads may enter fixtures; tests use synthetic payloads
-shaped like the observed responses).
+Revision 2, after an Opus 4.8 adversarial spec review (verdict on rev 1: REVISE-FIRST; one P0,
+eleven P1, five P2, all accepted by the CTO-arbiter and pinned below). **Hard prerequisites:
+S5a (merged `b2a4773`) and S5b (in build) must be on main before any Phase 4 slice starts;
+this spec leans on `parse_since`, the disabled-status machinery, provenance, and the
+repo-wide docs match.** Grounded in live read-only API recon; no instance names or captured
+payloads may enter fixtures.
 
 ## Goal
-The four checks become source-plural without the core learning anything new: GitLab as a
-second forge (collision + gate), Jira as a second issue tracker (criteria), Confluence as the
-first remote docs source (superseded docs). Each connector proves the SAME honest-coverage
-behavior GitHub proved (no token, unreachable, malformed payload, truncation, pending all
-route to explicit non-fresh statuses) before it counts as supported. The broker, evaluator,
-kinds registry, and render change only where a fact is genuinely provider-shaped (issue ref
-format, source_display, open hints).
+The four checks become source-plural: GitLab as a second forge (collision + gate), Jira as a
+second issue tracker (criteria), Confluence as the first remote docs source (superseded
+docs). Each connector proves the SAME honest-coverage behavior GitHub proved before it counts
+as supported. **The one law, restated as the review invariant: no path from "no data" to a
+clear. Every empty result must be distinguishable as verified-empty (fresh) vs
+could-not-verify (non-fresh), and every reviewer-named hole below has a pinned closure and a
+test.**
 
 ## Non-goals
-No new card kinds. No cross-provider identity resolution. No webhooks or polling daemons
-(work-start remains a moment-in-time read). No write access of any kind.
+No new card kinds. No cross-provider identity resolution. No webhooks/daemons. No writes.
 
-## 1. Configuration and identity (the seam everything hangs on)
+## 1. Configuration, identity, credentials (pinned)
 
-`ProjectConfig.work_start` (v0, additive, extra=forbid preserved):
+Config as rev 1 (`forge`, `jira`, `confluence` blocks) plus validation pins (review P2-4):
+`jira.base_url` and `confluence.base_url` are normalized by validator (trailing slash
+stripped; a trailing `/wiki` on confluence stripped, the connector appends it); Confluence
+without Jira is VALID (docs only); the forge field is authoritative for parsing a bare slug.
 
-```python
-class JiraConfig(StrictConfigModel):
-    base_url: str                    # e.g. https://<site>.atlassian.net
-    # project scoping is implicit: linked issue refs (PROJ-123) name their project
+**Forge resolution (P1-8, P1-9, pinned):**
+- `git_context.detect_forge_repo(root) -> tuple[str, ForgeProvider] | None`: reads the origin
+  host and returns BOTH the normalized slug and the forge (github.com -> github, gitlab.com
+  -> gitlab, else None). `detect_repo` remains as the github projection for compatibility
+  until callers migrate.
+- `resolve.resolve_forge_repo(explicit, config_repo, config_forge, detected) -> (repo, forge)
+  | error`: precedence for the forge is `config.forge > detected-forge`; the repo is parsed
+  UNDER the resolved forge (`parse_github_repo` | new `parse_gitlab_repo`, which accepts
+  gitlab.com URLs and multi-segment `group/sub/project` slugs). A config/origin mismatch
+  resolves to config and fails honestly downstream (a 404 is an unavailable status, never a
+  clear). `resolve_github_repo` becomes the github case. The onboard-vs-runtime parity test
+  matrix EXTENDS to the forge field (same split-brain refusal, now two-dimensional).
+- `WorkStartInputs` gains `forge: ForgeProvider = "github"`; `__post_init__` validates the
+  slug under the forge (P1-8); `run_work_start_connectors` dispatches collision + gate probes
+  on it. `RequestContext` needs no change (repo slug + provenance suffice; forge rides scope).
 
-class ConfluenceConfig(StrictConfigModel):
-    base_url: str                    # same Atlassian site; /wiki is appended by the connector
-    space_key: str                   # the declared docs space (the reliance declaration)
+**Credentials (P1-11, pinned):** per-connector resolution AT THE RESOLVE LAYER, carried on
+`WorkStartInputs` as distinct fields: `token` (forge token: GITHUB_TOKEN or GITLAB_TOKEN by
+forge), `atlassian_auth: tuple[str, str] | None` (email, token) resolved by a new
+`tokens.resolve_atlassian_auth()` reading `ATLASSIAN_EMAIL` + `ATLASSIAN_API_TOKEN`(_FILE).
+EXACTLY one of the pair present -> None PLUS the connector-side unavailable message names the
+missing half (fail closed, never partial). The hook resolves identically (it calls the same
+resolver). CLI gains no new flags in v1 (env-only, like GitHub).
 
-class WorkStartConfig(StrictConfigModel):
-    repo: str | None = None          # forge repo slug (owner/name or group/project)
-    forge: Literal["github", "gitlab"] = "github"
-    docs_root: str | None = None     # local docs (unchanged)
-    jira: JiraConfig | None = None       # None = issue tracker is the forge's (GitHub Issues)
-    confluence: ConfluenceConfig | None = None  # None = docs are local only
-```
-
-Pinned semantics: ONE forge per repo (the repo is hosted somewhere); the issue tracker MAY
-differ from the forge (GitHub repo + Jira issues is a mainstream enterprise reality and the
-primary validation combo); docs may be local, Confluence, or both (both sets scan; each is
-its own coverage entry in the docs family).
-
-**Repo identity generalizes:** `parse_github_repo` gains a sibling `parse_gitlab_repo`
-(gitlab.com host; groups mean the path may have MORE than two segments: `group/sub/project`
-is valid and preserved) and a dispatcher `parse_forge_repo(value, forge)` used by ONE
-provider-aware `resolve_forge_repo(explicit, config_repo, detected, forge)`; the existing
-`resolve_github_repo` becomes the github case of it. `detect_repo` becomes host-aware the
-same way onboard's detection already is: the origin host SELECTS the forge (github.com ->
-github, gitlab.com -> gitlab, anything else -> honest absence) and onboard writes the
-detected `forge` into the config. The runtime and onboard keep sharing one resolver (the
-split-brain refusal extends to the forge field).
-
-**Tokens (per-actor, never in config):** GitLab: `GITLAB_TOKEN` / `GITLAB_TOKEN_FILE` (no
-CLI fallback in v1; `glab` exists but is rare, defer openly). Atlassian: ONE credential pair
-serves Jira and Confluence: `ATLASSIAN_EMAIL` + `ATLASSIAN_API_TOKEN` /
-`ATLASSIAN_API_TOKEN_FILE` (basic auth; that is how Atlassian Cloud tokens work). All through
-the existing `tokens.resolve_token` seam. A configured Jira/Confluence with a missing
-credential is the standard unavailable status with the standard how-to-fix message shape.
+**Runner profile (P2-5, pinned):** `WorkStartInputs.profile: Literal["full", "reflex"] =
+"full"`. The hook sets `reflex`; in reflex profile the Confluence connector is NOT run and
+the runner emits its standard `disabled` docs status with the note: `Confluence docs are
+skipped in the quick pre-edit check; run teamctx work-start for the full scan.` Every
+surface stays honest about the skip; the hook's glanceable line is unaffected (docs is not an
+important check).
 
 ## 2. GitLab forge connector (collision + gate)
 
-- **Collision:** `GET /api/v4/projects/{urlencoded slug}/merge_requests?state=opened&per_page=100`,
-  changed files per MR via `GET .../merge_requests/{iid}/diffs?per_page=100` (paths from
-  `new_path` + `old_path`). Normalization reuses `forge_review` verbatim (provider "gitlab"
-  already exists in `ForgeProvider`): same truncation rule (full page anywhere -> stale
-  status with the honest message), same own-branch rule (own = `source_branch == request
-  branch` AND `source_project_id == target_project_id`; a fork MR never matches), same FYI.
-  `source_display` reads "GitLab MR !12" (provider_name already dispatches).
-- **Gate:** `GET /api/v4/projects/{slug}/pipelines?ref={branch}&per_page=1` for the LATEST
-  pipeline of the ref, then its `status`: `success` -> clear; `running/pending/created/
-  waiting_for_resource/preparing/scheduled` -> the existing `pending` state; `failed/canceled`
-  -> firing gates from `GET .../pipelines/{id}/jobs?per_page=100` (failed jobs by name + web
-  url; job-page truncation -> stale); `skipped/manual` and ANY unrecognized status -> fail
-  closed to a firing "not confirmed green" treatment consistent with the GitHub non-passing
-  rule (exact mapping is a build-time table with a test per status; unknown strings NEVER
-  read green). No pipeline at all for the ref -> `disabled`-style honest note ("no pipeline
-  ran for this branch"), never clear.
-- **Render:** open hints use plain URLs (`web_url`); no `gh`-style CLI hint for GitLab in v1
-  (the `_gh_hint` stays github-only by checking the provider through the card scope, which
-  gains a `provider` field for forge cards).
+**Collision:** as rev 1 (open MRs + per-MR diffs, per_page=100, truncation -> stale;
+own = source_branch == request branch AND source_project_id == target_project_id). Corrections
+from review P2-1/P2-2 (rev 1 claims were wrong): `normalize_forge_review_prs` gains
+`provider` + `source_id` parameters (`"gitlab"` / `"gitlab_mr_metadata"`) and a terminology
+dispatch: GitLab `source_display` = `GitLab MR !12` and `collision_summary` = `Open MR !12
+changed ...` (surfaced-text principle; the PR/MR and #/! distinction is load-bearing).
+Forge cards gain `scope["provider"]` (P1-7 pin): BOTH `_gh_hint` and `render_open_source`'s
+collision branch gate on `provider == "github"`; GitLab findings show the `web_url` line
+only. `finding_query`'s `pr:` selector matches gitlab collisions too (scope key stays
+`pr_number` carrying the MR iid; the display distinguishes).
 
-## 3. Jira criteria connector
+**Gate (P0-1, the law, pinned):** pipeline status mapping with the INVARIANT that any
+non-`success` latest pipeline yields a non-clear outcome regardless of the jobs breakdown:
+- `success` -> fresh (clear); zero-pipelines-for-ref -> `disabled` status with note
+  `no pipeline ran for this branch, so the gate is unverified`, never clear.
+- `running/pending/created/waiting_for_resource/preparing/scheduled` -> `pending`.
+- `failed/canceled` -> failing gates from the jobs probe; **if the jobs list yields no named
+  failing job (canceled-before-run), emit one synthetic FailingGate named `pipeline
+  {status}` with the pipeline web_url** so the closure can never read complete-green.
+- `skipped/manual`, any unrecognized status, or a malformed pipelines payload -> `stale`
+  status with an honest "the pipeline state could not be confirmed green" message.
+- A per-status test asserts the verdict is never `clear` for every non-success status.
+- Deliberate asymmetry documented: GitHub's zero-check-runs continues to read clear (checks
+  are per-commit attestations; absence of checks is absence of gates); GitLab's pipeline is a
+  single stateful object whose non-green states are facts. Recorded here, not revisited.
 
-- **Issue refs are provider-shaped:** Jira keys look like `PROJ-123`. `discover.py`'s branch
-  regex gains the Jira form `(?:^|[/_-])([A-Z][A-Z0-9]+-\d{1,6})(?=[/_-]|$)` and trailer
-  parsing accepts bare keys after the closing keywords. Which tracker a ref belongs to is
-  syntactic: `#N`/bare-N -> the forge's tracker; `KEY-N` -> Jira (when configured; a KEY-N
-  ref with no Jira configured is a precise disabled note, never silently dropped).
-- **Change detection:** per linked issue, `GET {base}/rest/api/3/issue/{key}?fields=summary,
-  status,labels,updated` guarded by chronological `updated > since` (the S5a parser), then
-  `GET .../issue/{key}/changelog?maxResults=100`: entries after `since` classify by
-  `items[].field`: `description` -> body_edited, `status` -> state_changed, `labels` ->
-  labels_changed (richer than GitHub events: field-level facts, no inference). Changelog
-  pagination honesty: `isLast == false` after filtering -> the criteria source status goes
-  stale with the honest "more history than checked" message.
-- **Contract mapping:** same `criteria_changed` signals through `issue_criteria.normalize_issue_changes`
-  with `source_display` "Jira PROJ-123: {summary}"; scope carries the browse URL
-  (`{base}/browse/{key}`) for open-source.
-- **Bounded-by-design:** the recon confirmed this Jira rejects unbounded JQL; we never issue
-  JQL at all (per-issue GETs), which is the same bounded discipline the broker already has.
+## 3. Jira criteria connector (fail-closed pins P1-3, P1-4, P1-5, P1-6)
 
-## 4. Confluence docs connector (docs family, remote)
+- **Ref dispatch (P1-6, pinned):** in `discover.py`, the Jira-key regex
+  `(?:^|[/_-])([A-Z][A-Z0-9]+-\d{1,6})(?=[/_-]|$)` runs FIRST and its matched spans are
+  REMOVED from the branch string before the numeric regex runs; trailers likewise accept
+  `(?:fixes|closes|resolves)\s+([A-Z][A-Z0-9]+-\d{1,6})` with the same span-removal
+  discipline. Tests: `PROJ-123`, `PROJ-123-fix`, `feat/ABC-7` derive ONLY the Jira ref.
+- **Unconfigured-Jira KEY-N (P1-5, pinned):** a derived or explicit `KEY-N` with no
+  `jira` config makes the runner emit a `disabled` `issue_tracker` status (source_id
+  `jira_issues`) with note `issue {refs} looks like a Jira issue, but no Jira is configured;
+  add work_start.jira to .teamctx/config.json`. The family then contains {fresh(github),
+  disabled(jira)} -> `incomplete[stale-dep]` -> honest "couldn't check", NEVER a clear off
+  the GitHub side alone. Test the mixed-family case explicitly, and add the S5a-interaction
+  test: fresh+disabled must stay stale-dep (the all-disabled->policy-gap rule must not relax
+  it).
+- **Change detection fail-closed (P1-3, pinned):** missing or non-parseable `updated` on a
+  Jira issue payload -> the Jira source status goes `stale` (never "unchanged"); a changelog
+  GET failure on a known-changed issue still emits the criteria-changed signal with generic
+  detail (matches GitHub's behavior, now stated and tested for Jira); absent/malformed
+  `isLast` is treated as NOT last -> `stale`. All comparisons through S5a's `parse_since` on
+  both sides (hard prerequisite).
+- **Normalize gains channels (P1-4, pinned):** `normalize_issue_changes` gains
+  `source_id: str` and `coverage_truncated: bool` parameters and `IssueCriteriaChange` gains
+  `source_display: str` (built by each connector: GitHub `GitHub Issue #5: {title}`, Jira
+  `Jira PROJ-123: {summary}`), so truncation reaches `stale` and the two trackers are two
+  distinct family entries (`github_issues`, `jira_issues`).
+- Scope carries the browse URL for open-source; `finding_query`'s `issue:` selector matches
+  Jira keys case-insensitively without requiring `#`.
 
-- **Reliance declaration = the configured space.** Supersession marker, pinned:
-  a Confluence CONTENT PROPERTY `teamctx.superseded_by` on the old page whose value is the
-  replacement page URL or title (`GET /wiki/api/v2/pages?space-id=...` then per-page
-  `GET /wiki/api/v2/pages/{id}/properties`; v2 recon-verified). Secondary signal: a page with
-  status `archived` while still linked from a current page is NOT a v1 signal (defer openly;
-  archived pages are excluded from the scan). A property-carrying page emits the same
-  `doc_superseded` signal with `scope["doc"]` = the page title and `scope["superseded_by"]`
-  = the property value; S5b's repo-wide match makes it fire without path coupling.
-- **Coverage honesty:** space listing pagination (v2 cursor) exhausts up to a pinned budget
-  (500 pages); hitting the budget -> stale status with the honest message. Unreachable /
-  no-credential / malformed -> standard unavailable. A clean scan -> fresh (S5b's real green).
-- **Local + Confluence together:** two coverage entries in the docs family; the closure's
-  worst-status rule already composes them correctly (one stale -> the docs check cannot claim
-  a complete green; verify with a test).
+## 4. Confluence docs connector (coverage pins P1-1, P1-2, P2-3)
 
-## 5. Onboard + status
-`GitlabOnboarder` joins `ONBOARDERS` (host-aware detect; health = open-MR floor count,
-mirroring GitHub's). Jira/Confluence cannot be detected from a working tree: onboard reports
-them as configuration steps with exact how-to copy (final copy at build time, CTO-owned);
-`status` shows their configured/reachable state through the same code paths (read-only twin
-discipline). The reflex hook needs NO changes anywhere in Phase 4 (it rides the resolver).
+- **Identity thread (P1-1, pinned):** the connector sets `SupersededDoc.repo =
+  request_context.repo` so signals carry `scope["repo"] == request.repo` and the derive's
+  repo gate passes. A broker-level test proves a superseded Confluence page fires a card.
+- **Space resolution (P1-2, pinned):** `space_key` -> space id via
+  `GET /wiki/api/v2/spaces?keys={key}`; zero accessible spaces -> `unavailable` ("the
+  configured Confluence space couldn't be found with current access"), never an empty clean
+  scan. Malformed/absent pagination cursor or a malformed page payload -> `stale`/
+  `unavailable`, never assume-last-page. Per-page property fetch: prefer the key-filtered
+  form (`.../properties?key=teamctx.superseded_by`); ANY per-page property failure -> the
+  docs source goes `stale` (skip-and-continue is banned). Budget 500 pages in full profile;
+  budget-hit -> `stale` with the honest message. Reflex profile: not run (section 1).
+- **Openability (P2-3, pinned):** `SupersededDoc` gains `url: str | None`; Confluence fills
+  the page webui link; `render_open_source`'s doc branch prints the URL when present, the
+  path otherwise. Distinct source_id `confluence_pages` vs local `docs_supersession`; the
+  two docs sources are two family entries and the closure's worst-status rule composes them
+  (tested: local fresh + confluence stale -> docs cannot read complete-green).
 
-## 6. Slices and builders
-- **S9 GitLab forge** (collision+gate+onboarder+resolve generalization): the largest; codex
-  builds from a plan; the resolve generalization gets its own plan task with a parity test
-  matrix like onboard's.
-- **S10 Jira criteria** (+ discover Jira-key support): codex or Opus.
-- **S11 Confluence docs**: Opus.
-- Each: TDD with synthetic payloads shaped like the recon captures; live read-only smoke by
-  the CTO against the real instances before merge; adversarial review by the non-builder.
+## 5. Onboard + status (P1-10, pinned mechanics)
 
-## 7. Validation bar (per connector, before "supported")
-The connector's no-token, unreachable, malformed, truncated, and (where applicable) pending
-paths each provably route to the correct non-fresh status and honest render line; a live
-smoke against the real instance shows a true report; and the Phase 5 emulation exercises at
-least one real cross-actor scenario through it.
+`ONBOARDERS` becomes a typed Protocol list (`SourceOnboarder`: `provider`, `detect(root)`,
+`propose_config`, `auth_status`, `verify_health`). Detection multiplexes: each onboarder's
+`detect` sees the origin URL; the FIRST claiming onboarder wins (github, then gitlab); its
+provider writes `work_start.forge` via `build_work_start_project_config(repo=..., forge=...)`
+(the function gains the parameter). GitLab health = open-MR floor count. Auth copy is
+per-provider. Jira/Confluence are reported as config steps with exact how-to copy (CTO writes
+at build); `status` mirrors everything read-only through the same helpers. The
+onboard-vs-runtime parity matrix runs per forge.
 
-## Open items for the spec review
-- The GitLab pipeline-status mapping table (exact statuses -> clear/pending/firing/stale).
-- Whether `scope["provider"]` on forge cards is the right dispatch for render hints.
-- Confluence page-count budget value and whether per-page property GETs need batching.
-- The disabled-note copy set for unconfigured Jira/Confluence (CTO writes at build).
+## 6. Slices and builders (re-cut after review)
+- **S9a forge-resolution generalization** (detect_forge_repo, parse_gitlab_repo,
+  resolve_forge_repo, WorkStartInputs.forge + profile field, parity matrix): its own slice,
+  BEFORE the GitLab connector; codex builds.
+- **S9b GitLab collision + gate connector** (+ forge_review parameterization, provider-gated
+  render hints, onboarder + registry protocol): codex builds; live smoke against the real
+  GitLab account before merge.
+- **S10 Jira criteria** (+ discover Jira-key dispatch, normalize channels, disabled
+  unconfigured-Jira emission): Opus builds.
+- **S11 Confluence docs** (+ SupersededDoc url, space resolution, profile skip): Opus builds.
+- Every slice: synthetic payloads shaped like the recon captures; the non-builder reviews;
+  CTO live-smokes read-only before merge.
+
+## 7. Validation bar (per connector, unchanged)
+No-token, unreachable, malformed, truncated, pending (where applicable), and EVERY
+reviewer-named hole above provably route to the correct non-fresh status and honest render
+line; live read-only smoke shows a true report; Phase 5 exercises at least one real
+cross-actor scenario through it.
