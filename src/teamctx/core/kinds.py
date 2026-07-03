@@ -388,6 +388,11 @@ LABEL_CHECK_PAIRS: tuple[tuple[str, CheckId], ...] = tuple(
 # reason_prefix (the head of a card's reason_code, before the dot) -> the check it belongs to.
 REASON_PREFIX: dict[str, CheckId] = {kind.reason_prefix: kind.check_id for kind in CARD_KINDS}
 
+# check -> mandated source family, used by assessment to route disabled-source notes.
+CHECK_DEPS_FAMILY: dict[CheckId, str] = {
+    kind.check_id: kind.deps_family for kind in CARD_KINDS
+}
+
 
 def shape_of(prop: Prop) -> PropShape:
     """The logical shape of a proposition's predicate. Raises on an unregistered predicate."""

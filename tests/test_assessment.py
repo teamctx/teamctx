@@ -50,6 +50,19 @@ def _pending_status(family: str) -> SourceStatus:
     )
 
 
+def _disabled_status(family: str, message: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe",
+        source_family=family,
+        scope={"repo": "acme/widgets"},
+        status="disabled",
+        observed_at="2026-06-28T00:00:00Z",
+        safe_user_message=message,
+        visibility="warning_when_relevant",
+        policy_reason="status only",
+    )
+
+
 def test_status_for_maps_the_new_carrier_reasons() -> None:
     from teamctx.assessment import _status_for
     from teamctx.core.evaluate import Valuation
@@ -108,3 +121,18 @@ def test_unreachable_non_important_check_stays_ready() -> None:
     )
     assert a.kind == "ready"
     assert next(c for c in a.checks if c.check == "docs").status == "unreachable"
+
+
+def test_disabled_status_note_routes_to_matching_check() -> None:
+    note = (
+        "spec changes (no issue could be derived from your branch or commits; name one "
+        "with --issue)"
+    )
+
+    a = assess(broker_answer(_request(), [], [_disabled_status("issue_tracker", note)]))
+
+    criteria = next(c for c in a.checks if c.check == "criteria")
+    docs = next(c for c in a.checks if c.check == "docs")
+    assert criteria.status == "not_configured"
+    assert criteria.note == note
+    assert docs.note is None
