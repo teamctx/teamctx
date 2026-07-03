@@ -53,6 +53,22 @@ def test_branch_issue_derivation_matrix(tmp_path: Path) -> None:
         assert _issue_pairs(repo) == (("#123", "your branch name"),)
 
 
+def test_branch_jira_key_derivation_removes_span_before_numeric_scan(tmp_path: Path) -> None:
+    for branch, expected in (
+        ("PROJ-123", (("PROJ-123", "your branch name"),)),
+        ("PROJ-123-fix", (("PROJ-123", "your branch name"),)),
+        ("feat/ABC-7", (("ABC-7", "your branch name"),)),
+        ("feat/ABC-7/42-fix", (("#42", "your branch name"), ("ABC-7", "your branch name"))),
+        ("fix/#42-PROJ-123", (("#42", "your branch name"), ("PROJ-123", "your branch name"))),
+    ):
+        repo = tmp_path / branch.replace("/", "_").replace("#", "hash")
+        repo.mkdir()
+        _init_repo(repo)
+        _git(repo, "checkout", "-qb", branch)
+
+        assert _issue_pairs(repo) == expected
+
+
 def test_branch_release_shapes_do_not_derive(tmp_path: Path) -> None:
     for branch in ("v2", "release-2.0", "feature"):
         repo = tmp_path / branch.replace("/", "_").replace(".", "_")
@@ -73,6 +89,26 @@ def test_trailer_union_dedupe_numeric_sort_and_branch_wins(tmp_path: Path) -> No
         ("#12", "your branch name"),
         ("#34", "a commit message trailer"),
     )
+
+
+def test_trailers_accept_jira_keys_and_remove_span_before_numeric_scan(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "checkout", "-qb", "feature")
+    _commit(tmp_path, "fix auth\n\nCloses PROJ-123\nFixes #12\nresolves ABC-7")
+
+    assert _issue_pairs(tmp_path) == (
+        ("#12", "a commit message trailer"),
+        ("ABC-7", "a commit message trailer"),
+        ("PROJ-123", "a commit message trailer"),
+    )
+
+
+def test_branch_provenance_wins_over_trailer_for_jira_key(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _git(tmp_path, "checkout", "-qb", "PROJ-123-fix")
+    _commit(tmp_path, "fix auth\n\nCloses PROJ-123")
+
+    assert _issue_pairs(tmp_path) == (("PROJ-123", "your branch name"),)
 
 
 def test_more_than_five_derived_issues_are_capped(tmp_path: Path) -> None:
