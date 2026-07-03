@@ -50,6 +50,19 @@ def _pending_status(family: str) -> SourceStatus:
     )
 
 
+def _unbounded_status(family: str, message: str = "partial") -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe",
+        source_family=family,
+        scope={"repo": "acme/widgets"},
+        status="unbounded",
+        observed_at="2026-06-28T00:00:00Z",
+        safe_user_message=message,
+        visibility="warning_when_relevant",
+        policy_reason="status only",
+    )
+
+
 def _disabled_status(family: str, message: str) -> SourceStatus:
     return source_status(
         source_id=f"{family}-probe",
@@ -69,6 +82,7 @@ def test_status_for_maps_the_new_carrier_reasons() -> None:
 
     assert _status_for(Valuation("unknown", "incomplete[pending]")) == "pending"
     assert _status_for(Valuation("unknown", "not_applicable[out-of-scope]")) == "not_applicable"
+    assert _status_for(Valuation("unknown", "incomplete[unbounded]")) == "unbounded"
 
 
 def test_pending_important_gate_is_cant_verify() -> None:
@@ -92,6 +106,20 @@ def test_unreachable_important_is_cant_verify() -> None:
     a = assess(broker_answer(_request(), [], [_unavailable_status("git_hosting")]))
     assert a.kind == "cant_verify"
     assert next(c for c in a.checks if c.check == "conflict").status == "unreachable"
+
+
+def test_unbounded_important_is_cant_verify_with_source_note() -> None:
+    note = (
+        "Checked the 300 most recently updated open PRs; more exist, so this is not a "
+        "complete check."
+    )
+
+    a = assess(broker_answer(_request(), [], [_unbounded_status("git_hosting", note)]))
+
+    conflict = next(c for c in a.checks if c.check == "conflict")
+    assert a.kind == "cant_verify"
+    assert conflict.status == "unbounded"
+    assert conflict.note == note
 
 
 def test_clear_important_with_only_policy_gaps_is_ready() -> None:

@@ -16,7 +16,13 @@ from teamctx.core.evaluate import Valuation
 from teamctx.core.kinds import CHECK_DEPS_FAMILY, LABEL_CHECK_PAIRS, REASON_PREFIX, CheckId
 
 CheckStatus = Literal[
-    "clear", "found", "unreachable", "not_configured", "pending", "not_applicable"
+    "clear",
+    "found",
+    "unreachable",
+    "not_configured",
+    "pending",
+    "not_applicable",
+    "unbounded",
 ]
 
 # The verdict-label-to-check pairs and reason-prefix routing are DERIVED from CARD_KINDS in
@@ -48,6 +54,8 @@ def _status_for(valuation: Valuation) -> CheckStatus:
         return "found"  # connectors fired and disagree: a finding, not a config gap
     if valuation.reason == "incomplete[stale-dep]":
         return "unreachable"
+    if valuation.reason == "incomplete[unbounded]":
+        return "unbounded"
     if valuation.reason == "incomplete[pending]":
         return "pending"
     if valuation.reason == "not_applicable[out-of-scope]":
@@ -64,7 +72,7 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     cards_by_check: dict[CheckId, list[ContextCard]] = {
         "conflict": [], "criteria": [], "docs": [], "gate": []
     }
-    disabled_notes = _disabled_notes_by_family(answer)
+    coverage_notes = _coverage_notes_by_family_and_status(answer)
     findings: list[ContextCard] = []
     for card in answer.selection.cards:
         check = _check_of_card(card)
@@ -81,7 +89,7 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
                 check=check,
                 status=status,
                 cards=tuple(cards_by_check[check]),
-                note=_note_for(check, status, disabled_notes),
+                note=_note_for(check, status, coverage_notes),
             )
         )
 
@@ -89,7 +97,8 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     if any(s.status == "found" for s in states):
         kind = "heads_up"
     elif any(
-        s.status in {"unreachable", "pending"} and s.check in IMPORTANT_CHECKS for s in states
+        s.status in {"unreachable", "pending", "unbounded"} and s.check in IMPORTANT_CHECKS
+        for s in states
     ):
         kind = "cant_verify"
     else:
@@ -97,19 +106,22 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     return WorkStartAssessment(kind=kind, checks=tuple(states), findings=tuple(findings))
 
 
-def _disabled_notes_by_family(answer: BrokerAnswer) -> dict[str, tuple[str, ...]]:
-    notes: dict[str, list[str]] = {}
+def _coverage_notes_by_family_and_status(
+    answer: BrokerAnswer,
+) -> dict[tuple[str, str], tuple[str, ...]]:
+    notes: dict[tuple[str, str], list[str]] = {}
     for entry in answer.selection.coverage.entries:
-        if entry.status == "disabled" and entry.note:
-            notes.setdefault(entry.source_family, []).append(entry.note)
-    return {family: tuple(values) for family, values in notes.items()}
+        if entry.status in {"disabled", "unbounded"} and entry.note:
+            notes.setdefault((entry.source_family, entry.status), []).append(entry.note)
+    return {key: tuple(values) for key, values in notes.items()}
 
 
 def _note_for(
-    check: CheckId, status: CheckStatus, disabled_notes: dict[str, tuple[str, ...]]
+    check: CheckId, status: CheckStatus, coverage_notes: dict[tuple[str, str], tuple[str, ...]]
 ) -> str | None:
-    if status != "not_configured":
+    if status not in {"not_configured", "unbounded"}:
         return None
     family = CHECK_DEPS_FAMILY[check]
-    notes = disabled_notes.get(family, ())
+    coverage_status = "disabled" if status == "not_configured" else "unbounded"
+    notes = coverage_notes.get((family, coverage_status), ())
     return "; ".join(notes) if notes else None

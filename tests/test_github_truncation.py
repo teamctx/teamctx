@@ -1,9 +1,9 @@
 """Tests for GitHub truncation honesty: no false clear when PR list or file list is full.
 
-When the PR list comes back full (>= 100) or any PR's file list comes back full (>= 100),
-we cannot know whether a collision exists past what we fetched, so the forge-review source
-status becomes stale, which routes to incomplete[stale-dep], which makes the conflict
-verdict UNKNOWN (not clear). A visible collision in the fetched page still fires.
+When the PR list or any PR's file list continues past what we fetched, we cannot know
+whether a collision exists past the budget, so the forge-review source status becomes
+unbounded, which routes to incomplete[unbounded] and makes the conflict verdict UNKNOWN
+(not clear). A visible collision in the fetched page still fires.
 """
 
 from __future__ import annotations
@@ -122,13 +122,13 @@ def _make_opener(
 
 
 # ---------------------------------------------------------------------------
-# Test 1: truncated PR list, no collision -> forge-review status stale -> UNKNOWN verdict
+# Test 1: unbounded PR list, no collision -> forge-review status unbounded -> UNKNOWN verdict
 # ---------------------------------------------------------------------------
 
 
-def test_truncated_pr_list_no_collision_gives_stale_status_and_unknown_verdict() -> None:
-    """100 PRs returned (a full page implies more exist); none touch src/x.py.
-    The source status must be stale and the conflict verdict must be UNKNOWN."""
+def test_unbounded_pr_list_no_collision_gives_unbounded_status_and_unknown_verdict() -> None:
+    """100 PRs returned and GraphQL says more exist; none touch src/x.py.
+    The source status must be unbounded and the conflict verdict must be UNKNOWN."""
 
     opener = _make_opener(num_prs=100, list_has_next=True)
     request = _request()
@@ -153,19 +153,19 @@ def test_truncated_pr_list_no_collision_gives_stale_status_and_unknown_verdict()
     # End-to-end: the conflict verdict through the real broker is UNKNOWN, not clear
     answer = broker_answer(request, document.source_signals, document.source_statuses)
     conflict_verdict = dict(answer.verdicts)["Conflict check"]
-    assert conflict_verdict == Valuation("unknown", "incomplete[stale-dep]"), (
+    assert conflict_verdict == Valuation("unknown", "incomplete[unbounded]"), (
         f"expected UNKNOWN, got {conflict_verdict!r}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Test 2: truncated list WITH a visible collision -> collision card still fires
+# Test 2: unbounded list WITH a visible collision -> collision card still fires
 # ---------------------------------------------------------------------------
 
 
-def test_truncated_pr_list_with_visible_collision_still_emits_collision_card() -> None:
-    """100 PRs returned (truncated). PR #3 touches src/x.py.
-    The collision card must still be present even under truncation."""
+def test_unbounded_pr_list_with_visible_collision_still_emits_collision_card() -> None:
+    """100 PRs returned and GraphQL says more exist. PR #3 touches src/x.py.
+    The collision card must still be present even under an unbounded list."""
 
     opener = _make_opener(
         num_prs=100,
@@ -206,7 +206,7 @@ def test_truncated_pr_list_with_visible_collision_still_emits_collision_card() -
 
 
 # ---------------------------------------------------------------------------
-# Test 3: not truncated (< 100 PRs, no collision) -> status fresh -> clear
+# Test 3: complete list, no collision -> status fresh -> clear
 # ---------------------------------------------------------------------------
 
 
@@ -230,7 +230,7 @@ def test_small_pr_list_no_collision_gives_fresh_status() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 4: single PR with a full (100) file list -> truncated=True
+# Test 4: single PR whose file list has another page -> unbounded_files_prs
 # ---------------------------------------------------------------------------
 
 
