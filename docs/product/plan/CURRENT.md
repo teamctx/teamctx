@@ -42,6 +42,51 @@ strict + CI green. teamctx.dev landing page on Vercel (pending DNS `A` record). 
 `refresh`/`context` snapshot flow is **legacy**: frozen since 2026-06-16 while the product
 moved to the live broker; retired in Sprint 2.
 
+## 2026-07-03: full review + delegated build-out (the active arc)
+
+A full code/product/architecture review of main `54ca04e` landed 13 findings (no new
+false-clear paths; the honesty invariants held). Findings + locked designs:
+`docs/superpowers/specs/2026-07-03-full-review-findings.md`. Edgar approved incorporating
+all of it and delegating the build: **Fable is CTO/head-eng; building is offloaded per
+slice to the strongest available model.** This section supersedes the "Next slice" ordering
+below until the arc completes.
+
+**Operating model for the delegated build:**
+- **CTO (Fable):** architecture, specs, all surfaced-text copy (voice rules are strict),
+  final review of every diff, merges, plan upkeep.
+- **Builders:** codex (gpt-5.5 xhigh, local CLI) for tightly-specced slices; Opus 4.8
+  subagents for multi-file refactors and parallel test work; Fable for copy-heavy and
+  core-semantics slices.
+- **Reviewer separation (Field Manual):** whoever built a slice never reviews it. codex
+  adversarially reviews Fable-built diffs; Fable arbiter-reviews codex/Opus-built diffs;
+  optional second-opinion review via OpenRouter models on core-invariant merges (S6, S8,
+  Phase 3 methodology).
+- **Gate per slice (unchanged):** feature branch, TDD, `pytest -q` + `ruff check src tests`
+  + `mypy --strict src` + em-dash grep, adversarial review before merge, merge --no-ff +
+  push when green.
+
+**Phases (each slice complete to the bar; sequencing is not scope-cutting):**
+- **Phase 0, review hardening (before the multi-actor dogfood):**
+  S1 own-PR collision fix (F1; plan `docs/superpowers/plans/2026-07-03-s1-own-pr-collision.md`) ·
+  S2 README refresh + docs-claim tightening + gh-hint repo flag (F3, F11; Fable builds, codex
+  reviews) · S3 `status` made real as onboard's read-only twin (F2) · S4 small batch:
+  authority.json fail-closed, CI 3.13 matrix + coverage gate wired-or-dropped, teamctx-mcp
+  friendly import guard (F6, F8, F10).
+- **Phase 1, auto-discovery (was "next slice"; absorbs F9, F13):** S5a linked-issue +
+  `since` derived from branch/PR/commits · S5b docs path-gating (docs become a firing check
+  for relied-on docs) · S5c CLAUDE.md snippet claims all four checks once they auto-fire.
+- **Phase 2, structural debt before breadth:** S6 registry consolidation (F5) · S7
+  forge_review dual-card removal (F4) · S8 server-side path-filtered PR search + wire
+  `incomplete[unbounded]` end to end (F7 + the truncation-copy follow-up).
+- **Phase 3 = Sprint 3 proof:** labelled conformance corpus + replay harness + the E4/E5
+  numbers; OpenRouter for model-diverse A/B arms.
+- **Phase 4 = Sprint 4 breadth:** GitLab (a token is on hand in `.secrets/gitlab-token`,
+  so it can be dogfooded live) + Jira via the ONBOARDERS registry seam + a provider field
+  in the config schema.
+
+**Edgar checkpoints (his calls, at their moments):** the multi-actor dogfood (after Phase 1,
+Phase 0 minimum) · PyPI publish · going public. Nothing in Phases 0 to 4 requires them.
+
 ## The arc to product-complete (four sprints)
 
 ### Sprint 1: Effortless, correct invocation  *(DONE 2026-06-27: merged `85bded1`; 216 tests, ruff + mypy strict green)*
