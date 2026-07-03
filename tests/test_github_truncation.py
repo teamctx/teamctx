@@ -17,6 +17,7 @@ from teamctx.connectors.github import (
     fetch_github_pull_requests,
     run_github_pr_probe,
 )
+from teamctx.contract_render import render_broker_answer
 from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import RequestContext
 from teamctx.core.evaluate import Valuation
@@ -119,6 +120,34 @@ def _make_opener(
         )
 
     return opener
+
+
+def _page_payload(
+    nodes: list[dict[str, Any]], *, has_next: bool, end_cursor: str | None
+) -> dict[str, object]:
+    return {
+        "data": {
+            "repository": {
+                "pullRequests": {
+                    "nodes": nodes,
+                    "pageInfo": {"hasNextPage": has_next, "endCursor": end_cursor},
+                }
+            }
+        }
+    }
+
+
+class _PagedOpener:
+    def __init__(self, *payloads: object) -> None:
+        self._payloads = list(payloads)
+        self.calls = 0
+
+    def __call__(self, request: Request) -> _FakeResponse:
+        assert request.full_url == "https://api.github.com/graphql"
+        self.calls += 1
+        if not self._payloads:
+            raise AssertionError("unexpected extra GraphQL request")
+        return _FakeResponse(self._payloads.pop(0))
 
 
 # ---------------------------------------------------------------------------
@@ -270,3 +299,47 @@ def test_fetch_github_pull_requests_returns_forge_review_fetch_not_truncated() -
     assert result.unbounded_list is False
     assert result.unbounded_files_prs == []
     assert len(result.pull_requests) == 2
+
+
+def test_three_hundred_one_prs_render_partial_never_clear_or_unreachable() -> None:
+    pages = []
+    for page_index in range(3):
+        start = page_index * 100 + 1
+        nodes = [
+            _raw_pr(number, [_fake_file(f"unrelated/file_{number}.py")], files_have_next=False)
+            for number in range(start, start + 100)
+        ]
+        pages.append(
+            _page_payload(
+                nodes,
+                has_next=True,
+                end_cursor=f"cursor-{page_index + 1}",
+            )
+        )
+    opener = _PagedOpener(*pages)
+    request = _request()
+
+    document = run_github_pr_probe(
+        repo=REPO,
+        token=TOKEN,
+        request_context=request,
+        observed_at=OBS,
+        max_pages=3,
+        opener=opener,
+    )
+    answer = broker_answer(request, document.source_signals, document.source_statuses)
+    text = render_broker_answer(answer)
+
+    assert opener.calls == 3
+    assert document.source_statuses[0].status == "unbounded"
+    assert document.source_statuses[0].safe_user_message == (
+        "Checked the 300 most recently updated open PRs; more exist, so this is not a "
+        "complete check."
+    )
+    assert dict(answer.verdicts)["Conflict check"] == Valuation(
+        "unknown", "incomplete[unbounded]"
+    )
+    assert text.startswith("Heads up: I can't confirm the important things yet:")
+    assert "Open PRs: Checked the 300 most recently updated open PRs" in text
+    assert "Looks clear to start." not in text
+    assert "couldn't reach GitHub" not in text

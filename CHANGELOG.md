@@ -32,6 +32,7 @@ may change while the product is hardened.
 
 ### Changed
 
+- The collision probe now fetches open PRs in batched GraphQL pages with a pinned budget; a repo busier than the budget reads "Partially checked", never a false "couldn't reach GitHub" and never a silent clear. The pre-edit hook is a single round-trip.
 - The docs check now covers the whole declared docs folder: any doc there that names a newer replacement is flagged at work-start, whether or not you are editing it. A clean scan is a real green.
 - Internal: card kinds are now a single registry (core/kinds.py); adding a kind is a one-entry change. No behavior change.
 - teamctx status now reports real setup state (config, hook, snippet, credential, live reachability) through the same resolvers onboard uses; the old placeholder text is gone.
