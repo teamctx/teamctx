@@ -83,6 +83,22 @@ def _github_origin(root: Path) -> None:
     )
 
 
+def _gitlab_origin(root: Path) -> None:
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "remote",
+            "add",
+            "origin",
+            "git@gitlab.com:group/sub/project.git",
+        ],
+        check=True,
+    )
+
+
 def _step(report_steps, name: str):  # type: ignore[no-untyped-def]
     return next(step for step in report_steps if step.name == name)
 
@@ -136,6 +152,36 @@ def test_run_status_after_onboard_reports_read_only_twin(
         report.next_step
         == "You're set. Run `teamctx work-start --path <a file you're about to edit>`."
     )
+
+
+def test_run_status_gitlab_after_onboard_reports_read_only_twin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _gitlab_origin(tmp_path)
+    monkeypatch.setenv("GITLAB_TOKEN", "x")
+    opener = _opener_returning([])
+
+    onboard = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=opener
+    )
+    before = {
+        path.relative_to(tmp_path): path.read_text(encoding="utf-8")
+        for path in tmp_path.rglob("*")
+        if path.is_file() and ".git" not in path.parts
+    }
+    report = run_status(tmp_path, opener=opener)
+    after = {
+        path.relative_to(tmp_path): path.read_text(encoding="utf-8")
+        for path in tmp_path.rglob("*")
+        if path.is_file() and ".git" not in path.parts
+    }
+
+    assert before == after
+    assert _step(report.steps, "config").status == "ok"
+    assert "configures group/sub/project" in _step(report.steps, "config").detail
+    assert _step(report.steps, "credential").status == "ok"
+    assert "GITLAB_TOKEN" in _step(report.steps, "credential").detail
+    assert _step(report.steps, "reachability").detail == _step(onboard.steps, "health").detail
 
 
 def test_run_status_invalid_config_json_names_fix(tmp_path: Path) -> None:
