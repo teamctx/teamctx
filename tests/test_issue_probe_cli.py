@@ -19,6 +19,7 @@ def test_issue_probe_surfaces_criteria_changed_card(monkeypatch) -> None:
                 labels=(),
                 change_kinds=("state_changed",),
                 detail="Issue #42 updated: state is now closed.",
+                source_display="GitHub Issue #42: Add widget support",
                 updated_at="2026-06-25T10:00:00Z",
             )
         ]
