@@ -109,7 +109,8 @@ def test_heads_up_surfaces_the_pr_with_action() -> None:
     )
     assert text.startswith("Before you start, here is what to handle first:")
     assert "PR #7" in text
-    assert "gh pr view 7" in text  # conflict findings keep the PR hint
+    # the hint carries --repo so it works from any directory (and matches open-source)
+    assert "gh pr view 7 --repo acme/widgets" in text
     _no_jargon(text)
 
 
