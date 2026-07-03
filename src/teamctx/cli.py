@@ -10,7 +10,7 @@ from typing import Any, NoReturn
 import click
 
 from teamctx.clock import utc_now_iso
-from teamctx.connectors.declared_authority import load_declared_authority
+from teamctx.connectors.declared_authority import DeclaredAuthorityError, load_declared_authority
 from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.github import run_github_pr_probe
 from teamctx.connectors.github_checks import run_github_checks_probe
@@ -230,10 +230,11 @@ def work_start_command(
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
         raise click.ClickException(str(exc)) from exc
-    click.echo(
-        render_work_start(inputs, observed_at=utc_now_iso(), project_root=project_root),
-        nl=False,
-    )
+    try:
+        output = render_work_start(inputs, observed_at=utc_now_iso(), project_root=project_root)
+    except DeclaredAuthorityError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(output, nl=False)
 
 
 _SELECTOR_KIND_TO_VERDICT_LABEL: dict[str, str] = {
@@ -307,7 +308,10 @@ def _resolve_work_start(
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
         raise click.ClickException(str(exc)) from exc
-    return work_start_answer(inputs, observed_at=utc_now_iso(), project_root=project_root)
+    try:
+        return work_start_answer(inputs, observed_at=utc_now_iso(), project_root=project_root)
+    except DeclaredAuthorityError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 def _add_work_start_options(func: Any) -> Any:
