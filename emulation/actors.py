@@ -10,12 +10,13 @@ marker never turns a second run into a silent no-op (the spec's hook-driver trap
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
 import sys
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -39,6 +40,28 @@ def fresh_session_id() -> str:
     """A unique session id per hook invocation, so the once-per-session marker never no-ops."""
 
     return f"emu-{uuid.uuid4()}"
+
+
+@contextlib.contextmanager
+def process_env(**overrides: str | None) -> Iterator[None]:
+    """Temporarily set/restore process env vars for an IN-PROCESS invocation (the MCP tool and the
+    replay pipeline read the ambient env). A value of None removes the var for the duration. Used
+    only for the in-process transports; subprocess transports get their env from SubprocessEnv."""
+
+    saved = {key: os.environ.get(key) for key in overrides}
+    try:
+        for key, value in overrides.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, previous in saved.items():
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
 
 
 def _git(root: Path, *args: str, date: str | None = None) -> str:
