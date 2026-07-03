@@ -9,11 +9,16 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+_BRANCH_JIRA_KEY = re.compile(r"(?:^|[/_-])([A-Z][A-Z0-9]+-\d{1,6})(?=[/_-]|$)")
 _BRANCH_ISSUE = re.compile(r"(?:^|[/_-])#?(\d{1,6})(?=[/_-]|$)")
+_TRAILER_JIRA_KEY = re.compile(
+    r"(?:fixes|closes|resolves)\s+([A-Z][A-Z0-9]+-\d{1,6})", re.IGNORECASE
+)
 _TRAILER_ISSUE = re.compile(r"\b(?:fixes|closes|resolves)\s+#(\d{1,6})\b", re.IGNORECASE)
 
 
@@ -28,29 +33,27 @@ class DerivedIssues:
 def derive_issues(root: Path) -> DerivedIssues:
     """Derive linked issue refs from branch name and local commit trailers.
 
-    Branch provenance wins on a tie. The returned refs are deduped, numerically sorted, and capped
-    at five so the runner can make the cap visible instead of silently omitting extras.
+    Branch provenance wins on a tie. The returned refs are deduped, deterministically sorted, and
+    capped at five so the runner can make the cap visible instead of silently omitting extras.
     """
 
     branch = _current_branch(root)
     if branch is None:
         return DerivedIssues()
 
-    found: dict[int, str] = {}
-    branch_issue = _branch_issue_number(branch)
-    if branch_issue is not None:
+    found: dict[str, str] = {}
+    for branch_issue in _branch_issue_refs(branch):
         found[branch_issue] = "your branch name"
 
     merge_base = _merge_base(root)
     if merge_base is not None:
         messages = _run_git(root, "log", "--format=%B", f"{merge_base}..HEAD")
         if messages is not None:
-            for match in _TRAILER_ISSUE.finditer(messages):
-                issue = int(match.group(1))
-                found.setdefault(issue, "a commit message trailer")
+            for trailer_issue in _trailer_issue_refs(messages):
+                found.setdefault(trailer_issue, "a commit message trailer")
 
     capped = len(found) > 5
-    issues = tuple((f"#{issue}", found[issue]) for issue in sorted(found)[:5])
+    issues = tuple((issue, found[issue]) for issue in sorted(found, key=_issue_sort_key)[:5])
     return DerivedIssues(issues=issues, capped=capped)
 
 
@@ -73,13 +76,48 @@ def derive_since(root: Path) -> tuple[str, str] | None:
     return timestamp, f"when you branched (merge-base {short})"
 
 
-def _branch_issue_number(branch: str) -> int | None:
-    for match in _BRANCH_ISSUE.finditer(branch):
+def _branch_issue_refs(branch: str) -> tuple[str, ...]:
+    refs: list[str] = []
+    jira_matches = tuple(_BRANCH_JIRA_KEY.finditer(branch))
+    refs.extend(match.group(1) for match in jira_matches)
+    numeric_source = _remove_spans(
+        branch, ((match.start(1), match.end(1)) for match in jira_matches)
+    )
+    for match in _BRANCH_ISSUE.finditer(numeric_source):
         start = match.start(1)
-        if start > 0 and branch[start - 1] in {"v", "V"}:
+        if start > 0 and numeric_source[start - 1] in {"v", "V"}:
             continue
-        return int(match.group(1))
-    return None
+        refs.append(f"#{int(match.group(1))}")
+        break
+    return tuple(refs)
+
+
+def _trailer_issue_refs(messages: str) -> tuple[str, ...]:
+    refs: list[str] = []
+    jira_matches = tuple(_TRAILER_JIRA_KEY.finditer(messages))
+    refs.extend(match.group(1) for match in jira_matches)
+    numeric_source = _remove_spans(
+        messages, ((match.start(1), match.end(1)) for match in jira_matches)
+    )
+    refs.extend(f"#{int(match.group(1))}" for match in _TRAILER_ISSUE.finditer(numeric_source))
+    return tuple(refs)
+
+
+def _remove_spans(text: str, spans: Iterable[tuple[int, int]]) -> str:
+    chars = list(text)
+    for start, end in spans:
+        for index in range(start, end):
+            chars[index] = " "
+    return "".join(chars)
+
+
+def _issue_sort_key(issue_ref: str) -> tuple[int, int, str]:
+    if issue_ref.startswith("#"):
+        try:
+            return (0, int(issue_ref[1:]), "")
+        except ValueError:
+            return (0, 0, issue_ref)
+    return (1, 0, issue_ref)
 
 
 def _current_branch(root: Path) -> str | None:

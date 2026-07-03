@@ -106,6 +106,7 @@ def _probe_single_issue(
 
     state = issue_data.get("state", "unknown")
     title = issue_data.get("title", "")
+    title_text = title if isinstance(title, str) else ""
     html_url = issue_data.get("html_url", "")
     labels = _extract_labels(issue_data.get("labels"))
 
@@ -114,11 +115,12 @@ def _probe_single_issue(
         repo=repo,
         issue=issue_ref,
         issue_url=html_url if isinstance(html_url, str) else "",
-        title=title if isinstance(title, str) else "",
+        title=title_text,
         state=state if isinstance(state, str) else "unknown",
         labels=labels,
         change_kinds=change_kinds,
         detail=detail,
+        source_display=f"GitHub Issue {issue_ref}: {title_text}",
         updated_at=updated_at,
     )
 

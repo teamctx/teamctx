@@ -219,6 +219,11 @@ def test_closure_policy_gap_when_dependency_is_only_disabled() -> None:
     assert assess_completeness(_collision_query(), coverage) == "incomplete[policy-gap]"
 
 
+def test_closure_stale_dep_when_disabled_mixes_with_fresh_status() -> None:
+    coverage = build_coverage([_git_hosting_status("fresh"), _git_hosting_status("disabled")])
+    assert assess_completeness(_collision_query(), coverage) == "incomplete[stale-dep]"
+
+
 def test_closure_stale_dep_when_disabled_mixes_with_unhealthy_status() -> None:
     coverage = build_coverage(
         [_git_hosting_status("disabled"), _git_hosting_status("unavailable")]

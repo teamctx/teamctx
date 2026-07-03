@@ -44,6 +44,7 @@ class IssueCriteriaChange:
     labels: tuple[str, ...]
     change_kinds: tuple[str, ...]
     detail: str
+    source_display: str
     updated_at: str
 
 
@@ -54,6 +55,10 @@ def normalize_issue_changes(
     observed_at: str,
     expires_at: str = "next_refresh",
     source_id: str = "github_issues",
+    coverage_truncated: bool = False,
+    truncated_user_message: str = (
+        "Issue tracker history was truncated, so this is not a complete check."
+    ),
 ) -> CoreContractDocument:
     source_signals: list[SourceSignal] = []
     for index, change in enumerate(changes):
@@ -75,7 +80,7 @@ def normalize_issue_changes(
                 source_family=_SOURCE_FAMILY,
                 scope=scope,
                 evidence_summary=change.detail,
-                source_display=f"GitHub Issue {change.issue}: {change.title}",
+                source_display=change.source_display,
                 freshness="fresh",
                 confidence="high",
                 visibility="visible",
@@ -86,14 +91,17 @@ def normalize_issue_changes(
             )
         )
 
+    status: SourceStatusValue = "stale" if coverage_truncated else "fresh"
     source_statuses = [
         source_status(
             source_id=source_id,
             source_family=_SOURCE_FAMILY,
             scope={"repo": request_context.repo},
-            status="fresh",
+            status=status,
             observed_at=observed_at,
-            safe_user_message="Issue tracker status refreshed.",
+            safe_user_message=(
+                truncated_user_message if coverage_truncated else "Issue tracker status refreshed."
+            ),
             visibility="silent",
             policy_reason=_POLICY_REASON,
         )

@@ -301,6 +301,19 @@ def test_match_issue_selector_without_hash_normalizes() -> None:
     assert card.reason_code == "criteria.changed"
 
 
+def test_match_issue_selector_matches_jira_keys_case_insensitively_without_hash() -> None:
+    sig = _criteria_signal("PROJ-123")
+    answer = broker_answer(
+        _request(issues=["PROJ-123"]),
+        [sig],
+        [_fresh("issue_tracker")],
+    )
+    cards = answer.selection.cards
+    card = match_finding(cards, parse_selector("issue:proj-123"))
+    assert card.reason_code == "criteria.changed"
+    assert card.scope["issue"] == "PROJ-123"
+
+
 def test_match_gate_selector() -> None:
     sig = _gate_signal("unit-tests", ["src/app.py"])
     answer = broker_answer(

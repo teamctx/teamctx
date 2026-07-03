@@ -12,7 +12,7 @@ from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
 from teamctx.runner import build_request_context
 
 
-def _write_config(root: Path, **work_start: str) -> None:
+def _write_config(root: Path, **work_start: object) -> None:
     (root / ".teamctx").mkdir(parents=True, exist_ok=True)
     (root / ".teamctx" / "config.json").write_text(
         json.dumps({"schema_version": "teamctx.project_config.v0", "work_start": work_start}),
@@ -61,6 +61,44 @@ def test_branch_from_git_not_config_and_docs_root_from_config(monkeypatch, tmp_p
     inputs = resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
     assert inputs.branch == "detected"
     assert inputs.docs_root == "docs"
+
+
+def test_resolve_carries_jira_config_and_atlassian_auth(monkeypatch, tmp_path: Path) -> None:
+    _write_config(
+        tmp_path,
+        repo="from/config",
+        jira={"base_url": "https://jira.example.test/"},
+    )
+    monkeypatch.setattr(resolve_mod, "detect_forge_repo", lambda root: None)
+    monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: None)
+    monkeypatch.setenv("ATLASSIAN_EMAIL", "person@example.com")
+    monkeypatch.setenv("ATLASSIAN_API_TOKEN", "token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN_FILE", raising=False)
+
+    inputs = resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
+
+    assert inputs.jira_base_url == "https://jira.example.test"
+    assert inputs.atlassian_auth == ("person@example.com", "token")
+    assert inputs.atlassian_auth_missing_half is False
+
+
+def test_resolve_marks_half_atlassian_auth(monkeypatch, tmp_path: Path) -> None:
+    _write_config(
+        tmp_path,
+        repo="from/config",
+        jira={"base_url": "https://jira.example.test"},
+    )
+    monkeypatch.setattr(resolve_mod, "detect_forge_repo", lambda root: None)
+    monkeypatch.setattr(resolve_mod, "detect_branch", lambda root: None)
+    monkeypatch.setenv("ATLASSIAN_EMAIL", "person@example.com")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN_FILE", raising=False)
+
+    inputs = resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
+
+    assert inputs.jira_base_url == "https://jira.example.test"
+    assert inputs.atlassian_auth is None
+    assert inputs.atlassian_auth_missing_half is True
 
 
 def test_explicit_docs_root_wins_over_config(monkeypatch, tmp_path: Path) -> None:

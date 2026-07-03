@@ -7,6 +7,7 @@ and raises typed exceptions when the selector does not match exactly one card. N
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Literal
 
@@ -16,6 +17,7 @@ FindingSelectorKind = Literal["pr", "issue", "path", "doc", "gate"]
 
 _ALLOWED_KINDS: frozenset[str] = frozenset({"pr", "issue", "path", "doc", "gate"})
 _ALLOWED_FORMS = "pr:N, issue:REF, path:X, doc:PATH, gate:NAME"
+_JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9]+-\d{1,6}$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -59,8 +61,10 @@ def parse_selector(text: str) -> FindingSelector:
 
 
 def _normalize_issue(v: str) -> str:
-    """Ensure the issue ref has a leading ``#`` so ``42`` and ``#42`` both match ``#42``."""
+    """Normalize numeric issue refs and Jira keys for selector matching."""
 
+    if _JIRA_KEY.fullmatch(v):
+        return v.upper()
     return v if v.startswith("#") else f"#{v}"
 
 

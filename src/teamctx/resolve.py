@@ -28,6 +28,7 @@ from teamctx.project_config import (
     maybe_load_project_config,
 )
 from teamctx.runner import WorkStartInputs
+from teamctx.tokens import resolve_atlassian_auth_with_state
 
 _REPO_UNRESOLVED = (
     "could not determine the repository: not in a git repo with a recognizable 'origin' "
@@ -129,6 +130,7 @@ def resolve_work_start_inputs(
         except ValueError as exc:
             raise WorkStartResolutionError(str(exc)) from exc
 
+    atlassian_auth, atlassian_auth_state = resolve_atlassian_auth_with_state()
     return WorkStartInputs(
         repo=resolved_repo,
         paths=tuple(repo_relative_path(root, path) for path in paths),
@@ -143,6 +145,9 @@ def resolve_work_start_inputs(
         docs_root=docs_root or _config_docs_root(config),
         ref=ref,
         forge=resolved_forge,
+        jira_base_url=_config_jira_base_url(config),
+        atlassian_auth=atlassian_auth,
+        atlassian_auth_missing_half=atlassian_auth_state == "partial",
     )
 
 
@@ -162,6 +167,12 @@ def _config_forge(config: WorkStartConfig | None) -> ForgeProvider | None:
 
 def _config_docs_root(config: WorkStartConfig | None) -> str | None:
     return config.docs_root if config is not None else None
+
+
+def _config_jira_base_url(config: WorkStartConfig | None) -> str | None:
+    if config is None or config.jira is None:
+        return None
+    return config.jira.base_url
 
 
 def _parse_repo_for_forge(repo: str, forge: ForgeProvider) -> str | None:

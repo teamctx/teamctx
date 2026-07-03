@@ -10,6 +10,7 @@ Does network/file I/O (via the connectors), so it lives outside the pure core.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -20,10 +21,14 @@ from teamctx.connectors.github import run_github_pr_probe
 from teamctx.connectors.github_checks import run_github_checks_probe
 from teamctx.connectors.github_issues import run_github_issues_probe
 from teamctx.connectors.gitlab import run_gitlab_mr_probe, run_gitlab_pipeline_probe
+from teamctx.connectors.issue_criteria import unavailable_issues_document
+from teamctx.connectors.jira import run_jira_issues_probe
 from teamctx.core.contracts import CoreContractDocument, RequestContext, SourceFamily
 from teamctx.git_context import ForgeProvider, parse_github_repo, parse_gitlab_repo
 from teamctx.tokens import resolve_token
 
+_JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9]+-\d{1,6}$", re.IGNORECASE)
+_FORGE_ISSUE = re.compile(r"^#?\d{1,6}$")
 _CRITERIA_NO_ISSUE = (
     "spec changes (no issue could be derived from your branch or commits; name one with --issue)"
 )
@@ -41,6 +46,14 @@ _GITLAB_ISSUES_DISABLED = (
 )
 _GITLAB_ISSUES_MESSAGE = (
     "This repo is on GitLab. GitLab issue tracking isn't wired yet; issue changes are not checked."
+)
+_JIRA_UNCONFIGURED = (
+    "issue {refs} looks like a Jira issue, but no Jira is configured; add work_start.jira to "
+    ".teamctx/config.json"
+)
+_JIRA_HALF_CREDENTIAL = (
+    "Jira is configured but only half the Atlassian credential is set; both ATLASSIAN_EMAIL "
+    "and ATLASSIAN_API_TOKEN are needed."
 )
 
 
@@ -65,6 +78,9 @@ class WorkStartInputs:
     ref: str | None = None
     forge: ForgeProvider = "github"
     profile: Literal["full", "reflex"] = "full"
+    jira_base_url: str | None = None
+    atlassian_auth: tuple[str, str] | None = None
+    atlassian_auth_missing_half: bool = False
 
     def __post_init__(self) -> None:
         normalized = _parse_repo_for_forge(self.repo, self.forge)
@@ -173,38 +189,7 @@ def run_work_start_connectors(
                 )
             )
 
-    if inputs.forge == "gitlab" and inputs.issues and inputs.since:
-        documents.append(
-            _disabled_document(
-                request_context,
-                source_id="gitlab_issues",
-                source_family="issue_tracker",
-                observed_at=observed_at,
-                safe_user_message=_GITLAB_ISSUES_DISABLED,
-                policy_reason=_GITLAB_ISSUES_MESSAGE,
-            )
-        )
-    elif inputs.issues and inputs.since:
-        documents.append(
-            run_github_issues_probe(
-                repo=inputs.repo,
-                issues=list(inputs.issues),
-                since=inputs.since,
-                token=inputs.token,
-                request_context=request_context,
-                observed_at=observed_at,
-            )
-        )
-    else:
-        documents.append(
-            _disabled_document(
-                request_context,
-                source_id="github_issues",
-                source_family="issue_tracker",
-                observed_at=observed_at,
-                safe_user_message=_criteria_disabled_message(inputs),
-            )
-        )
+    documents.extend(_run_issue_tracker_documents(inputs, request_context, observed_at))
 
     if inputs.docs_root:
         documents.append(
@@ -252,11 +237,135 @@ def _disabled_document(
     )
 
 
+def _run_issue_tracker_documents(
+    inputs: WorkStartInputs, request_context: RequestContext, observed_at: str
+) -> list[CoreContractDocument]:
+    forge_issues, jira_issues = _split_issue_refs(inputs.issues)
+    if not inputs.issues:
+        return [
+            _disabled_document(
+                request_context,
+                source_id="github_issues" if inputs.forge == "github" else "gitlab_issues",
+                source_family="issue_tracker",
+                observed_at=observed_at,
+                safe_user_message=_CRITERIA_NO_ISSUE,
+            )
+        ]
+
+    documents: list[CoreContractDocument] = []
+    if forge_issues:
+        if inputs.since:
+            if inputs.forge == "gitlab":
+                documents.append(
+                    _disabled_document(
+                        request_context,
+                        source_id="gitlab_issues",
+                        source_family="issue_tracker",
+                        observed_at=observed_at,
+                        safe_user_message=_GITLAB_ISSUES_DISABLED,
+                        policy_reason=_GITLAB_ISSUES_MESSAGE,
+                    )
+                )
+            else:
+                documents.append(
+                    run_github_issues_probe(
+                        repo=inputs.repo,
+                        issues=list(forge_issues),
+                        since=inputs.since,
+                        token=inputs.token,
+                        request_context=request_context,
+                        observed_at=observed_at,
+                    )
+                )
+        else:
+            documents.append(
+                _disabled_document(
+                    request_context,
+                    source_id="github_issues" if inputs.forge == "github" else "gitlab_issues",
+                    source_family="issue_tracker",
+                    observed_at=observed_at,
+                    safe_user_message=_criteria_no_since_message(inputs, forge_issues),
+                )
+            )
+
+    if jira_issues:
+        if inputs.jira_base_url is None:
+            documents.append(
+                _disabled_document(
+                    request_context,
+                    source_id="jira_issues",
+                    source_family="issue_tracker",
+                    observed_at=observed_at,
+                    safe_user_message=_JIRA_UNCONFIGURED.format(
+                        refs=", ".join(jira_issues)
+                    ),
+                )
+            )
+        elif not inputs.since:
+            documents.append(
+                _disabled_document(
+                    request_context,
+                    source_id="jira_issues",
+                    source_family="issue_tracker",
+                    observed_at=observed_at,
+                    safe_user_message=_criteria_no_since_message(inputs, jira_issues),
+                )
+            )
+        elif inputs.atlassian_auth_missing_half:
+            documents.append(
+                unavailable_issues_document(
+                    request_context,
+                    repo=request_context.repo,
+                    observed_at=observed_at,
+                    source_id="jira_issues",
+                    safe_user_message=_JIRA_HALF_CREDENTIAL,
+                )
+            )
+        else:
+            documents.append(
+                run_jira_issues_probe(
+                    base_url=inputs.jira_base_url,
+                    issues=list(jira_issues),
+                    since=inputs.since,
+                    auth=inputs.atlassian_auth,
+                    request_context=request_context,
+                    observed_at=observed_at,
+                )
+            )
+
+    if documents:
+        return documents
+    return [
+        _disabled_document(
+            request_context,
+            source_id="github_issues" if inputs.forge == "github" else "gitlab_issues",
+            source_family="issue_tracker",
+            observed_at=observed_at,
+            safe_user_message=_CRITERIA_NO_ISSUE,
+        )
+    ]
+
+
+def _split_issue_refs(issues: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    forge_issues: list[str] = []
+    jira_issues: list[str] = []
+    for issue in issues:
+        if _FORGE_ISSUE.fullmatch(issue):
+            forge_issues.append(issue)
+        elif _JIRA_KEY.fullmatch(issue):
+            jira_issues.append(issue.upper())
+    return tuple(forge_issues), tuple(jira_issues)
+
+
 def _criteria_disabled_message(inputs: WorkStartInputs) -> str:
     if not inputs.issues:
         return _CRITERIA_NO_ISSUE
-    refs = ", ".join(inputs.issues)
-    message = _CRITERIA_NO_SINCE.format(refs=refs)
+    return _criteria_no_since_message(inputs, inputs.issues)
+
+
+def _criteria_no_since_message(inputs: WorkStartInputs, refs: tuple[str, ...]) -> str:
+    refs_text = ", ".join(refs)
+    message = _CRITERIA_NO_SINCE.format(refs=refs_text)
     if inputs.derived_issues_capped:
         message = f"{message[:-1]}; {_CAP_NOTE})"
     return message
