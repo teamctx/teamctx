@@ -70,13 +70,24 @@ below until the arc completes.
   S1 own-PR collision fix **DONE 2026-07-03 (merged `6cada7b`, 443 tests; codex built from the
   plan, Fable arbiter-reviewed + one copy fix; own-branch PRs set aside with an FYI line and
   recorded on the forge source status)** ·
-  S2 README refresh + docs-claim tightening + gh-hint repo flag (F3, F11) **BUILT by Fable on
-  `feat/readme-refresh`, in codex adversarial review (merge after verdict)** · S3 `status` made
+  S2 README refresh + docs-claim tightening + gh-hint repo flag (F3, F11) **DONE 2026-07-03
+  (merged `469cf65`; Fable built, codex adversarial review returned FIX-FIRST with three real
+  overclaims in the copy (identical-facts, "verbatim", own-PR scope), all fixed before merge;
+  samples byte-verified by the reviewer against the render)** · S3 `status` made
   real as onboard's read-only twin (F2) **DONE 2026-07-03 (merged `ea0cbef`, 455 tests; codex
   built in an isolated worktree from the plan, Fable arbiter-reviewed + live smoke: every
   status line true, real reachability call)** · S4 small batch:
-  authority.json fail-closed, CI 3.13 matrix + coverage gate wired-or-dropped, teamctx-mcp
-  friendly import guard (F6, F8, F10).
+  authority.json fail-closed, CI 3.13 matrix + coverage gate wired (93.16% > 90), teamctx-mcp
+  friendly import guard (F6, F8, F10; plan
+  `docs/superpowers/plans/2026-07-03-s4-small-batch.md`, codex building in a worktree).
+
+**Execution re-sequencing (CTO, 2026-07-03, merit-based):** S6+S7 (structural) land BEFORE
+Phase 1, because S5b must extend the exact registries S6 consolidates (building S5 first
+means immediate rework), and the Phase 3 proof numbers move AFTER Phase 5, because the
+emulation's scripted scenarios ARE the labelled conformance corpus Phase 3 needs. Order:
+Phase 0 → S6+S7 → S5a/b/c → S8 → Phase 4 breadth → Phase 5 emulation → Phase 3 numbers.
+Design spec for S6/S7/S5 (locked designs, pending codex adversarial spec review before
+build): `docs/superpowers/specs/2026-07-03-autodiscovery-and-structure.md`.
 - **Phase 1, auto-discovery (was "next slice"; absorbs F9, F13):** S5a linked-issue +
   `since` derived from branch/PR/commits · S5b docs path-gating (docs become a firing check
   for relied-on docs) · S5c CLAUDE.md snippet claims all four checks once they auto-fire.
