@@ -83,12 +83,22 @@ below until the arc completes.
   `incomplete[unbounded]` end to end (F7 + the truncation-copy follow-up).
 - **Phase 3 = Sprint 3 proof:** labelled conformance corpus + replay harness + the E4/E5
   numbers; OpenRouter for model-diverse A/B arms.
-- **Phase 4 = Sprint 4 breadth:** GitLab (a token is on hand in `.secrets/gitlab-token`,
-  so it can be dogfooded live) + Jira via the ONBOARDERS registry seam + a provider field
-  in the config schema.
+- **Phase 4 = Sprint 4 breadth (goal expanded 2026-07-03):** GitLab (a token is on hand in
+  `.secrets/gitlab-token`, so it can be dogfooded live) + **Jira** (issue_tracker family) +
+  **Confluence** (docs family from a remote source, the first non-local docs connector) via
+  the ONBOARDERS registry seam + a provider field in the config schema.
+- **Phase 5, team-emulation validation (goal set by Edgar 2026-07-03):** test teamctx like a
+  team of people + agents working across GitHub, GitLab, Jira, and Confluence, and verify it
+  all works as expected. Fable runs it: multiple emulated actors (separate clones/worktrees,
+  distinct branches, real PRs/MRs/issues/pages), agent actors driven as subagents, scripted
+  cross-actor scenarios per check (collision, criteria-changed, superseded doc, missed gate,
+  each honest-UNKNOWN degradation), with expected-vs-actual surfacing recorded as evidence.
+  This absorbs and extends the old "Edgar in N terminals" dogfood.
 
-**Edgar checkpoints (his calls, at their moments):** the multi-actor dogfood (after Phase 1,
-Phase 0 minimum) · PyPI publish · going public. Nothing in Phases 0 to 4 requires them.
+**Edgar checkpoints (his calls, at their moments):** an Atlassian Cloud site + API token for
+the Jira/Confluence connectors and Phase 5 (free tier works; no Atlassian credential exists
+in `.secrets` today; GitHub + GitLab are covered) · PyPI publish · going public. Nothing in
+Phases 0 to 3 requires them.
 
 ## The arc to product-complete (four sprints)
 
