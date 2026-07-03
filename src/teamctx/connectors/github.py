@@ -19,6 +19,16 @@ from teamctx.core.contracts import CoreContractDocument, RequestContext
 GITHUB_API_ROOT = "https://api.github.com"
 
 
+def github_api_root() -> str:
+    """The GitHub API root, env-overridable via ``TEAMCTX_GITHUB_API_ROOT`` (trailing slash
+    stripped). The override exists for the emulation program: fabricated payloads can be driven
+    through the REAL pipeline against a local mock server. Read at call time, never cached."""
+
+    import os
+
+    return os.environ.get("TEAMCTX_GITHUB_API_ROOT", GITHUB_API_ROOT).rstrip("/")
+
+
 class HttpResponse(Protocol):
     def read(self) -> bytes: ...
 
@@ -362,7 +372,7 @@ def graphql_json(
     opener: HttpOpener = DEFAULT_OPENER,
 ) -> object:
     request = Request(
-        f"{GITHUB_API_ROOT}/graphql",
+        f"{github_api_root()}/graphql",
         data=json.dumps({"query": query, "variables": dict(variables)}).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {token}",

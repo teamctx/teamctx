@@ -13,10 +13,10 @@ from teamctx.connectors.gate_status import (
 )
 from teamctx.connectors.github import (
     DEFAULT_OPENER,
-    GITHUB_API_ROOT,
     GitHubProbeError,
     HttpOpener,
     get_json,
+    github_api_root,
     split_repo,
 )
 from teamctx.core.contracts import CoreContractDocument, RequestContext
@@ -107,7 +107,7 @@ def fetch_failing_check_runs(
 ) -> CheckRunsFetch:
     owner, name = split_repo(repo)
     url = (
-        f"{GITHUB_API_ROOT}/repos/{quote(owner)}/{quote(name)}"
+        f"{github_api_root()}/repos/{quote(owner)}/{quote(name)}"
         f"/commits/{quote(ref)}/check-runs?per_page=100"
     )
     payload = get_json(url, token=token, opener=opener)
