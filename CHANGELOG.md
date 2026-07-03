@@ -27,6 +27,7 @@ may change while the product is hardened.
 
 ### Changed
 
+- teamctx status now reports real setup state (config, hook, snippet, credential, live reachability) through the same resolvers onboard uses; the old placeholder text is gone.
 - Gate copy no longer claims checks are "required" (real branch-protection requiredness is not
   yet verified); a clear gate reads "no failing checks found" instead of "CI is green".
 - `teamctx init` no longer auto-enables `docs_root`; docs fire only when set explicitly with
@@ -44,4 +45,3 @@ may change while the product is hardened.
   longer reads as green.
 - A completed check whose conclusion is not success-like (cancelled, stale, or any value other
   than success/neutral/skipped) is now surfaced as not-clear instead of reading as green.
-
