@@ -29,7 +29,7 @@ def test_render_work_start_still_renders(monkeypatch) -> None:
     text = render_work_start(inputs, observed_at=OBS)
     # conflict clear (git_hosting fresh, no collisions); other checks not configured
     assert "Looks clear to start." in text
-    assert "no open PRs touch your files" in text
+    assert "no other open PRs touch your files" in text
 
 
 def test_work_start_answer_loads_authority_from_project_root(monkeypatch, tmp_path) -> None:

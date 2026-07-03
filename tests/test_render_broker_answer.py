@@ -56,6 +56,36 @@ def _unavailable(family: str) -> SourceStatus:
     )
 
 
+def _status_note(status: str) -> SourceStatus:
+    message = (
+        "Your own open PR #12 for this branch touches these files; "
+        "not flagged as a collision."
+    )
+    return source_status(
+        source_id="github_pr_metadata",
+        source_family="git_hosting",
+        scope={"repo": "acme/widgets", "own_branch_prs": ["12"]},
+        status=status,
+        observed_at="2026-06-28T00:00:00Z",
+        safe_user_message=message,
+        visibility="warning_when_relevant",
+        policy_reason="status only",
+    )
+
+
+def test_render_fyi_line_for_fresh_warning_note() -> None:
+    text = render_broker_answer(broker_answer(_request(), [], [_status_note("fresh")]))
+    assert "FYI: Your own open PR #12" in text
+    assert "no other open PRs touch your files" in text
+    _no_jargon(text)
+
+
+def test_render_no_fyi_for_stale_status() -> None:
+    text = render_broker_answer(broker_answer(_request(), [], [_status_note("stale")]))
+    assert "FYI:" not in text
+    _no_jargon(text)
+
+
 _EM_DASH = chr(0x2014)  # checked without the literal to keep the file em-dash-free
 
 
@@ -68,7 +98,7 @@ def _no_jargon(text: str) -> None:
 def test_ready_headline_names_clear_checks_and_lists_gaps() -> None:
     text = render_broker_answer(broker_answer(_request(), [], [_fresh("git_hosting")]))
     assert text.startswith("Looks clear to start.")
-    assert "no open PRs touch your files" in text
+    assert "no other open PRs touch your files" in text
     assert "Not checked:" in text and "no issue is linked to this branch" in text
     _no_jargon(text)
 
