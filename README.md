@@ -13,15 +13,16 @@ answer delivered through a terminal you trust is worse than no answer.
 teamctx keeps you and your agent pinned to the current, source-backed state of the systems your team
 already uses. Its defining property is that there is no LLM in the content path. It normalizes,
 routes, selects, and renders the record, and it never reinterprets what the record means. So facts
-arrive verbatim, source-backed, and the same way every time. A green means checked, not guessed, and
+arrive faithful to the record, source-backed, and the same way every time. A green means checked, not guessed, and
 where teamctx could not look, it says so plainly instead of implying all is well.
 
 ## What it checks
 
 Run it before you start editing. From the systems of record your team already uses, teamctx surfaces:
 
-- Open pull requests that touch the files you are about to change. The open PR of the branch you
-  are standing on is set aside with an FYI, never flagged against you.
+- Open pull requests that touch the files you are about to change. Your own same-repo PR for the
+  branch you are standing on is set aside with an FYI, never flagged against you (a fork PR still
+  surfaces, on purpose).
 - Checks that are failing on your branch, and checks that are still running (reported as
   unconfirmed, never assumed green).
 - Acceptance criteria that changed on a linked issue since you started.
@@ -148,8 +149,9 @@ teamctx is deliberately bounded:
 
 Each connector reads approved metadata from a source and emits a typed, source-backed contract. A
 deterministic core composes them, derives the findings, and returns one verdict per check with an
-honest account of what it could and could not cover. The same code path produces the CLI output, the MCP tool result, and the
-hook signal, so every consumer sees identical facts. Replay the same inputs and you get the same
-verdict every time.
+honest account of what it could and could not cover. The CLI output, the MCP tool result, and the
+hook signal all derive from one broker answer and one shared classification; the hook says less on
+purpose, but nothing it says can disagree with the full report. Replay the same inputs and you get
+the same verdict every time.
 
 Positioning and design: [design and positioning](docs/product/vision/reality-grounding-strategy-2026-06.md).
