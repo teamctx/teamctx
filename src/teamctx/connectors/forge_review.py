@@ -48,6 +48,8 @@ class ForgeReviewPullRequest:
     labels: tuple[str, ...] = ()
     head_ref: str | None = None
     head_repo: str | None = None
+    source_project_id: int | None = None
+    target_project_id: int | None = None
 
 
 def normalize_forge_review_prs(
@@ -56,9 +58,12 @@ def normalize_forge_review_prs(
     *,
     observed_at: str,
     expires_at: str = "next_refresh",
+    provider: ForgeProvider = "github",
     source_id: str = "github_pr_metadata",
     coverage_unbounded_list: bool = False,
     unbounded_files_prs: Iterable[int] = (),
+    diff_checked_count: int | None = None,
+    diff_unchecked_count: int = 0,
 ) -> CoreContractDocument:
     source_signals: list[SourceSignal] = []
     source_open_targets: list[SourceOpenTarget] = []
@@ -70,11 +75,7 @@ def normalize_forge_review_prs(
 
     for pr in pull_request_list:
         overlap = sorted(requested_paths.intersection(pr.changed_paths))
-        if (
-            request_context.branch is not None
-            and pr.head_ref == request_context.branch
-            and pr.head_repo == pr.repo
-        ):
+        if _is_own_branch_review(pr, request_context.branch):
             if overlap:
                 own_branch_prs.append(pr.number)
             continue
@@ -83,11 +84,13 @@ def normalize_forge_review_prs(
                 relevant_unbounded_files_prs.append(pr.number)
             continue
 
-        signal_id = f"sig_{pr.provider}_pr_{pr.number}_collision"
-        open_target_id = f"open_{pr.provider}_pr_{pr.number}"
-        source_display = f"{provider_name(pr.provider)} PR #{pr.number}"
-        evidence_summary = collision_summary(pr.number, overlap)
+        review = review_terms(pr.provider)
+        signal_id = f"sig_{pr.provider}_{review.id_part}_{pr.number}_collision"
+        open_target_id = f"open_{pr.provider}_{review.id_part}_{pr.number}"
+        source_display = source_display_for(pr.provider, pr.number)
+        evidence_summary = collision_summary(pr.provider, pr.number, overlap)
         scope: Scope = {
+            "provider": pr.provider,
             "repo": pr.repo,
             "pr_number": pr.number,
             "state": pr.state,
@@ -125,38 +128,51 @@ def normalize_forge_review_prs(
                 source_signal_id=signal_id,
                 source_family="git_hosting",
                 source_display=source_display,
-                open_label="Open PR",
+                open_label=f"Open {review.short}",
                 body_availability="status_only",
                 policy=policy,
             )
         )
 
-    coverage_unbounded = coverage_unbounded_list or bool(relevant_unbounded_files_prs)
+    coverage_unbounded = (
+        coverage_unbounded_list or bool(relevant_unbounded_files_prs) or bool(diff_unchecked_count)
+    )
     status: SourceStatusValue = "unbounded" if coverage_unbounded else "fresh"
     messages: list[str] = []
     if coverage_unbounded_list:
+        review = review_terms(provider)
         messages.append(
-            f"Checked the {len(pull_request_list)} most recently updated open PRs; more exist, "
-            "so this is not a complete check."
+            f"Checked the {len(pull_request_list)} most recently updated open {review.plural}; "
+            "more exist, so this is not a complete check."
+        )
+    if diff_unchecked_count and diff_checked_count is not None:
+        review = review_terms(provider)
+        messages.append(
+            f"Checked the files of the {diff_checked_count} most recently updated open "
+            f"{review.plural}; {diff_unchecked_count} more open {review.plural} were not "
+            "file-checked."
         )
     for number in relevant_unbounded_files_prs:
+        review = review_terms(provider)
         messages.append(
-            f"Open PR #{number} changes more files than teamctx checked; it may touch yours."
+            f"Open {review.short} {review.prefix}{number} changes more files than teamctx "
+            "checked; it may touch yours."
         )
     if own_branch_prs:
-        numbers = ", ".join(f"#{number}" for number in own_branch_prs)
+        review = review_terms(provider)
+        numbers = ", ".join(f"{review.prefix}{number}" for number in own_branch_prs)
         if len(own_branch_prs) > 1:
             messages.append(
-                f"Your own open PRs {numbers} for this branch touch these files; "
+                f"Your own open {review.plural} {numbers} for this branch touch these files; "
                 "not flagged as collisions."
             )
         else:
             messages.append(
-                f"Your own open PR {numbers} for this branch touches these files; "
+                f"Your own open {review.short} {numbers} for this branch touches these files; "
                 "not flagged as a collision."
             )
     if not messages:
-        messages.append("Git-host PR metadata refreshed.")
+        messages.append(f"Git-host {review_terms(provider).short} metadata refreshed.")
     safe_user_message = " ".join(messages)
     extra_scope: Scope | None = None
     if own_branch_prs:
@@ -167,7 +183,7 @@ def normalize_forge_review_prs(
     source_statuses = [
         forge_review_source_status(
             source_id=source_id,
-            provider="github",
+            provider=provider,
             repo=request_context.repo,
             status=status,
             observed_at=observed_at,
@@ -236,13 +252,44 @@ def forge_review_source_status(
     )
 
 
-def collision_summary(pr_number: int, paths: list[str]) -> str:
+def collision_summary(provider: ForgeProvider, number: int, paths: list[str]) -> str:
+    review = review_terms(provider)
     if len(paths) == 1:
-        return f"Open PR #{pr_number} changed {paths[0]}."
-    return f"Open PR #{pr_number} changed {len(paths)} files in the current task."
+        return f"Open {review.short} {review.prefix}{number} changed {paths[0]}."
+    return (
+        f"Open {review.short} {review.prefix}{number} changed {len(paths)} files in the "
+        "current task."
+    )
 
 
 def provider_name(provider: ForgeProvider) -> str:
     if provider == "github":
         return "GitHub"
     return "GitLab"
+
+
+@dataclass(frozen=True)
+class ReviewTerms:
+    short: str
+    plural: str
+    prefix: str
+    id_part: str
+
+
+def review_terms(provider: ForgeProvider) -> ReviewTerms:
+    if provider == "github":
+        return ReviewTerms(short="PR", plural="PRs", prefix="#", id_part="pr")
+    return ReviewTerms(short="MR", plural="MRs", prefix="!", id_part="mr")
+
+
+def source_display_for(provider: ForgeProvider, number: int) -> str:
+    review = review_terms(provider)
+    return f"{provider_name(provider)} {review.short} {review.prefix}{number}"
+
+
+def _is_own_branch_review(pr: ForgeReviewPullRequest, branch: str | None) -> bool:
+    if branch is None or pr.head_ref != branch:
+        return False
+    if pr.provider == "gitlab":
+        return pr.source_project_id is not None and pr.source_project_id == pr.target_project_id
+    return pr.head_repo == pr.repo

@@ -258,6 +258,7 @@ class RequestContext(ContractModel):
     schema_version: Literal["teamctx.request_context.v0"]
     request_id: str
     repo: str
+    forge: str = "github"
     branch: str | None = None
     task: str
     paths: list[str] = Field(default_factory=list)

@@ -8,10 +8,15 @@ from teamctx.core.contracts import RequestContext, SourceSignal, SourceStatus
 from teamctx.hook_signal import hook_signal
 
 
-def _request(paths=("src/app.py",), issues=(), provenance=None) -> RequestContext:
+def _request(
+    paths=("src/app.py",),
+    issues=(),
+    provenance=None,
+    forge: str = "github",
+) -> RequestContext:
     return RequestContext(
         schema_version="teamctx.request_context.v0", request_id="t", repo="acme/widgets",
-        branch="feature", task="work", paths=list(paths), linked_issues=list(issues),
+        forge=forge, branch="feature", task="work", paths=list(paths), linked_issues=list(issues),
         input_provenance=provenance or {},
         requested_at="2026-06-28T00:00:00Z", requesting_principal=None,
     )
@@ -180,6 +185,47 @@ def test_cant_verify_when_github_unreachable() -> None:
     assert text.startswith("Heads up: I can't confirm the important things yet:")
     assert "couldn't reach GitHub" in text
     assert "GITHUB_TOKEN" in text
+    _no_jargon(text)
+
+
+def test_gitlab_clear_conflict_copy_uses_mrs() -> None:
+    text = render_broker_answer(
+        broker_answer(_request(forge="gitlab"), [], [_fresh("git_hosting")])
+    )
+    assert "no other open MRs touch your files" in text
+    assert "open PRs" not in text
+    _no_jargon(text)
+
+
+def test_gitlab_unreachable_copy_and_fix_line() -> None:
+    text = render_broker_answer(
+        broker_answer(
+            _request(forge="gitlab"),
+            [],
+            [_unavailable("git_hosting"), _unavailable("ci_deploy")],
+        )
+    )
+
+    assert text.startswith("Heads up: I can't confirm the important things yet:")
+    assert "Open MRs and pipeline state:" in text
+    assert "couldn't reach GitLab" in text
+    assert "set GITLAB_TOKEN, or GITLAB_TOKEN_FILE with a path to a token file" in text
+    assert "GitHub" not in text
+    assert "GITHUB_TOKEN" not in text
+    _no_jargon(text)
+
+
+def test_gitlab_gate_unreachable_line_uses_pipeline_state() -> None:
+    text = render_broker_answer(
+        broker_answer(
+            _request(forge="gitlab"),
+            [_collision_signal()],
+            [_fresh("git_hosting"), _unavailable("ci_deploy")],
+        )
+    )
+
+    assert "Couldn't check: pipeline state (couldn't reach GitLab)." in text
+    assert "failing checks (couldn't reach GitHub)" not in text
     _no_jargon(text)
 
 

@@ -5,8 +5,6 @@ from __future__ import annotations
 import pytest
 
 import teamctx.runner as runner
-from teamctx.contract_render import render_broker_answer
-from teamctx.core.broker import broker_answer_from_documents
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.runner import WorkStartInputs, build_request_context, run_work_start_connectors
 
@@ -199,13 +197,26 @@ def test_full_profile_passes_three_page_collision_budget(monkeypatch) -> None:
     assert captured["max_pages"] == 3
 
 
-def test_gitlab_forge_emits_unwired_statuses_and_never_calls_github(monkeypatch) -> None:
+def test_gitlab_forge_dispatches_to_gitlab_probes_and_never_calls_github(monkeypatch) -> None:
     def fail_github_probe(**kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError(f"GitHub probe should not run: {kwargs}")
+
+    captured: dict[str, object] = {}
+
+    def fake_gitlab_mrs(**kwargs):  # type: ignore[no-untyped-def]
+        captured["mrs"] = kwargs
+        return _empty_doc(kwargs["request_context"])
+
+    def fake_gitlab_pipeline(**kwargs):  # type: ignore[no-untyped-def]
+        captured["pipeline"] = kwargs
+        return _empty_doc(kwargs["request_context"])
 
     monkeypatch.setattr(runner, "run_github_pr_probe", fail_github_probe)
     monkeypatch.setattr(runner, "run_github_checks_probe", fail_github_probe)
     monkeypatch.setattr(runner, "run_github_issues_probe", fail_github_probe)
+    monkeypatch.setattr(runner, "run_gitlab_mr_probe", fake_gitlab_mrs)
+    monkeypatch.setattr(runner, "run_gitlab_pipeline_probe", fake_gitlab_pipeline)
+    monkeypatch.setenv("GITLAB_TOKEN", "gl-token")
     inputs = WorkStartInputs(
         repo="group/sub/project",
         forge="gitlab",
@@ -217,41 +228,73 @@ def test_gitlab_forge_emits_unwired_statuses_and_never_calls_github(monkeypatch)
 
     request_context, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
 
-    statuses = {
-        status.source_family: status
-        for document in documents
-        for status in document.source_statuses
-        if status.source_family in {"git_hosting", "ci_deploy"}
-    }
-    assert set(statuses) == {"git_hosting", "ci_deploy"}
-    assert statuses["git_hosting"].source_id == "gitlab_mr_metadata"
-    assert statuses["ci_deploy"].source_id == "gitlab_pipeline_state"
-    for status in statuses.values():
-        assert status.status == "disabled"
-        assert status.policy.decision_reason == (
-            "This repo is on GitLab. The GitLab connector isn't wired yet; open MRs and pipeline "
-            "state are not checked."
-        )
-    assert statuses["git_hosting"].safe_user_message == (
-        "open MRs (this repo is on GitLab; the GitLab connector isn't wired yet, next slice)"
+    assert len(documents) == 4
+    assert request_context.forge == "gitlab"
+    assert captured["mrs"]["repo"] == "group/sub/project"
+    assert captured["mrs"]["token"] == "gl-token"
+    assert captured["mrs"]["max_pages"] == 3
+    assert captured["mrs"]["diff_limit"] == 100
+    assert captured["pipeline"]["repo"] == "group/sub/project"
+    assert captured["pipeline"]["token"] == "gl-token"
+    assert captured["pipeline"]["ref"] == "feature"
+
+
+def test_gitlab_reflex_profile_passes_gitlab_budgets(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_gitlab_mrs(**kwargs):  # type: ignore[no-untyped-def]
+        captured["mrs"] = kwargs
+        return _empty_doc(kwargs["request_context"])
+
+    def fake_gitlab_pipeline(**kwargs):  # type: ignore[no-untyped-def]
+        captured["pipeline"] = kwargs
+        return _empty_doc(kwargs["request_context"])
+
+    monkeypatch.setattr(
+        runner,
+        "run_gitlab_mr_probe",
+        fake_gitlab_mrs,
     )
-    assert statuses["ci_deploy"].safe_user_message == (
-        "pipeline state (this repo is on GitLab; the GitLab connector isn't wired yet, next slice)"
+    monkeypatch.setattr(
+        runner,
+        "run_gitlab_pipeline_probe",
+        fake_gitlab_pipeline,
+    )
+    monkeypatch.setenv("GITLAB_TOKEN", "gl-token")
+    inputs = WorkStartInputs(
+        repo="group/sub/project",
+        forge="gitlab",
+        paths=("src/x.py",),
+        branch="feature",
+        profile="reflex",
     )
 
-    answer = broker_answer_from_documents(request_context, documents)
-    verdicts = {label: valuation for label, valuation in answer.verdicts}
-    assert verdicts["Conflict check"].value == "unknown"
-    assert verdicts["Criteria check"].value == "unknown"
-    assert verdicts["Gate check"].value == "unknown"
-    output = render_broker_answer(answer)
-    assert "no other open PRs touch your files" not in output
-    assert "the linked issue's criteria are unchanged" not in output
-    assert "no failing checks found" not in output
-    assert "GitHub" not in output
-    assert "open MRs (this repo is on GitLab" in output
-    assert "pipeline state (this repo is on GitLab" in output
-    assert not output.startswith("Looks clear to start.")
+    run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    assert captured["mrs"]["max_pages"] == 1
+    assert captured["mrs"]["diff_limit"] == 20
+
+
+def test_gitlab_without_branch_disables_pipeline_probe(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runner,
+        "run_gitlab_mr_probe",
+        lambda **kw: _empty_doc(kw["request_context"]),
+    )
+
+    def fail_pipeline(**kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"GitLab pipeline probe should not run: {kwargs}")
+
+    monkeypatch.setattr(runner, "run_gitlab_pipeline_probe", fail_pipeline)
+    inputs = WorkStartInputs(repo="group/sub/project", forge="gitlab", paths=("src/x.py",))
+
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    status = _status_for_source(documents, "gitlab_pipeline_state")
+    assert status.status == "disabled"
+    assert status.safe_user_message == (
+        "pipeline state (couldn't determine your branch; pass --branch or --ref)"
+    )
 
 
 def test_request_context_shares_paths_and_issues() -> None:
@@ -263,6 +306,7 @@ def test_request_context_shares_paths_and_issues() -> None:
     assert request.paths == ["src/x.py"]
     assert request.linked_issues == ["#42"]
     assert request.task == "do a thing"
+    assert request.forge == "github"
 
 
 def test_workstartinputs_accepts_valid_github_slug() -> None:

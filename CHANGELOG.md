@@ -9,7 +9,8 @@ may change while the product is hardened.
 
 ### Added
 
-- Repos hosted on GitLab now resolve, onboard, and report honestly ("the GitLab connector isn't wired yet"), laying the forge seam; config gains forge/jira/confluence blocks.
+- GitLab support: open merge requests (collisions, with the own-MR FYI) and pipeline state (never assumed green) for repos whose origin is gitlab.com, with the same honest budgets and coverage reporting as GitHub.
+- Repos hosted on GitLab now resolve, onboard, and report honestly, laying the forge seam; config gains forge/jira/confluence blocks.
 - An emulation harness (`emulation/`) that drives the team-validation scenario matrix through the
   real CLI, hook, and MCP; GitHub rows run offline against a bundled mock; provider rows arrive
   with their connectors.

@@ -13,3 +13,6 @@ def _no_gh_auth(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN_FILE", raising=False)
     monkeypatch.delenv("TEAMCTX_GITHUB_API_ROOT", raising=False)
+    monkeypatch.delenv("GITLAB_TOKEN", raising=False)
+    monkeypatch.delenv("GITLAB_TOKEN_FILE", raising=False)
+    monkeypatch.delenv("TEAMCTX_GITLAB_API_ROOT", raising=False)

@@ -4,6 +4,7 @@
     "schema_version": "teamctx.request_context.v0",
     "request_id": "req_auth_issue_api_482_001",
     "repo": "auth-service",
+    "forge": "github",
     "branch": "feature/token-retry",
     "task": "Finish token rotation implementation for API-482.",
     "paths": [
