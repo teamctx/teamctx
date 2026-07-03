@@ -316,7 +316,7 @@ def _get_json(url: str, *, auth: tuple[str, str], opener: HttpOpener) -> object:
 
 
 def _basic_auth_header(auth: tuple[str, str]) -> str:
-    raw = f"{auth[0]}:{auth[1]}".encode("utf-8")
+    raw = f"{auth[0]}:{auth[1]}".encode()
     return f"Basic {base64.b64encode(raw).decode('ascii')}"
 
 
