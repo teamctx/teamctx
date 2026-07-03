@@ -45,14 +45,12 @@ def normalize_superseded_docs(
     docs: Iterable[SupersededDoc],
     *,
     observed_at: str,
-    relied_on_doc_in_scope: bool,
     expires_at: str = "next_refresh",
     source_id: str = "docs_supersession",
 ) -> CoreContractDocument:
-    # ``relied_on_doc_in_scope`` is required (no default) on purpose: a default would silently
-    # reintroduce the "assume fresh" this closes. When no scanned doc is in request.paths the
-    # docs source is not_applicable (a docs root is set, but nothing relied-on is in scope),
-    # which the core carries to a render that is neither "current" nor "not configured".
+    # A completed scan is a real green: reliance is the whole declared docs set, so a readable
+    # docs root that scanned to the end is ``fresh`` (any superseded docs ride the signals). There
+    # is no out-of-scope for docs, so a completed scan is always reported ``fresh`` here.
     source_signals: list[SourceSignal] = []
     for entry in docs:
         scope: Scope = {
@@ -78,12 +76,8 @@ def normalize_superseded_docs(
                 policy=metadata_only_policy(_POLICY_REASON),
             )
         )
-    status: SourceStatusValue = "fresh" if relied_on_doc_in_scope else "not_applicable"
-    safe_user_message = (
-        "Docs supersession metadata refreshed."
-        if relied_on_doc_in_scope
-        else "A docs root is set, but none of the files in scope are docs you rely on."
-    )
+    status: SourceStatusValue = "fresh"
+    safe_user_message = "Docs supersession metadata refreshed."
     source_statuses = [
         source_status(
             source_id=source_id,

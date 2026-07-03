@@ -23,11 +23,12 @@ may change while the product is hardened.
   removed, so existing documents stay valid): `pending` and `not_applicable` on
   `SourceStatusValue`, and `incomplete[pending]` and `not_applicable[out-of-scope]` on the
   completeness closure. A gate whose CI checks are still running now reads as "still running",
-  not a false green; a docs root scanned with nothing relied-on in scope reads "not applicable",
-  not a false "current".
+  not a false green. (The `not_applicable` states remain in the contract for future kinds; the
+  docs check no longer uses them, see Changed.)
 
 ### Changed
 
+- The docs check now covers the whole declared docs folder: any doc there that names a newer replacement is flagged at work-start, whether or not you are editing it. A clean scan is a real green.
 - Internal: card kinds are now a single registry (core/kinds.py); adding a kind is a one-entry change. No behavior change.
 - teamctx status now reports real setup state (config, hook, snippet, credential, live reachability) through the same resolvers onboard uses; the old placeholder text is gone.
 - The GitHub PR connector no longer builds display cards; collision cards derive in the core, so their copy has exactly one home.

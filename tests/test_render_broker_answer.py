@@ -303,13 +303,15 @@ def test_cant_verify_pending_gate_shows_still_running() -> None:
     _no_jargon(text)
 
 
-def test_not_applicable_docs_gets_its_own_line_not_cant_verify() -> None:
-    # docs not_applicable is a non-important coverage state: its own line, never cant_verify.
+def test_not_applicable_gets_its_own_line_not_cant_verify() -> None:
+    # A not_applicable coverage state on a non-important check is its own line, never cant_verify.
+    # docs no longer emits not_applicable, so the render uses the generic fallback phrase (the
+    # not_applicable render path is kept for future kinds).
     text = render_broker_answer(
         broker_answer(_request(), [], [_fresh("git_hosting"), _not_applicable("docs")])
     )
     assert "Not applicable: docs" in text
-    assert "none of the files in scope are docs you rely on" in text
+    assert "docs (not applicable to the files in scope)" in text
     assert "I can't confirm the important things yet" not in text
     assert "the docs you rely on are current" not in text
     _no_jargon(text)

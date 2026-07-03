@@ -85,9 +85,9 @@ if set(RENDER_COPY) != {kind.check_id for kind in CARD_KINDS}:
 _PENDING_PHRASE: dict[CheckId, str] = {
     "gate": "failing checks (CI still running, not confirmed green yet)",
 }
-_NOT_APPLICABLE_PHRASE: dict[CheckId, str] = {
-    "docs": "docs (a docs root is set, but none of the files in scope are docs you rely on)",
-}
+# No check emits not_applicable today (docs stopped: reliance is the whole declared docs set).
+# The generic fallback below keeps the render path honest for any future kind that does.
+_NOT_APPLICABLE_PHRASE: dict[CheckId, str] = {}
 
 
 def _pending_phrase(check: CheckId) -> str:
