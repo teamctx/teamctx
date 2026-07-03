@@ -14,6 +14,11 @@ may change while the product is hardened.
 - An emulation harness (`emulation/`) that drives the team-validation scenario matrix through the
   real CLI, hook, and MCP; GitHub rows run offline against a bundled mock; provider rows arrive
   with their connectors.
+- Emulation harness: the GitLab collision (MR wording, no gh-hint, own-MR FYI) and GitLab gate
+  rows (failed pipeline with a named job, canceled-with-zero-jobs, running/pending, and the
+  zero-pipelines disabled note that is the other half of the GitHub/GitLab gate asymmetry) now run
+  offline against a bundled GitLab REST mock (`mockgl.py`) over the `TEAMCTX_GITLAB_API_ROOT` seam,
+  with expected blocks quoting the real renderer output.
 
 - `TEAMCTX_GITHUB_API_ROOT` env override for the GitHub API root, so validation harnesses can
   drive fabricated payloads through the real pipeline against a local mock server.

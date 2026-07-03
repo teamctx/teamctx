@@ -10,18 +10,24 @@ from pathlib import Path
 
 import pytest
 
-from emulation import mockgh
+from emulation import mockgh, mockgl
 from emulation.actors import (
     build_lab_repo,
     fresh_session_id,
     pretooluse_event,
 )
 from emulation.mockgh import Fixtures, MockGitHub
+from emulation.mockgl import GitLabFixtures, MockGitLab
 from teamctx.connectors.github import fetch_github_pull_requests
 from teamctx.connectors.github_checks import fetch_failing_check_runs
 from teamctx.connectors.github_issues import fetch_issue_changes
+from teamctx.connectors.gitlab import (
+    fetch_gitlab_failing_pipeline_jobs,
+    fetch_gitlab_merge_requests,
+    fetch_latest_gitlab_pipeline,
+)
 from teamctx.discover import derive_since
-from teamctx.git_context import detect_branch, detect_repo
+from teamctx.git_context import detect_branch, detect_forge_repo, detect_repo
 
 SLUG = "teamctx-emulation-lab/widgets"
 
@@ -142,3 +148,77 @@ def test_mock_issues_unchanged_before_since_yields_no_change(
             repo=SLUG, issues=["#42"], since="2026-07-01T00:00:00Z", token="t"
         )
     assert changes == []
+
+
+# --- actors: gitlab-origin tmp repo ---
+
+
+def test_build_lab_repo_gitlab_origin_detects_gitlab(tmp_path: Path) -> None:
+    repo = build_lab_repo(
+        tmp_path, branch="feat/x", files={"src/a.py": "x\n"}, origin_host="gitlab.com"
+    )
+    assert detect_forge_repo(repo.root) == (SLUG, "gitlab")
+    assert detect_branch(repo.root) == "feat/x"
+
+
+# --- mockgl: through the real GitLab connectors ---
+
+
+def test_mock_serves_mr_list_and_diffs(monkeypatch: pytest.MonkeyPatch) -> None:
+    fixtures = GitLabFixtures(
+        mr_pages=[[mockgl.mr_item(5, source_branch="feat/other")]],
+        mr_diffs={5: [mockgl.diff_item("src/a.py")]},
+    )
+    with MockGitLab(fixtures) as server:
+        monkeypatch.setenv("TEAMCTX_GITLAB_API_ROOT", server.api_root)
+        fetch = fetch_gitlab_merge_requests(repo=SLUG, token="t", request_branch="feat/x")
+    assert [mr.number for mr in fetch.merge_requests] == [5]
+    assert fetch.merge_requests[0].changed_paths == ("src/a.py",)
+    assert fetch.unbounded_list is False
+
+
+def test_mock_mr_paging_marks_unbounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    # two pages; page 1 carries x-next-page, so a one-page budget reports the list as unbounded.
+    fixtures = GitLabFixtures(
+        mr_pages=[
+            [mockgl.mr_item(1, source_branch="feat/a")],
+            [mockgl.mr_item(2, source_branch="feat/b")],
+        ],
+        mr_diffs={1: [mockgl.diff_item("docs/x.md")]},
+    )
+    with MockGitLab(fixtures) as server:
+        monkeypatch.setenv("TEAMCTX_GITLAB_API_ROOT", server.api_root)
+        fetch = fetch_gitlab_merge_requests(
+            repo=SLUG, token="t", request_branch="feat/x", max_pages=1
+        )
+    assert fetch.unbounded_list is True
+    assert [mr.number for mr in fetch.merge_requests] == [1]
+
+
+def test_mock_serves_latest_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    fixtures = GitLabFixtures(pipelines=[mockgl.pipeline_item(10, "failed")])
+    with MockGitLab(fixtures) as server:
+        monkeypatch.setenv("TEAMCTX_GITLAB_API_ROOT", server.api_root)
+        pipeline = fetch_latest_gitlab_pipeline(repo=SLUG, ref="feat/x", token="t")
+    assert pipeline is not None
+    assert (pipeline.id, pipeline.status) == (10, "failed")
+
+
+def test_mock_zero_pipelines_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    with MockGitLab(GitLabFixtures(pipelines=[])) as server:
+        monkeypatch.setenv("TEAMCTX_GITLAB_API_ROOT", server.api_root)
+        pipeline = fetch_latest_gitlab_pipeline(repo=SLUG, ref="feat/x", token="t")
+    assert pipeline is None
+
+
+def test_mock_serves_failing_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    fixtures = GitLabFixtures(
+        pipelines=[mockgl.pipeline_item(10, "failed")],
+        pipeline_jobs={10: [mockgl.job_item("test", "failed"), mockgl.job_item("lint", "success")]},
+    )
+    with MockGitLab(fixtures) as server:
+        monkeypatch.setenv("TEAMCTX_GITLAB_API_ROOT", server.api_root)
+        pipeline = fetch_latest_gitlab_pipeline(repo=SLUG, ref="feat/x", token="t")
+        assert pipeline is not None
+        jobs = fetch_gitlab_failing_pipeline_jobs(repo=SLUG, pipeline=pipeline, token="t")
+    assert [name for name, _url in jobs] == ["test"]

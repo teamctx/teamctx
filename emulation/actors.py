@@ -20,9 +20,11 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# The disposable lab slug is committed AS-IS (a lab asset, not instance data), matching the spec's
-# redaction rule. The mock server ignores owner/name, so any github.com slug routes correctly.
+# The disposable lab slugs are committed AS-IS (lab assets, not instance data), matching the spec's
+# redaction rule. The mock servers ignore owner/name, so any github.com/gitlab.com slug routes
+# correctly.
 DEFAULT_SLUG = "teamctx-emulation-lab/widgets"
+DEFAULT_GITLAB_SLUG = "teamctx-emulation-lab/widgets"
 SYNTHETIC_TOKEN = "emulation-operator-token"  # authenticates only to the local mock, never live
 
 _BASE_DATE = "2026-07-01T09:15:00+00:00"
@@ -104,10 +106,13 @@ def build_lab_repo(
     base_date: str = _BASE_DATE,
     work_date: str = _WORK_DATE,
     work_commit: bool = True,
+    origin_host: str = "github.com",
 ) -> LabRepo:
     """Stage a tmp repo: a dated base commit on ``main`` with an ``origin`` remote and tracking
     refs (so repo/branch auto-detection and the merge-base ``since`` derivation both resolve),
-    then a work branch. Mirrors the tmp-repo pattern of tests/test_auto_derivation_e2e.py."""
+    then a work branch. Mirrors the tmp-repo pattern of tests/test_auto_derivation_e2e.py. The
+    ``origin_host`` selects the forge the CLI auto-detects (github.com or gitlab.com), so a GitLab
+    row drives the GitLab connectors purely from the staged origin, no config needed."""
 
     root.mkdir(parents=True, exist_ok=True)
     _git(root, "init", "-q", "-b", "main")
@@ -117,7 +122,7 @@ def build_lab_repo(
         write_file(root, rel_path, text)
     _git(root, "add", ".")
     _git(root, "commit", "-qm", "base", date=base_date)
-    _git(root, "remote", "add", "origin", f"git@github.com:{slug}.git")
+    _git(root, "remote", "add", "origin", f"git@{origin_host}:{slug}.git")
     _git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
     _git(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
     _git(root, "checkout", "-qb", branch)
@@ -132,27 +137,40 @@ def build_lab_repo(
 
 @dataclass(frozen=True)
 class SubprocessEnv:
-    """The env for a CLI/hook subprocess: pinned to this worktree's src and to the mock server,
-    with a synthetic token. Even if a real credential is inherited, every GitHub call is bounded to
-    the ``TEAMCTX_GITHUB_API_ROOT`` mock, so no live request can escape."""
+    """The env for a CLI/hook subprocess: pinned to this worktree's src and to the mock server(s),
+    with a synthetic token. Even if a real credential is inherited, every GitHub/GitLab call is
+    bounded to the ``TEAMCTX_GITHUB_API_ROOT`` / ``TEAMCTX_GITLAB_API_ROOT`` mock, so no live
+    request can escape. A GitHub row passes ``api_root``; a GitLab row passes ``gitlab_api_root``
+    (and, if it needs a credential, ``gitlab_token``). The credential env for the forge NOT under
+    test is cleared, so a real ambient token can never leak into a live call."""
 
-    api_root: str
+    api_root: str | None = None
     token: str = SYNTHETIC_TOKEN
     hook_cache: Path | None = None
     observed_at: str | None = None
+    gitlab_api_root: str | None = None
+    gitlab_token: str | None = None
 
     def as_dict(self) -> dict[str, str]:
         env = dict(os.environ)
         existing = env.get("PYTHONPATH")
         src = str(_src_root())
         env["PYTHONPATH"] = src if not existing else src + os.pathsep + existing
-        env["TEAMCTX_GITHUB_API_ROOT"] = self.api_root
         env["TEAMCTX_DISABLE_GH_AUTH"] = "1"
         env.pop("GITHUB_TOKEN_FILE", None)
+        env.pop("GITLAB_TOKEN_FILE", None)
+        if self.api_root is not None:
+            env["TEAMCTX_GITHUB_API_ROOT"] = self.api_root
         if self.token:
             env["GITHUB_TOKEN"] = self.token
         else:
             env.pop("GITHUB_TOKEN", None)
+        if self.gitlab_api_root is not None:
+            env["TEAMCTX_GITLAB_API_ROOT"] = self.gitlab_api_root
+        if self.gitlab_token:
+            env["GITLAB_TOKEN"] = self.gitlab_token
+        else:
+            env.pop("GITLAB_TOKEN", None)
         if self.hook_cache is not None:
             env["TEAMCTX_HOOK_CACHE"] = str(self.hook_cache)
         return env
