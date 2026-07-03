@@ -33,6 +33,8 @@ def _important_gap_notes(a: WorkStartAssessment) -> list[str]:
             continue
         if s.status == "pending":
             notes.append("CI checks are still running, so the gate isn't confirmed green yet.")
+        elif s.status == "unbounded":
+            notes.append(_unbounded_note(s))
         elif s.status == "unreachable":
             notes.append(
                 "teamctx couldn't reach GitHub to check "
@@ -56,6 +58,7 @@ def _cant_verify(a: WorkStartAssessment, token_present: bool) -> str:
     unreachable = [
         s.check for s in a.checks if s.status == "unreachable" and s.check in IMPORTANT_CHECKS
     ]
+    unbounded = [s for s in a.checks if s.status == "unbounded" and s.check in IMPORTANT_CHECKS]
     pending = [s.check for s in a.checks if s.status == "pending" and s.check in IMPORTANT_CHECKS]
     parts: list[str] = []
     if unreachable:
@@ -75,6 +78,8 @@ def _cant_verify(a: WorkStartAssessment, token_present: bool) -> str:
                 "files. This is likely a transient connection issue. You won't get those warnings "
                 "this session, so glance at GitHub yourself if this file is sensitive."
             )
+    for state in unbounded:
+        parts.append(_unbounded_note(state))
     if pending:
         parts.append(
             "teamctx: CI checks on this branch are still running, so it can't confirm the "
@@ -82,6 +87,23 @@ def _cant_verify(a: WorkStartAssessment, token_present: bool) -> str:
             "the run yourself."
         )
     return " ".join(parts)
+
+
+def _unbounded_note(state: CheckState) -> str:
+    note = state.note or ""
+    prefix = "Checked the "
+    suffix = " most recently updated open PRs; more exist, so this is not a complete check."
+    if note.startswith(prefix) and note.endswith(suffix):
+        count = note[len(prefix):-len(suffix)]
+        return (
+            f"teamctx checked the {count} most recently updated open PRs and found no collision, "
+            "but more open PRs exist. On a repo this busy, glance at GitHub if this file is "
+            "sensitive."
+        )
+    return (
+        f"teamctx partially checked {RENDER_COPY[state.check].hook_gap or state.check}. "
+        f"{note} Glance at GitHub if this file is sensitive."
+    ).strip()
 
 
 def _ready(checks: tuple[CheckState, ...], file_path: str) -> str:

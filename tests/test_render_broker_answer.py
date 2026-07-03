@@ -58,6 +58,19 @@ def _unavailable(family: str) -> SourceStatus:
     )
 
 
+def _unbounded(family: str, message: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe",
+        source_family=family,
+        scope={"repo": "acme/widgets"},
+        status="unbounded",
+        observed_at="2026-06-28T00:00:00Z",
+        safe_user_message=message,
+        visibility="warning_when_relevant",
+        policy_reason="status only",
+    )
+
+
 def _disabled(family: str, message: str) -> SourceStatus:
     return source_status(
         source_id=f"{family}-probe",
@@ -167,6 +180,37 @@ def test_cant_verify_when_github_unreachable() -> None:
     assert text.startswith("Heads up: I can't confirm the important things yet:")
     assert "couldn't reach GitHub" in text
     assert "GITHUB_TOKEN" in text
+    _no_jargon(text)
+
+
+def test_cant_verify_unbounded_conflict_has_bullet_and_no_double_print() -> None:
+    note = (
+        "Checked the 300 most recently updated open PRs; more exist, so this is not a "
+        "complete check."
+    )
+
+    text = render_broker_answer(broker_answer(_request(), [], [_unbounded("git_hosting", note)]))
+
+    assert text.startswith("Heads up: I can't confirm the important things yet:")
+    assert f"Open PRs: {note} Glance at GitHub if this file is sensitive." in text
+    assert "Partially checked:" not in text
+    assert text.count(note) == 1
+    _no_jargon(text)
+
+
+def test_non_important_unbounded_gets_partially_checked_line() -> None:
+    note = (
+        "Checked the 20 most recently updated issues; more exist, so this is not a "
+        "complete check."
+    )
+
+    text = render_broker_answer(
+        broker_answer(_request(), [], [_fresh("git_hosting"), _unbounded("issue_tracker", note)])
+    )
+
+    assert text.startswith("Looks clear to start.")
+    assert f"Partially checked: {note}" in text
+    assert "I can't confirm the important things yet" not in text
     _no_jargon(text)
 
 

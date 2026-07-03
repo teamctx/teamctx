@@ -65,6 +65,19 @@ def _unavailable_status(family: str) -> SourceStatus:
     )
 
 
+def _unbounded_status(family: str, message: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe",
+        source_family=family,
+        scope={"repo": "acme/widgets"},
+        status="unbounded",
+        observed_at="2026-06-27T00:00:00Z",
+        safe_user_message=message,
+        visibility="warning_when_relevant",
+        policy_reason="status only",
+    )
+
+
 def test_heads_up_when_a_collision_is_found() -> None:
     answer = broker_answer(_request(), [_collision_signal()], [_fresh_status("git_hosting")])
     text = hook_signal(answer, file_path="src/app.py", token_present=True)
@@ -87,6 +100,22 @@ def test_cant_verify_with_token_present_is_transient() -> None:
     assert "GitHub" in text
     assert "transient" in text
     assert "install-hook" not in text  # the token-present message must not tell them to install
+
+
+def test_cant_verify_unbounded_conflict_uses_pinned_copy() -> None:
+    note = (
+        "Checked the 300 most recently updated open PRs; more exist, so this is not a "
+        "complete check."
+    )
+    answer = broker_answer(_request(), [], [_unbounded_status("git_hosting", note)])
+
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+
+    assert text == (
+        "teamctx checked the 300 most recently updated open PRs and found no collision, "
+        "but more open PRs exist. On a repo this busy, glance at GitHub if this file is "
+        "sensitive."
+    )
 
 
 def test_ready_names_the_clear_checks_no_lowstakes_hedge() -> None:
