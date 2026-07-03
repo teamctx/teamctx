@@ -70,9 +70,11 @@ below until the arc completes.
   S1 own-PR collision fix **DONE 2026-07-03 (merged `6cada7b`, 443 tests; codex built from the
   plan, Fable arbiter-reviewed + one copy fix; own-branch PRs set aside with an FYI line and
   recorded on the forge source status)** ·
-  S2 README refresh + docs-claim tightening + gh-hint repo flag (F3, F11; Fable builds, codex
-  reviews) · S3 `status` made real as onboard's read-only twin (F2; plan
-  `docs/superpowers/plans/2026-07-03-s3-status-real.md`) · S4 small batch:
+  S2 README refresh + docs-claim tightening + gh-hint repo flag (F3, F11) **BUILT by Fable on
+  `feat/readme-refresh`, in codex adversarial review (merge after verdict)** · S3 `status` made
+  real as onboard's read-only twin (F2) **DONE 2026-07-03 (merged `ea0cbef`, 455 tests; codex
+  built in an isolated worktree from the plan, Fable arbiter-reviewed + live smoke: every
+  status line true, real reachability call)** · S4 small batch:
   authority.json fail-closed, CI 3.13 matrix + coverage gate wired-or-dropped, teamctx-mcp
   friendly import guard (F6, F8, F10).
 - **Phase 1, auto-discovery (was "next slice"; absorbs F9, F13):** S5a linked-issue +
