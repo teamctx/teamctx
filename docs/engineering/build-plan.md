@@ -20,8 +20,11 @@ Sprint 01 proved the first narrow product spine:
 - a live overlapping-PR proof against public GitHub PR metadata.
 
 Important exclusions are still intact: no comments, no review bodies, no raw
-patches, no commit bodies, no author identity, no broad repo search, no LLM in
-the broker, and no source body browsing by default.
+patches, no REMOTE commit bodies, no author identity, no broad repo search, no
+LLM in the broker, and no source body browsing by default. (Clarified 2026-07-03
+with the auto-derivation slice: LOCAL commit messages in the user's own
+workspace are parsed for closing-keyword issue numbers only; message text is
+never stored, surfaced, or sent anywhere. Remote bodies remain excluded.)
 
 ## Current Milestone
 

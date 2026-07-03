@@ -63,9 +63,10 @@ def test_repo_gitignore_allows_tracking_teamctx_config() -> None:
 def test_snippet_is_honest_about_what_auto_fires() -> None:
     assert "open pull requests" in CLAUDE_MD_SNIPPET or "open PRs" in CLAUDE_MD_SNIPPET
     assert "failing checks" in CLAUDE_MD_SNIPPET
-    # must NOT overclaim the checks that do not auto-fire yet:
-    assert "changed specs" not in CLAUDE_MD_SNIPPET
-    assert "superseded docs" not in CLAUDE_MD_SNIPPET
+    # the conditional checks state their conditions (never a bare claim):
+    assert "when an issue is linked from your branch or commits" in CLAUDE_MD_SNIPPET
+    assert "when a docs folder is configured" in CLAUDE_MD_SNIPPET
+    assert "changed specs" not in CLAUDE_MD_SNIPPET  # the old overclaiming phrasing stays dead
 
 
 def test_atomic_write_creates_and_overwrites(tmp_path: Path) -> None:
@@ -416,11 +417,13 @@ def test_snippet_eof_no_newline_appends_cleanly(tmp_path: Path) -> None:
     assert "# Project no newline" in text and _START in text
 
 
-def _write_config(root: Path, repo: str | None) -> None:
+def _write_config(root: Path, repo: str | None, docs_root: str | None = None) -> None:
     (root / ".teamctx").mkdir(exist_ok=True)
-    ws = {"repo": repo} if repo is not None else {}
+    ws: dict = {"repo": repo} if repo is not None else {}
+    if docs_root is not None:
+        ws["docs_root"] = docs_root
     body: dict = {"schema_version": "teamctx.project_config.v0"}
-    if repo is not None:
+    if ws:
         body["work_start"] = ws
     (root / ".teamctx" / "config.json").write_text(json.dumps(body), encoding="utf-8")
 
@@ -554,3 +557,129 @@ def test_onboard_health_matches_runtime_repo(
     )
     runtime = resolve_work_start_inputs(paths=("x.py",), root=tmp_path)
     assert urls and f"repos/{runtime.repo}/" in urls[0]
+
+
+# --- S5c: docs detection + the truthful snippet ---
+
+
+def test_detect_docs_root_finds_conventional_docs_dir(tmp_path: Path) -> None:
+    from teamctx.onboard import _detect_docs_root
+
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "plan.md").write_text("x", encoding="utf-8")
+    assert _detect_docs_root(tmp_path) == "docs"
+
+
+def test_detect_docs_root_requires_markdown(tmp_path: Path) -> None:
+    from teamctx.onboard import _detect_docs_root
+
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "notes.txt").write_text("x", encoding="utf-8")
+    assert _detect_docs_root(tmp_path) is None
+    assert _detect_docs_root(tmp_path / "nowhere") is None
+
+
+def test_onboard_writes_docs_root_when_docs_dir_found(tmp_path: Path, monkeypatch) -> None:
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "plan.md").write_text("x", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    config = json.loads((tmp_path / ".teamctx" / "config.json").read_text(encoding="utf-8"))
+    assert config["work_start"]["docs_root"] == "docs"
+    docs_step = next(s for s in result.steps if s.name == "docs")
+    assert docs_step.detail == "found a docs/ folder; superseded docs there will be flagged."
+
+
+def test_onboard_reports_no_docs_folder(tmp_path: Path, monkeypatch) -> None:
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    config = json.loads((tmp_path / ".teamctx" / "config.json").read_text(encoding="utf-8"))
+    assert "docs_root" not in config["work_start"]
+    docs_step = next(s for s in result.steps if s.name == "docs")
+    assert docs_step.detail == (
+        "no docs/ folder found; set work_start.docs_root in .teamctx/config.json to flag "
+        "superseded docs."
+    )
+
+
+def test_onboard_existing_config_reports_configured_docs_root(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    _write_config(tmp_path, "acme/widgets", docs_root="handbook")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    docs_step = next(s for s in result.steps if s.name == "docs")
+    assert "handbook" in docs_step.detail
+    assert "will be flagged" in docs_step.detail
+
+
+def test_new_snippet_claims_all_four_checks_with_conditions() -> None:
+    from teamctx.onboard import CLAUDE_MD_SNIPPET
+
+    assert "open pull requests touching your files" in CLAUDE_MD_SNIPPET
+    assert "failing checks on your branch" in CLAUDE_MD_SNIPPET
+    assert "when an issue is linked from your branch or commits" in CLAUDE_MD_SNIPPET
+    assert "when a docs folder is configured" in CLAUDE_MD_SNIPPET
+
+
+def test_previous_snippet_body_migrates_as_outdated(tmp_path: Path) -> None:
+    from teamctx.onboard import (
+        _SNIPPET_BODY_2026_07,
+        classify_claude_md,
+        upsert_claude_md_snippet,
+    )
+
+    marked_old = f"<!-- teamctx:start -->\n{_SNIPPET_BODY_2026_07}<!-- teamctx:end -->\n"
+    (tmp_path / "CLAUDE.md").write_text(marked_old, encoding="utf-8")
+    assert classify_claude_md(marked_old) == "outdated"
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "wrote"
+    from teamctx.onboard import CLAUDE_MD_SNIPPET
+
+    assert CLAUDE_MD_SNIPPET in (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+
+
+def test_onboard_existing_config_without_docs_root_names_the_real_state(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # P1 from the S5c review: an existing config (no docs_root) + a real docs/ folder must NOT
+    # read "no docs/ folder found"; it names the true state and the fix.
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    _write_config(tmp_path, "acme/widgets")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "plan.md").write_text("x", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    docs_step = next(s for s in result.steps if s.name == "docs")
+    assert "a docs/ folder exists but the existing config has no docs_root" in docs_step.detail
+    config = json.loads((tmp_path / ".teamctx" / "config.json").read_text(encoding="utf-8"))
+    assert "docs_root" not in config.get("work_start", {})  # existing config untouched
+
+
+def test_docs_detection_mirrors_runtime_symlink_fail_closed(tmp_path: Path, monkeypatch) -> None:
+    # P2 from the S5c review: a docs/ folder whose markdown escapes the repo must not be
+    # configured (the runtime scan would fail closed to unavailable); the step says why.
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.md"
+    outside.write_text("x", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "escape.md").symlink_to(outside)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    config = json.loads((tmp_path / ".teamctx" / "config.json").read_text(encoding="utf-8"))
+    assert "docs_root" not in config.get("work_start", {})
+    docs_step = next(s for s in result.steps if s.name == "docs")
+    assert "couldn't be safely configured" in docs_step.detail

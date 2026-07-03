@@ -177,3 +177,54 @@ def test_status_cli_empty_dir_recommends_onboard(
     assert result.exit_code == 0, result.output
     assert "Run `teamctx onboard` to finish setup." in result.output
     assert "".join(_OLD_STATUS_STUB_PARTS) not in result.output
+
+
+def test_status_existing_config_with_docs_dir_names_the_real_fix(tmp_path, monkeypatch) -> None:
+    # Round-2 review P1: with an EXISTING config (no docs_root) onboard will not set docs, so
+    # status must name the real fix (edit config or --force), never promise plain onboard.
+    import json as _json
+    import subprocess as _sp
+
+    from teamctx.onboard import run_status
+
+    _sp.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    _sp.run(
+        ["git", "-C", str(tmp_path), "remote", "add", "origin",
+         "git@github.com:acme/widgets.git"],
+        check=True,
+    )
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "config.json").write_text(_json.dumps(
+        {"schema_version": "teamctx.project_config.v0", "work_start": {"repo": "acme/widgets"}}
+    ), encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "plan.md").write_text("x", encoding="utf-8")
+    report = run_status(tmp_path)
+    docs = next(s for s in report.steps if s.name == "docs")
+    assert "add work_start.docs_root" in docs.detail
+    assert "`teamctx onboard` sets it" not in docs.detail
+
+
+def test_status_empty_docs_dir_is_reported_truthfully(tmp_path) -> None:
+    # Round-2 review P2: an empty docs/ folder must not read "no docs/ folder found".
+    from teamctx.onboard import run_status
+
+    (tmp_path / "docs").mkdir()
+    report = run_status(tmp_path)
+    docs = next(s for s in report.steps if s.name == "docs")
+    assert "has no markdown files" in docs.detail
+
+
+def test_status_malformed_config_with_docs_dir_never_promises_plain_onboard(tmp_path) -> None:
+    # Round-3 review P1: a malformed config parses to existing=None, but onboard will not write
+    # over it without --force, so the docs line must not promise that plain onboard sets it.
+    from teamctx.onboard import run_status
+
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "config.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "plan.md").write_text("x", encoding="utf-8")
+    report = run_status(tmp_path)
+    docs = next(s for s in report.steps if s.name == "docs")
+    assert "`teamctx onboard` sets it" not in docs.detail
+    assert "add work_start.docs_root" in docs.detail

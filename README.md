@@ -25,8 +25,11 @@ Run it before you start editing. From the systems of record your team already us
   surfaces, on purpose).
 - Checks that are failing on your branch, and checks that are still running (reported as
   unconfirmed, never assumed green).
-- Acceptance criteria that changed on a linked issue since you started.
-- Superseded docs: a doc in your change set that declares it was replaced by a newer one.
+- Acceptance criteria that changed on a linked issue since you started, with the issue and the
+  start time derived from your branch name, commit trailers, and merge point when you don't name
+  them, and the derivation named in the output so you can judge it.
+- Design docs you rely on that have been superseded: any doc under your declared docs folder that
+  names a newer replacement, whether or not you are editing it.
 
 Live today: GitHub (open pull requests, check runs, and linked issues) and design docs declared in
 your repository. The core is source-agnostic; GitHub is simply the first source wired up, with Jira
@@ -62,7 +65,8 @@ export GITHUB_TOKEN_FILE=~/.config/teamctx/token
 #    credential and a live reachability check. Idempotent; re-run any time. --dry-run previews.
 teamctx onboard
 
-# 2. Before you edit, see what changed around your files.
+# 2. Before you edit, see what changed around your files (the next three samples are from a
+#    branch named 42-fix-auth in a repo with a docs/ folder, so all four checks fire).
 teamctx work-start --path src/auth/token.py
 ```
 
@@ -70,8 +74,7 @@ A clean start reads:
 
 ```
 Looks clear to start.
-  Checked: no other open PRs touch your files; no failing checks found.
-  Not checked: spec changes (no issue is linked to this branch; link one to enable); docs (no docs root is configured; set work_start.docs_root to enable).
+  Checked: no other open PRs touch your files; the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.
 ```
 
 When something is in the way:
@@ -79,8 +82,7 @@ When something is in the way:
 ```
 Before you start, here is what to handle first:
   • Open PR #7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 7 --repo acme/widgets)
-  Also checked: no failing checks found.
-  Not checked: spec changes (no issue is linked to this branch; link one to enable); docs (no docs root is configured; set work_start.docs_root to enable).
+  Also checked: the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.
 ```
 
 When the only overlapping PR is your own branch's PR, that is not a collision, and teamctx says so
@@ -88,17 +90,18 @@ instead of crying wolf:
 
 ```
 Looks clear to start.
-  Checked: no other open PRs touch your files; no failing checks found.
+  Checked: no other open PRs touch your files; the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.
   FYI: Your own open PR #12 for this branch touches these files; not flagged as a collision.
-  Not checked: spec changes (no issue is linked to this branch; link one to enable); docs (no docs root is configured; set work_start.docs_root to enable).
 ```
 
-And when it could not verify something that matters, it says so rather than guessing:
+And when it could not verify something that matters, it says so rather than guessing. This
+last sample is a different situation: a branch with no derivable issue, no docs folder
+configured, and GitHub unreachable:
 
 ```
 Heads up: I can't confirm the important things yet:
   • Open PRs and failing checks: teamctx couldn't reach GitHub. Either it has no access yet (set GITHUB_TOKEN, or GITHUB_TOKEN_FILE with a path to a token file) or it's a temporary connection issue. Until it's back you won't see colliding PRs or red CI on your files.
-  Not checked: spec changes (no issue is linked to this branch; link one to enable); docs (no docs root is configured; set work_start.docs_root to enable).
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
 ```
 
 ## Drill into a finding
