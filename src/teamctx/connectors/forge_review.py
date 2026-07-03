@@ -64,10 +64,18 @@ def normalize_forge_review_prs(
     source_open_targets: list[SourceOpenTarget] = []
     context_cards: list[ContextCard] = []
     requested_paths = set(request_context.paths)
+    own_branch_prs: list[int] = []
 
     for pr in pull_requests:
         overlap = sorted(requested_paths.intersection(pr.changed_paths))
         if not overlap:
+            continue
+        if (
+            request_context.branch is not None
+            and pr.head_ref == request_context.branch
+            and pr.head_repo == pr.repo
+        ):
+            own_branch_prs.append(pr.number)
             continue
 
         signal_id = f"sig_{pr.provider}_pr_{pr.number}_collision"
@@ -137,11 +145,27 @@ def normalize_forge_review_prs(
         )
 
     status: SourceStatusValue = "stale" if coverage_truncated else "fresh"
-    safe_user_message = (
-        "Checked the most recent 100 open PRs; there are more open PRs not included, "
-        "so this is not a complete check."
-        if coverage_truncated
-        else "Git-host PR metadata refreshed."
+    messages: list[str] = []
+    if coverage_truncated:
+        messages.append(
+            "Checked the most recent 100 open PRs; there are more open PRs not included, "
+            "so this is not a complete check."
+        )
+    if own_branch_prs:
+        numbers = ", ".join(f"#{number}" for number in own_branch_prs)
+        plural = "PRs" if len(own_branch_prs) > 1 else "PR"
+        messages.append(
+            f"Your own open {plural} {numbers} for this branch touches these files; "
+            "not flagged as a collision."
+        )
+    if not messages:
+        messages.append("Git-host PR metadata refreshed.")
+    safe_user_message = " ".join(messages)
+    extra_scope: Scope | None = None
+    if own_branch_prs:
+        extra_scope = {"own_branch_prs": [str(number) for number in own_branch_prs]}
+    visibility: SourceStatusVisibility = (
+        "warning_when_relevant" if own_branch_prs else "silent"
     )
     source_statuses = [
         forge_review_source_status(
@@ -151,7 +175,8 @@ def normalize_forge_review_prs(
             status=status,
             observed_at=observed_at,
             safe_user_message=safe_user_message,
-            visibility="silent",
+            visibility=visibility,
+            extra_scope=extra_scope,
         )
     ]
     return CoreContractDocument(
@@ -197,11 +222,15 @@ def forge_review_source_status(
     observed_at: str,
     safe_user_message: str,
     visibility: SourceStatusVisibility,
+    extra_scope: Scope | None = None,
 ) -> SourceStatus:
+    scope: Scope = {"provider": provider, "repo": repo}
+    if extra_scope is not None:
+        scope.update(extra_scope)
     return source_status(
         source_id=source_id,
         source_family=_SOURCE_FAMILY,
-        scope={"provider": provider, "repo": repo},
+        scope=scope,
         status=status,
         observed_at=observed_at,
         safe_user_message=safe_user_message,

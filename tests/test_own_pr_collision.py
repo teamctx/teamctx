@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from teamctx.connectors.forge_review import (
+    ForgeReviewPullRequest,
+    normalize_forge_review_prs,
+)
 from teamctx.connectors.github import parse_github_pull_requests
+from teamctx.core.contracts import RequestContext
 
 
 def _raw_pr(number: int = 12, head: object = None) -> dict[str, object]:
@@ -43,3 +48,89 @@ def test_parse_malformed_head_types_yield_none() -> None:
     prs = parse_github_pull_requests(repo="o/r", pulls_payload=payload, files_by_pr={})
     assert prs[0].head_ref is None
     assert prs[0].head_repo is None
+
+
+def _request(branch: str | None = "feat/x") -> RequestContext:
+    return RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id="t",
+        repo="o/r",
+        branch=branch,
+        task="t",
+        paths=["src/a.py"],
+        linked_issues=[],
+        requested_at="2026-07-03T00:00:00Z",
+        requesting_principal=None,
+    )
+
+
+def _pr(number: int, head_ref: str | None, head_repo: str | None) -> ForgeReviewPullRequest:
+    return ForgeReviewPullRequest(
+        provider="github",
+        repo="o/r",
+        number=number,
+        state="open",
+        url=f"https://github.com/o/r/pull/{number}",
+        title=None,
+        changed_paths=("src/a.py",),
+        created_at="2026-07-01T00:00:00Z",
+        updated_at="2026-07-02T00:00:00Z",
+        head_ref=head_ref,
+        head_repo=head_repo,
+    )
+
+
+def test_own_branch_pr_emits_no_collision_and_is_recorded() -> None:
+    doc = normalize_forge_review_prs(
+        _request(), [_pr(12, "feat/x", "o/r")], observed_at="2026-07-03T00:00:00Z"
+    )
+    assert doc.source_signals == []
+    assert doc.context_cards == []
+    assert doc.source_open_targets == []
+    status = doc.source_statuses[0]
+    assert status.status == "fresh"
+    assert status.scope["own_branch_prs"] == ["12"]
+    assert "#12" in status.safe_user_message
+    assert status.normal_context_visibility == "warning_when_relevant"
+
+
+def test_other_branch_pr_still_fires() -> None:
+    doc = normalize_forge_review_prs(
+        _request(), [_pr(13, "feat/other", "o/r")], observed_at="2026-07-03T00:00:00Z"
+    )
+    assert len(doc.source_signals) == 1
+    assert doc.source_statuses[0].normal_context_visibility == "silent"
+
+
+def test_fork_pr_with_same_branch_name_still_fires() -> None:
+    doc = normalize_forge_review_prs(
+        _request(), [_pr(14, "feat/x", "someone/fork")], observed_at="2026-07-03T00:00:00Z"
+    )
+    assert len(doc.source_signals) == 1
+
+
+def test_unknown_branch_never_matches_own() -> None:
+    doc = normalize_forge_review_prs(
+        _request(branch=None), [_pr(12, "feat/x", "o/r")], observed_at="2026-07-03T00:00:00Z"
+    )
+    assert len(doc.source_signals) == 1
+
+
+def test_missing_head_data_never_matches_own() -> None:
+    doc = normalize_forge_review_prs(
+        _request(), [_pr(12, None, None)], observed_at="2026-07-03T00:00:00Z"
+    )
+    assert len(doc.source_signals) == 1
+
+
+def test_truncated_and_own_pr_keeps_truncation_precedence() -> None:
+    doc = normalize_forge_review_prs(
+        _request(),
+        [_pr(12, "feat/x", "o/r")],
+        observed_at="2026-07-03T00:00:00Z",
+        coverage_truncated=True,
+    )
+    status = doc.source_statuses[0]
+    assert status.status == "stale"
+    assert "most recent 100" in status.safe_user_message
+    assert "#12" in status.safe_user_message
