@@ -395,7 +395,7 @@ def test_run_onboard_existing_config_needs_force(tmp_path: Path, monkeypatch) ->
 def test_run_onboard_failed_step_sets_ok_false(tmp_path: Path, monkeypatch) -> None:
     _github_origin(tmp_path)
     monkeypatch.setenv("GITHUB_TOKEN", "x")
-    settings = tmp_path / ".claude" / "settings.json"
+    settings = tmp_path / ".claude" / "settings.local.json"
     settings.parent.mkdir()
     settings.write_text('{"hooks": "not a dict"}', encoding="utf-8")  # malformed
     result = run_onboard(
@@ -404,6 +404,175 @@ def test_run_onboard_failed_step_sets_ok_false(tmp_path: Path, monkeypatch) -> N
     hook_step = next(s for s in result.steps if s.name == "hook")
     assert hook_step.status == "failed"
     assert result.ok is False  # a failed step flips ok
+
+
+def test_run_onboard_migrates_hook_out_of_committed_settings_preserving_other_bytes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    (tmp_path / ".gitignore").write_text(".claude/settings.local.json\n", encoding="utf-8")
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    before = (
+        "{\n"
+        '  "model": "opus",\n'
+        '  "hooks": {\n'
+        '    "Stop": [\n'
+        '      {"hooks": []}\n'
+        "    ],\n"
+        '    "PreToolUse": [\n'
+        '      {"matcher": "Edit|Write|MultiEdit", "hooks": [{"type": "command", '
+        '"command": "teamctx-hook"}]},\n'
+        '      {"matcher": "Other", "hooks": [{"type": "command", "command": "other"}]}\n'
+        "    ]\n"
+        "  },\n"
+        '  "theme": "dark"\n'
+        "}\n"
+    )
+    settings.write_text(before, encoding="utf-8")
+    expected = (
+        "{\n"
+        '  "model": "opus",\n'
+        '  "hooks": {\n'
+        '    "Stop": [\n'
+        '      {"hooks": []}\n'
+        "    ],\n"
+        '    "PreToolUse": [\n'
+        '      {"matcher": "Other", "hooks": [{"type": "command", "command": "other"}]}\n'
+        "    ]\n"
+        "  },\n"
+        '  "theme": "dark"\n'
+        "}\n"
+    )
+
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    assert settings.read_text(encoding="utf-8") == expected
+    assert (tmp_path / ".claude" / "settings.local.json").exists()
+    hook_step = next(s for s in result.steps if s.name == "hook")
+    assert hook_step.detail == (
+        "moved the reflex hook out of the committed .claude/settings.json into "
+        ".claude/settings.local.json (a committed hook would auto-run on teammates' machines; "
+        "the hook is a personal opt-in)."
+    )
+
+
+def test_run_onboard_migrates_hook_from_only_committed_settings_entry(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text(
+        '{"hooks":{"PreToolUse":[{"matcher":"Edit|Write|MultiEdit","hooks":'
+        '[{"type":"command","command":"teamctx-hook"}]}]}}\n',
+        encoding="utf-8",
+    )
+
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    assert settings.read_text(encoding="utf-8") == "{}\n"
+    local = json.loads((tmp_path / ".claude" / "settings.local.json").read_text(encoding="utf-8"))
+    assert local["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == "teamctx-hook"
+
+
+def test_run_onboard_hook_migration_is_idempotent(tmp_path: Path, monkeypatch) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text(
+        '{"hooks":{"PreToolUse":[{"matcher":"Edit|Write|MultiEdit","hooks":'
+        '[{"type":"command","command":"teamctx-hook"}]}]}}\n',
+        encoding="utf-8",
+    )
+
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    again = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    hook_step = next(s for s in again.steps if s.name == "hook")
+    assert hook_step.status == "already"
+
+
+def test_run_onboard_dry_run_leaves_committed_and_local_settings_alone(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    settings = tmp_path / ".claude" / "settings.json"
+    local = tmp_path / ".claude" / "settings.local.json"
+    settings.parent.mkdir()
+    settings_before = (
+        '{"hooks":{"PreToolUse":[{"matcher":"Edit|Write|MultiEdit","hooks":'
+        '[{"type":"command","command":"teamctx-hook"}]}]}}\n'
+    )
+    local_before = '{"hooks":{"Stop":[]}}\n'
+    settings.write_text(settings_before, encoding="utf-8")
+    local.write_text(local_before, encoding="utf-8")
+
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=True, opener=_opener_returning([])
+    )
+
+    assert settings.read_text(encoding="utf-8") == settings_before
+    assert local.read_text(encoding="utf-8") == local_before
+
+
+def test_run_onboard_warns_when_local_settings_is_not_gitignored(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    hook_step = next(s for s in result.steps if s.name == "hook")
+    assert hook_step.status == "wrote"
+    assert hook_step.detail.endswith(
+        "note: .claude/settings.local.json is not gitignored here; add it to .gitignore so "
+        "the hook stays personal."
+    )
+
+
+def test_run_onboard_no_ignore_warning_when_local_settings_is_gitignored(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _github_origin(tmp_path)
+    (tmp_path / ".gitignore").write_text(".claude/settings.local.json\n", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    hook_step = next(s for s in result.steps if s.name == "hook")
+    assert "note: .claude/settings.local.json is not gitignored here" not in hook_step.detail
+
+
+def test_run_onboard_non_git_skips_local_settings_ignore_check(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _write_config(tmp_path, "acme/widgets")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    hook_step = next(s for s in result.steps if s.name == "hook")
+    assert "note: .claude/settings.local.json is not gitignored here" not in hook_step.detail
 
 
 def test_run_onboard_invalid_repo_override(tmp_path: Path) -> None:
@@ -859,7 +1028,9 @@ def test_failed_hook_never_makes_the_ambient_promise(tmp_path: Path, monkeypatch
     # Review finding: a malformed settings file fails the hook step; the promise must not stand.
     _init_repo(tmp_path, "git@github.com:acme/widgets.git")
     (tmp_path / ".claude").mkdir()
-    (tmp_path / ".claude" / "settings.json").write_text("[not an object]", encoding="utf-8")
+    (tmp_path / ".claude" / "settings.local.json").write_text(
+        "[not an object]", encoding="utf-8"
+    )
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     result = run_onboard(
         tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])

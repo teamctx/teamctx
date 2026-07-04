@@ -680,6 +680,20 @@ _DOCS_UNSAFE = (
     "outside the repo); set work_start.docs_root by hand if this is intended."
 )
 _DOCS_EMPTY = "a docs/ folder exists but has no markdown files in it; nothing to scan yet."
+_HOOK_MIGRATED_DETAIL = (
+    "moved the reflex hook out of the committed .claude/settings.json into "
+    ".claude/settings.local.json (a committed hook would auto-run on teammates' machines; "
+    "the hook is a personal opt-in)."
+)
+_COMMITTED_HOOK_STATUS_DETAIL = (
+    "the reflex hook is in the committed .claude/settings.json; re-run `teamctx onboard` "
+    "to move it to .claude/settings.local.json (a committed hook auto-runs on teammates' "
+    "machines)."
+)
+_LOCAL_SETTINGS_IGNORE_WARNING = (
+    "note: .claude/settings.local.json is not gitignored here; add it to .gitignore so "
+    "the hook stays personal."
+)
 
 
 def _docs_step(
@@ -709,16 +723,39 @@ def _docs_step(
 def _install_hook_step(root: Path, *, dry_run: bool) -> StepResult:
     from teamctx.cli import (
         install_hook_into_settings,  # local: cli imports onboard, break the cycle
+        remove_hook_from_settings,
     )
 
-    settings_path = root / ".claude" / "settings.json"
+    settings_path = root / ".claude" / "settings.local.json"
+    committed_settings_path = root / ".claude" / "settings.json"
     if dry_run:
         return StepResult("hook", "skipped", "--dry-run: would install the PreToolUse reflex hook.")
     try:
         wrote = install_hook_into_settings(settings_path)
+        migrated = remove_hook_from_settings(committed_settings_path)
     except Exception as exc:  # a malformed settings file: fail only this step, keep going
         return StepResult("hook", "failed", f"could not update {settings_path}: {exc}")
-    return StepResult("hook", "wrote" if wrote else "already", str(settings_path))
+    if migrated:
+        return StepResult(
+            "hook", "wrote", _with_local_settings_ignore_warning(root, _HOOK_MIGRATED_DETAIL)
+        )
+    return StepResult(
+        "hook",
+        "wrote" if wrote else "already",
+        _with_local_settings_ignore_warning(root, str(settings_path)),
+    )
+
+
+def _with_local_settings_ignore_warning(root: Path, detail: str) -> str:
+    if not _is_git_repo(root):
+        return detail
+    result = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", ".claude/settings.local.json"],
+        capture_output=True, text=True,
+    )
+    if result.returncode == 1:
+        return f"{detail} {_LOCAL_SETTINGS_IGNORE_WARNING}"
+    return detail
 
 
 def run_onboard(
@@ -845,20 +882,45 @@ def run_onboard(
     return OnboardResult(ok, tuple(steps), next_step)
 
 
-def _hook_status_step(settings_path: Path) -> StepResult:
+def _hook_status_step(local_settings_path: Path, committed_settings_path: Path) -> StepResult:
     from teamctx.cli import _has_hook_entry, _load_settings  # local: break the cli<->onboard cycle
 
+    local_error = False
     try:
-        settings = _load_settings(settings_path)
+        local_settings = _load_settings(local_settings_path)
     except Exception:
+        local_error = True
+        local_settings = {}
+    local_has_hook = _has_hook_entry(local_settings)
+
+    committed_error = False
+    try:
+        committed_settings = _load_settings(committed_settings_path)
+    except Exception:
+        committed_error = True
+        committed_settings = {}
+    if _has_hook_entry(committed_settings):
+        return StepResult("hook", "noted", _COMMITTED_HOOK_STATUS_DETAIL)
+
+    if local_has_hook:
         return StepResult(
-            "hook", "noted", f"couldn't read {settings_path}; can't tell if the hook is installed."
+            "hook", "ok", f"the reflex hook is installed in {local_settings_path}."
         )
-    if _has_hook_entry(settings):
-        return StepResult("hook", "ok", f"the reflex hook is installed in {settings_path}.")
+    if local_error:
+        return StepResult(
+            "hook", "noted",
+            f"couldn't read {local_settings_path}; can't tell if the hook is installed.",
+        )
+    if committed_error:
+        return StepResult(
+            "hook", "noted",
+            f"couldn't read {committed_settings_path}; can't tell if an old committed hook is "
+            "still installed.",
+        )
     return StepResult(
         "hook", "noted",
-        f"the reflex hook is not installed in {settings_path}; `teamctx onboard` installs it.",
+        f"the reflex hook is not installed in {local_settings_path}; `teamctx onboard` "
+        "installs it.",
     )
 
 
@@ -1007,8 +1069,9 @@ def run_status(
         else:
             steps.append(StepResult("docs", "noted", _DOCS_NOT_FOUND))
 
-    settings_path = root / ".claude" / "settings.json"
-    steps.append(_hook_status_step(settings_path))
+    local_settings_path = root / ".claude" / "settings.local.json"
+    committed_settings_path = root / ".claude" / "settings.json"
+    steps.append(_hook_status_step(local_settings_path, committed_settings_path))
 
     claude_md = root / "CLAUDE.md"
     existing_text = claude_md.read_text(encoding="utf-8") if claude_md.exists() else ""
