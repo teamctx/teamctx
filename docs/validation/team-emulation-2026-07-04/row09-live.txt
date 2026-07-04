@@ -1,0 +1,22 @@
+=== row 9: fresh actor onboards from scratch (LIVE) ===
+teamctx onboard:
+  [wrote] config: /tmp/{workdir}/live-actors/actor-c/.teamctx/config.json (repo tempo-64/teamctx-emulation-lab)
+  [already set] gitignore: .teamctx/config.json is already trackable.
+  [checked] docs: found a docs/ folder; superseded docs there will be flagged.
+  [checked] auth: using your gh CLI login.
+  [wrote] hook: /tmp/{workdir}/live-actors/actor-c/.claude/settings.json
+  [wrote] claude_md: added the teamctx snippet to CLAUDE.md.
+  [checked] health: reached GitHub: 1 open PRs.
+
+Next: Run `teamctx work-start --path <a file you're about to edit>` to see it work.
+=== row 9: status after onboard (every line must be true) ===
+teamctx status for /tmp/{workdir}/live-actors/actor-c:
+  [ok] config: /tmp/{workdir}/live-actors/actor-c/.teamctx/config.json configures tempo-64/teamctx-emulation-lab.
+  [ok] tracking: .teamctx/config.json is trackable in git.
+  [ok] docs: docs_root 'docs' is configured; superseded docs there will be flagged.
+  [ok] hook: the reflex hook is installed in /tmp/{workdir}/live-actors/actor-c/.claude/settings.json.
+  [ok] claude_md: the CLAUDE.md snippet is current.
+  [ok] credential: using your gh CLI login.
+  [checked] reachability: reached GitHub: 1 open PRs.
+
+Next: You're set. Run `teamctx work-start --path <a file you're about to edit>`.

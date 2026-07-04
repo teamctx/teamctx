@@ -1,0 +1,13 @@
+=== row 3a: failing check on the branch (LIVE) ===
+Before you start, here is what to handle first:
+  • Open PR #1 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 1 --repo tempo-64/teamctx-emulation-lab)
+  • Check 'controllable' is failing on this branch: fix it or wait for a green build before relying on it
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
+=== row 3b: zero check-runs reads clear, the documented asymmetry (LIVE) ===
+Looks clear to start.
+  Checked: no other open PRs touch your files; no failing checks found.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
+=== row 3c: no token reads can't-verify (LIVE) ===
+Heads up: I can't confirm the important things yet:
+  • Open PRs and failing checks: teamctx couldn't reach GitHub. Either it has no access yet (set GITHUB_TOKEN, or GITHUB_TOKEN_FILE with a path to a token file) or it's a temporary connection issue. Until it's back you won't see colliding PRs or red CI on your files.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).

@@ -1,0 +1,7 @@
+created PROJ-{id}
+edit: 204
+Before you start, here is what to handle first:
+  • Open PR #1 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 1 --repo tempo-64/teamctx-emulation-lab)
+  • Jira PROJ-{id} updated: description updated: re-check the criteria before you rely on them
+  Also checked: the docs you rely on are current.
+  Couldn't check: failing checks (couldn't reach GitHub).

@@ -1,0 +1,8 @@
+PASS row 12: Unbounded at scale
+note: test-verified (fabricated payload, real pipeline)
+  [ok] present: Heads up: I can't confirm the important things yet:
+  [ok] present: Checked the {n} most recently updated open PRs; more exist, so this is not a complete check.
+  [ok] absent: Looks clear to start.
+  [ok] absent: no other open PRs touch your files
+  [ok] present: teamctx checked the {n} most recently updated open PRs and found no collision, but more open PRs exist. On a repo this busy, glance at GitHub if this file is sensitive.
+  [ok] absent: looks clear to start

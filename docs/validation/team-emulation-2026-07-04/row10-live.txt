@@ -1,0 +1,13 @@
+=== row 10: transports agree on the collision state (LIVE) ===
+--- CLI ---
+Before you start, here is what to handle first:
+  • Open PR #1 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 1 --repo tempo-64/teamctx-emulation-lab)
+  Couldn't check: failing checks (couldn't reach GitHub).
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
+--- MCP (in-process) ---
+Before you start, here is what to handle first:
+  • Open PR #1 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 1 --repo tempo-64/teamctx-emulation-lab)
+  Couldn't check: failing checks (couldn't reach GitHub).
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
+--- hook (synthetic PreToolUse, fresh session) ---
+{"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "teamctx: before you edit src/auth/token.py, from the team's current work:\n  \u2022 Open PR #1 changed src/auth/token.py. (you are editing src/auth/token.py.)\n  \u2022 teamctx couldn't reach GitHub to check failing checks, so it's unconfirmed.\nFactor these into your plan, and surface anything relevant to your human collaborator so they can decide."}}

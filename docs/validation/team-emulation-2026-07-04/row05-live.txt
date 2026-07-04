@@ -1,0 +1,10 @@
+=== row 5a: branch 2-fix-auth; issue #2 was edited AFTER the anchor (LIVE) ===
+Before you start, here is what to handle first:
+  • Open PR #1 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 1 --repo tempo-64/teamctx-emulation-lab)
+  • Issue #2 updated: description or comments updated: re-check the criteria before you rely on them
+  Also checked: the docs you rely on are current.
+  Couldn't check: failing checks (couldn't reach GitHub).
+=== row 5b: branch 3-unchanged-control; issue #3 untouched since the anchor (LIVE) ===
+Heads up: I can't confirm the important things yet:
+  • Failing checks: teamctx couldn't reach GitHub. Either it has no access yet (set GITHUB_TOKEN, or GITHUB_TOKEN_FILE with a path to a token file) or it's a temporary connection issue. Until it's back you won't see red CI on your files.
+  Also checked: no other open PRs touch your files; the linked issue's criteria are unchanged (issue #3 from your branch name); the docs you rely on are current.

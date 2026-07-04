@@ -1,0 +1,12 @@
+pages: v1=124059650 v2=124157953
+property set: 200
+Before you start, here is what to handle first:
+  • Jira PROJ-{id} updated: status is now Closed; description updated: re-check the criteria before you rely on them
+  • docs/auth-design.md was superseded by docs/auth-design-v2.md: rely on the current one instead
+  • [TCTX test artifact] lab auth design v1 was superseded by [TCTX test artifact] lab auth design v2: rely on the current one instead
+  Also checked: no other open PRs touch your files.
+  Couldn't check: failing checks (couldn't reach GitHub).
+=== row 8 open-source: the page URL (LIVE) ===
+Open the source for [TCTX test artifact] lab auth design v1:
+  open https://ATLASSIAN.example/wiki/spaces/SPACE/pages/{id}/TCTX+test+artifact+lab+auth+design+v1
+  teamctx shows metadata only; the source body is not included (status-only by policy).

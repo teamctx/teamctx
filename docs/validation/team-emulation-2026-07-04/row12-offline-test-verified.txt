@@ -1,0 +1,9 @@
+--- full CLI (n=300) ---
+Heads up: I can't confirm the important things yet:
+  • Open PRs: Checked the 300 most recently updated open PRs; more exist, so this is not a complete check. Glance at GitHub if this file is sensitive.
+  Also checked: no failing checks found.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
+
+
+--- reflex hook ---
+teamctx checked the 100 most recently updated open PRs and found no collision, but more open PRs exist. On a repo this busy, glance at GitHub if this file is sensitive.

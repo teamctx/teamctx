@@ -1,0 +1,25 @@
+=== row 4a: RUNNING pipeline (LIVE, slow job mid-sleep) ===
+Heads up: I can't confirm the important things yet:
+  • Failing checks: CI checks are still running, so the gate isn't confirmed green yet. Wait for the build or check the run before relying on a green gate.
+  Also checked: no other open MRs touch your files.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
+=== row 4b: CANCELED pipeline, zero failed jobs (LIVE) ===
+Before you start, here is what to handle first:
+  • Check 'slow' is failing on this branch: fix it or wait for a green build before relying on it
+  • Check 'controllable' is failing on this branch: fix it or wait for a green build before relying on it
+  Also checked: no other open MRs touch your files.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
+=== row 4c: FAILED pipeline, named job (LIVE) ===
+Before you start, here is what to handle first:
+  • Check 'controllable' is failing on this branch: fix it or wait for a green build before relying on it
+  Also checked: no other open MRs touch your files.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
+=== row 4d: ZERO pipelines on the ref (LIVE) ===
+Looks clear to start.
+  Checked: no other open MRs touch your files.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable); no pipeline ran for this branch, so the gate is unverified.
+=== row 4e: SKIPPED pipeline with the fixed copy (LIVE) ===
+Heads up: I can't confirm the important things yet:
+  • Pipeline state: the pipeline state could not be confirmed green If a green build matters for this change, check the run yourself.
+  Also checked: no other open MRs touch your files.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).

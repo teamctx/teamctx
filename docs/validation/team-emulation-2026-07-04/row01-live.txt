@@ -1,0 +1,11 @@
+=== actor B: work-start on the colliding path (LIVE) ===
+Before you start, here is what to handle first:
+  • Open PR #1 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 1 --repo tempo-64/teamctx-emulation-lab)
+  Couldn't check: failing checks (couldn't reach GitHub).
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
+=== actor A: own-PR view (LIVE) ===
+Heads up: I can't confirm the important things yet:
+  • Failing checks: CI checks are still running, so the gate isn't confirmed green yet. Wait for the build or check the run before relying on a green gate.
+  Also checked: no other open PRs touch your files.
+  FYI: Your own open PR #1 for this branch touches these files; not flagged as a collision.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).

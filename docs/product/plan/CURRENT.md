@@ -131,12 +131,16 @@ build): `docs/superpowers/specs/2026-07-03-autodiscovery-and-structure.md`.
   BUILT: GitHub, GitLab, Jira, Confluence, each live-verified.** Write targets verified
   live: Jira JIRAPLAY, Confluence TS. Lab repos seeded on both forges
   (teamctx-emulation-lab, private, controllable + slow CI).
-- **Phase 5 HARNESS DONE (merged `283641e`; Opus built in a worktree, Fable verified with an
-  independent offline run): `emulation/` drives all 12 scenario rows through the REAL CLI,
-  hook, and MCP; 8 rows PASS offline today (GitHub + local + transports + replay + the
-  at-scale unbounded row through the API-root seam), 4 SKIP honestly until S9b/S10/S11 land.
-  Evidence artifacts carry per-span verdicts and the test-verified tag. LIVE execution
-  (lab repos, JIRAPLAY/TS writes) remains the CTO's step once the connectors merge.**
+- **Phase 5 COMPLETE 2026-07-04. Offline matrix: 12 of 12 PASS (`d33e62a`). LIVE PASS
+  executed by the CTO across all four real sources (GitHub lab repo, GitLab lab project,
+  the authorized Jira project + Confluence space): every scenario row live-verified, with
+  the evidence corpus (redacted per the program map) + summary committed at
+  `docs/validation/team-emulation-2026-07-04/`. The live run itself found and fixed a real
+  copy bug (skipped GitLab pipelines claimed a connection problem; fixed on every surface,
+  two-round adversarial review, merged `1f1652e`). Two named residuals, zero silent:
+  live-unbounded (test-verified through the real pipeline) and real rate limiting
+  (unit-verified). THE GOAL'S EXIT BAR IS MET: built, then tested like a team of
+  people+agents across GitHub, GitLab, Jira, and Confluence, working as expected.**
 - **Phase 5, team-emulation validation (goal set by Edgar 2026-07-03):** test teamctx like a
   team of people + agents working across GitHub, GitLab, Jira, and Confluence, and verify it
   all works as expected. Fable runs it: multiple emulated actors (separate clones/worktrees,

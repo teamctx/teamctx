@@ -1,0 +1,5 @@
+=== row 11: live replay, identical observed_at, seconds apart ===
+digest 1: ef8a28854c12dd3c
+digest 2: ef8a28854c12dd3c
+digests equal: True
+verdicts equal: True | {'Conflict check': 'false', 'Criteria check': 'unknown', 'Docs check': 'unknown', 'Gate check': 'unknown'}

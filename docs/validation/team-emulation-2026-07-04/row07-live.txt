@@ -1,0 +1,5 @@
+=== row 7: superseded LOCAL doc, edit on an UNRELATED file (LIVE) ===
+Before you start, here is what to handle first:
+  • docs/auth-design.md was superseded by docs/auth-design-v2.md: rely on the current one instead
+  Also checked: no other open PRs touch your files.
+  Couldn't check: spec changes (couldn't reach GitHub); failing checks (couldn't reach GitHub).

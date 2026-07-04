@@ -1,0 +1,15 @@
+=== gl actor B: work-start on colliding path (LIVE) ===
+Before you start, here is what to handle first:
+  • Open MR !1 changed src/auth/token.py: look at it before you edit so you don't undo each other's work
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable); no pipeline ran for this branch, so the gate is unverified.
+=== gl actor A: own-MR view (LIVE) ===
+Before you start, here is what to handle first:
+  • Open MR !1 changed src/auth/token.py: look at it before you edit so you don't undo each other's work
+  Couldn't check: pipeline state (couldn't reach GitLab).
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
+=== gl actor A on the MR branch (LIVE, corrected staging) ===
+Heads up: I can't confirm the important things yet:
+  • Pipeline state: teamctx couldn't reach GitLab. Either it has no access yet (set GITLAB_TOKEN, or GITLAB_TOKEN_FILE with a path to a token file) or it's a temporary connection issue. Until it's back you won't see pipeline failures on your files.
+  Also checked: no other open MRs touch your files.
+  FYI: Your own open MR !1 for this branch touches these files; not flagged as a collision.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).
