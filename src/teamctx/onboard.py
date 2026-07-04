@@ -36,9 +36,23 @@ from teamctx.project_config import (
 from teamctx.resolve import resolve_forge_repo
 from teamctx.tokens import resolve_github_token_with_source
 
-# The honest snippet: all four checks, with the two conditional ones stating their conditions
-# (criteria fires when an issue is derivable or named; docs when a docs folder is configured).
+# The honest snippet, ambient-framed (the CPO's law: nobody runs commands in daily use):
+# context is RECEIVED; the run-it instruction exists only as the fallback for environments
+# without hooks. All four checks, with the two conditional ones stating their conditions.
 CLAUDE_MD_SNIPPET = (
+    "## Team context (teamctx)\n"
+    "Team context appears in this repo by itself: before the first file edit of a session, "
+    "teamctx surfaces open pull requests touching your files, failing checks on your branch, "
+    "acceptance criteria that changed when an issue is linked from your branch or commits, and "
+    "superseded docs when a docs folder is configured. Factor what appears into your plan and "
+    "tell your human collaborator anything relevant in plain terms so they can decide. If this "
+    "environment does not run hooks, get the same context by running `teamctx work-start` "
+    "before you edit.\n"
+)
+
+# The command-framed snippet body written with the auto-discovery slice, kept verbatim so the
+# upsert recognizes and refreshes an unedited managed block. Never used for new writes.
+_SNIPPET_BODY_2026_07_04 = (
     "## Team context (teamctx)\n"
     "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
     "into your plan. It surfaces open pull requests touching your files, failing checks on your "
@@ -392,7 +406,9 @@ def _provider_display(provider: ForgeProvider) -> str:
 _SNIPPET_START = "<!-- teamctx:start -->"
 _SNIPPET_END = "<!-- teamctx:end -->"
 _SNIPPET_HEADING = "## Team context (teamctx)"
-_KNOWN_BODIES = (CLAUDE_MD_SNIPPET, _SNIPPET_BODY_2026_07, _LEGACY_SNIPPET_BODY)
+_KNOWN_BODIES = (
+    CLAUDE_MD_SNIPPET, _SNIPPET_BODY_2026_07_04, _SNIPPET_BODY_2026_07, _LEGACY_SNIPPET_BODY
+)
 SnippetState = Literal[
     "current", "outdated", "edited", "conflicted_markers", "legacy", "edited_heading", "absent"
 ]
@@ -804,15 +820,28 @@ def run_onboard(
     ]
 
     ok = not any(step.status == "failed" for step in steps)
-    next_step = (
-        "Run `teamctx work-start --path <a file you're about to edit>` to see it work."
-        if auth_found
-        else (
-            f"Set a {_provider_display(effective_onboarder.provider)} credential "
-            "(see the auth line above), "
-            "then run `teamctx work-start`."
+    # The ambient promise is made only when setup actually happened: a dry run wrote nothing,
+    # and a failed step (a hook that did not install) makes "context appears" false.
+    if dry_run:
+        next_step = (
+            "Dry run: nothing was written. Run `teamctx onboard` without --dry-run to set up."
         )
-    )
+    elif not ok:
+        next_step = (
+            "Fix the FAILED line above (or re-run with --force), then re-run `teamctx onboard`."
+        )
+    elif not auth_found:
+        next_step = (
+            f"Set a {_provider_display(effective_onboarder.provider)} credential "
+            "(see the auth line above); after that, team context appears by itself before the "
+            "first edit of a Claude Code session."
+        )
+    else:
+        next_step = (
+            "You're set. Team context now appears by itself before the first edit of a Claude "
+            "Code session (agents get the same over MCP). To see it right now: "
+            "`teamctx work-start --path <a file you're about to edit>`."
+        )
     return OnboardResult(ok, tuple(steps), next_step)
 
 
@@ -870,7 +899,10 @@ def _status_next_step(
         return "Run `teamctx onboard` to finish setup."
     if not auth_found:
         return f"Set a {_provider_display(provider)} credential (see the credential line above)."
-    return "You're set. Run `teamctx work-start --path <a file you're about to edit>`."
+    return (
+        "You're set. Team context appears by itself before the first edit of a Claude Code "
+        "session."
+    )
 
 
 def run_status(

@@ -27,7 +27,8 @@ def test_onboard_happy_path(tmp_path: Path, monkeypatch) -> None:
     assert (tmp_path / ".teamctx" / "config.json").exists()
     assert (tmp_path / "CLAUDE.md").exists()
     assert "acme/widgets" in result.output
-    assert "work-start" in result.output  # the next step
+    # the next step speaks the ambient law: context appears; no command is the flow
+    assert "appears by itself" in result.output
 
 
 def test_onboard_dry_run_writes_nothing(tmp_path: Path, monkeypatch) -> None:

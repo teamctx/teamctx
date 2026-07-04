@@ -823,3 +823,47 @@ def test_docs_detection_mirrors_runtime_symlink_fail_closed(tmp_path: Path, monk
     assert "docs_root" not in config.get("work_start", {})
     docs_step = next(s for s in result.steps if s.name == "docs")
     assert "couldn't be safely configured" in docs_step.detail
+
+
+def test_command_framed_snippet_migrates_as_outdated(tmp_path: Path) -> None:
+    # The ambient law (2026-07-04): the previous command-framed body is a known generated body
+    # and upserts to the receiving-framed snippet.
+    from teamctx.onboard import (
+        _SNIPPET_BODY_2026_07_04,
+        classify_claude_md,
+        upsert_claude_md_snippet,
+    )
+
+    marked_old = f"<!-- teamctx:start -->\n{_SNIPPET_BODY_2026_07_04}<!-- teamctx:end -->\n"
+    (tmp_path / "CLAUDE.md").write_text(marked_old, encoding="utf-8")
+    assert classify_claude_md(marked_old) == "outdated"
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "wrote"
+    body = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "Team context appears in this repo by itself" in body
+    assert "If this environment does not run hooks" in body
+
+
+def test_dry_run_never_makes_the_ambient_promise(tmp_path: Path, monkeypatch) -> None:
+    # Review finding: a dry run writes nothing, so "context appears" would be false.
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=True, opener=_opener_returning([])
+    )
+    assert "nothing was written" in result.next_step
+    assert "appears by itself" not in result.next_step
+
+
+def test_failed_hook_never_makes_the_ambient_promise(tmp_path: Path, monkeypatch) -> None:
+    # Review finding: a malformed settings file fails the hook step; the promise must not stand.
+    _init_repo(tmp_path, "git@github.com:acme/widgets.git")
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "settings.json").write_text("[not an object]", encoding="utf-8")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    assert any(s.status == "failed" for s in result.steps)
+    assert "Fix the FAILED line above" in result.next_step
+    assert "appears by itself" not in result.next_step
