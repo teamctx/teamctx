@@ -680,6 +680,11 @@ _DOCS_UNSAFE = (
     "outside the repo); set work_start.docs_root by hand if this is intended."
 )
 _DOCS_EMPTY = "a docs/ folder exists but has no markdown files in it; nothing to scan yet."
+_HOOK_MIGRATED_DETAIL = (
+    "moved the reflex hook out of the committed .claude/settings.json into "
+    ".claude/settings.local.json (a committed hook would auto-run on teammates' machines; "
+    "the hook is a personal opt-in)."
+)
 
 
 def _docs_step(
@@ -709,15 +714,20 @@ def _docs_step(
 def _install_hook_step(root: Path, *, dry_run: bool) -> StepResult:
     from teamctx.cli import (
         install_hook_into_settings,  # local: cli imports onboard, break the cycle
+        remove_hook_from_settings,
     )
 
     settings_path = root / ".claude" / "settings.local.json"
+    committed_settings_path = root / ".claude" / "settings.json"
     if dry_run:
         return StepResult("hook", "skipped", "--dry-run: would install the PreToolUse reflex hook.")
     try:
         wrote = install_hook_into_settings(settings_path)
+        migrated = remove_hook_from_settings(committed_settings_path)
     except Exception as exc:  # a malformed settings file: fail only this step, keep going
         return StepResult("hook", "failed", f"could not update {settings_path}: {exc}")
+    if migrated:
+        return StepResult("hook", "wrote", _HOOK_MIGRATED_DETAIL)
     return StepResult("hook", "wrote" if wrote else "already", str(settings_path))
 
 

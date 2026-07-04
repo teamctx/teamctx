@@ -406,6 +406,127 @@ def test_run_onboard_failed_step_sets_ok_false(tmp_path: Path, monkeypatch) -> N
     assert result.ok is False  # a failed step flips ok
 
 
+def test_run_onboard_migrates_hook_out_of_committed_settings_preserving_other_bytes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    before = (
+        "{\n"
+        '  "model": "opus",\n'
+        '  "hooks": {\n'
+        '    "Stop": [\n'
+        '      {"hooks": []}\n'
+        "    ],\n"
+        '    "PreToolUse": [\n'
+        '      {"matcher": "Edit|Write|MultiEdit", "hooks": [{"type": "command", '
+        '"command": "teamctx-hook"}]},\n'
+        '      {"matcher": "Other", "hooks": [{"type": "command", "command": "other"}]}\n'
+        "    ]\n"
+        "  },\n"
+        '  "theme": "dark"\n'
+        "}\n"
+    )
+    settings.write_text(before, encoding="utf-8")
+    expected = (
+        "{\n"
+        '  "model": "opus",\n'
+        '  "hooks": {\n'
+        '    "Stop": [\n'
+        '      {"hooks": []}\n'
+        "    ],\n"
+        '    "PreToolUse": [\n'
+        '      {"matcher": "Other", "hooks": [{"type": "command", "command": "other"}]}\n'
+        "    ]\n"
+        "  },\n"
+        '  "theme": "dark"\n'
+        "}\n"
+    )
+
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    assert settings.read_text(encoding="utf-8") == expected
+    assert (tmp_path / ".claude" / "settings.local.json").exists()
+    hook_step = next(s for s in result.steps if s.name == "hook")
+    assert hook_step.detail == (
+        "moved the reflex hook out of the committed .claude/settings.json into "
+        ".claude/settings.local.json (a committed hook would auto-run on teammates' machines; "
+        "the hook is a personal opt-in)."
+    )
+
+
+def test_run_onboard_migrates_hook_from_only_committed_settings_entry(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text(
+        '{"hooks":{"PreToolUse":[{"matcher":"Edit|Write|MultiEdit","hooks":'
+        '[{"type":"command","command":"teamctx-hook"}]}]}}\n',
+        encoding="utf-8",
+    )
+
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    assert settings.read_text(encoding="utf-8") == "{}\n"
+    local = json.loads((tmp_path / ".claude" / "settings.local.json").read_text(encoding="utf-8"))
+    assert local["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == "teamctx-hook"
+
+
+def test_run_onboard_hook_migration_is_idempotent(tmp_path: Path, monkeypatch) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text(
+        '{"hooks":{"PreToolUse":[{"matcher":"Edit|Write|MultiEdit","hooks":'
+        '[{"type":"command","command":"teamctx-hook"}]}]}}\n',
+        encoding="utf-8",
+    )
+
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+    again = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    hook_step = next(s for s in again.steps if s.name == "hook")
+    assert hook_step.status == "already"
+
+
+def test_run_onboard_dry_run_leaves_committed_and_local_settings_alone(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    settings = tmp_path / ".claude" / "settings.json"
+    local = tmp_path / ".claude" / "settings.local.json"
+    settings.parent.mkdir()
+    settings_before = (
+        '{"hooks":{"PreToolUse":[{"matcher":"Edit|Write|MultiEdit","hooks":'
+        '[{"type":"command","command":"teamctx-hook"}]}]}}\n'
+    )
+    local_before = '{"hooks":{"Stop":[]}}\n'
+    settings.write_text(settings_before, encoding="utf-8")
+    local.write_text(local_before, encoding="utf-8")
+
+    run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=True, opener=_opener_returning([])
+    )
+
+    assert settings.read_text(encoding="utf-8") == settings_before
+    assert local.read_text(encoding="utf-8") == local_before
+
+
 def test_run_onboard_invalid_repo_override(tmp_path: Path) -> None:
     subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
     result = run_onboard(

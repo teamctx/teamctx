@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -586,6 +587,23 @@ def eval_export_command(scenarios_dir: Path, output_dir: Path) -> None:
 
 _HOOK_MATCHER = "Edit|Write|MultiEdit"
 _HOOK_ENTRY = {"matcher": _HOOK_MATCHER, "hooks": [{"type": "command", "command": "teamctx-hook"}]}
+
+
+@dataclass(frozen=True)
+class _JsonMember:
+    key: str
+    key_start: int
+    value_start: int
+    value_end: int
+
+
+@dataclass(frozen=True)
+class _JsonElement:
+    value_start: int
+    value_end: int
+
+
+_JSON_DECODER = json.JSONDecoder()
 @main.command("install-hook")
 @click.option(
     "--print",
@@ -656,6 +674,182 @@ def install_hook_into_settings(settings_path: Path) -> bool:
     if added:
         _atomic_write(settings_path, json.dumps(settings, indent=2) + "\n")
     return added
+
+
+def remove_hook_from_settings(settings_path: Path) -> bool:
+    """Remove canonical teamctx hook entries from ``settings_path`` without rewriting unrelated
+    bytes. Returns True when it wrote a migration."""
+
+    if not settings_path.exists():
+        return False
+    try:
+        settings = _load_settings(settings_path)
+    except click.ClickException:
+        return False
+    if not _has_exact_hook_entry(settings):
+        return False
+    text = settings_path.read_text(encoding="utf-8")
+    migrated, removed = _settings_text_without_exact_hook_entries(text)
+    if not removed:
+        return False
+    _atomic_write(settings_path, migrated)
+    return True
+
+
+def _has_exact_hook_entry(settings: dict[str, Any]) -> bool:
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        return False
+    pre = hooks.get("PreToolUse")
+    if not isinstance(pre, list):
+        return False
+    return any(entry == _HOOK_ENTRY for entry in pre)
+
+
+def _settings_text_without_exact_hook_entries(text: str) -> tuple[str, bool]:
+    changed = False
+    while True:
+        root = _root_object_members(text)
+        if root is None:
+            return text, changed
+        hooks = _find_member(root, "hooks")
+        if hooks is None:
+            return _canonical_empty_object_if_needed(text), changed
+        hook_members = _object_members_at(text, hooks.value_start)
+        if hook_members is None:
+            return text, changed
+        pre = _find_member(hook_members, "PreToolUse")
+        if pre is None:
+            settings = json.loads(text)
+            current_hooks = settings.get("hooks")
+            if isinstance(current_hooks, dict) and current_hooks == {}:
+                text = _remove_object_member(text, root, "hooks")
+                changed = True
+                continue
+            return _canonical_empty_object_if_needed(text), changed
+        elements = _array_elements_at(text, pre.value_start)
+        if elements is None:
+            return text, changed
+
+        removed_entry = False
+        for index, element in enumerate(elements):
+            entry = json.loads(text[element.value_start:element.value_end])
+            if entry == _HOOK_ENTRY:
+                text = _remove_array_element(text, elements, index)
+                changed = True
+                removed_entry = True
+                break
+        if removed_entry:
+            continue
+
+        settings = json.loads(text)
+        current_hooks = settings.get("hooks")
+        current_pre = current_hooks.get("PreToolUse") if isinstance(current_hooks, dict) else None
+        if current_pre == []:
+            text = _remove_object_member(text, hook_members, "PreToolUse")
+            changed = True
+            continue
+        if isinstance(current_hooks, dict) and current_hooks == {}:
+            text = _remove_object_member(text, root, "hooks")
+            changed = True
+            continue
+        return _canonical_empty_object_if_needed(text), changed
+
+
+def _canonical_empty_object_if_needed(text: str) -> str:
+    if json.loads(text) == {}:
+        return "{}\n"
+    return text
+
+
+def _skip_ws(text: str, index: int) -> int:
+    while index < len(text) and text[index] in " \t\r\n":
+        index += 1
+    return index
+
+
+def _root_object_members(text: str) -> list[_JsonMember] | None:
+    root_start = _skip_ws(text, 0)
+    return _object_members_at(text, root_start)
+
+
+def _object_members_at(text: str, object_start: int) -> list[_JsonMember] | None:
+    if object_start >= len(text) or text[object_start] != "{":
+        return None
+    index = _skip_ws(text, object_start + 1)
+    members: list[_JsonMember] = []
+    if index < len(text) and text[index] == "}":
+        return members
+    while True:
+        key_start = index
+        key, key_end = _JSON_DECODER.raw_decode(text, key_start)
+        if not isinstance(key, str):
+            return None
+        colon = _skip_ws(text, key_end)
+        if colon >= len(text) or text[colon] != ":":
+            return None
+        value_start = _skip_ws(text, colon + 1)
+        _, value_end = _JSON_DECODER.raw_decode(text, value_start)
+        members.append(_JsonMember(key, key_start, value_start, value_end))
+        index = _skip_ws(text, value_end)
+        if index >= len(text):
+            return None
+        if text[index] == "}":
+            return members
+        if text[index] != ",":
+            return None
+        index = _skip_ws(text, index + 1)
+
+
+def _array_elements_at(text: str, array_start: int) -> list[_JsonElement] | None:
+    if array_start >= len(text) or text[array_start] != "[":
+        return None
+    index = _skip_ws(text, array_start + 1)
+    elements: list[_JsonElement] = []
+    if index < len(text) and text[index] == "]":
+        return elements
+    while True:
+        value_start = index
+        _, value_end = _JSON_DECODER.raw_decode(text, value_start)
+        elements.append(_JsonElement(value_start, value_end))
+        index = _skip_ws(text, value_end)
+        if index >= len(text):
+            return None
+        if text[index] == "]":
+            return elements
+        if text[index] != ",":
+            return None
+        index = _skip_ws(text, index + 1)
+
+
+def _find_member(members: list[_JsonMember], key: str) -> _JsonMember | None:
+    for member in members:
+        if member.key == key:
+            return member
+    return None
+
+
+def _remove_array_element(text: str, elements: list[_JsonElement], index: int) -> str:
+    element = elements[index]
+    if len(elements) == 1:
+        return text[:element.value_start] + text[element.value_end:]
+    if index < len(elements) - 1:
+        return text[:element.value_start] + text[elements[index + 1].value_start:]
+    previous_end = elements[index - 1].value_end
+    comma = _skip_ws(text, previous_end)
+    return text[:comma] + text[element.value_end:]
+
+
+def _remove_object_member(text: str, members: list[_JsonMember], key: str) -> str:
+    index = next(i for i, member in enumerate(members) if member.key == key)
+    member = members[index]
+    if len(members) == 1:
+        return text[:member.key_start] + text[member.value_end:]
+    if index < len(members) - 1:
+        return text[:member.key_start] + text[members[index + 1].key_start:]
+    previous_end = members[index - 1].value_end
+    comma = _skip_ws(text, previous_end)
+    return text[:comma] + text[member.value_end:]
 
 
 _STEP_MARK = {
