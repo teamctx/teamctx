@@ -57,10 +57,15 @@ def class_of_answer(assessment: WorkStartAssessment) -> AnswerClass:
     """Classify whether an ambient baseline can legally serve silence for important checks."""
 
     important = [state for state in assessment.checks if state.check in IMPORTANT_CHECKS]
-    if any(state.status in {"unreachable", "pending", "unbounded"} for state in important):
-        return "GAP-KNOWN"
     if important and all(state.status in {"clear", "found"} for state in important):
         return "GOOD"
+    if important:
+        # Any surfaced non-positive state (unreachable, pending, unbounded, not_configured,
+        # not_applicable) is a KNOWN, stated condition: the answer said so out loud. It is a
+        # legal baseline for interval silence under the gap rules; falling through to NONE
+        # here would make decide() treat every edit as first-contact and re-speak forever
+        # (found live: a repo with no branch has a not_configured gate on every answer).
+        return "GAP-KNOWN"
     return "NONE"
 
 

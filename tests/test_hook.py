@@ -449,3 +449,26 @@ def test_marker_helpers_are_deleted() -> None:
     assert not hasattr(hook, "_already_grounded")
     assert not hasattr(hook, "_mark_grounded")
     assert not hasattr(hook, "_marker")
+
+
+def test_not_configured_important_check_still_allows_interval_silence(monkeypatch, tmp_path):
+    # Live-smoke regression: a repo with no branch (no commits) has a not_configured gate on
+    # every answer; that is a stated condition, not first-contact. The second edit within the
+    # interval must be silent, never an eternal re-speak.
+    from teamctx.assessment import assess, class_of_answer
+    from teamctx.connectors._contract import source_status
+    from teamctx.core.broker import broker_answer
+    from teamctx.core.contracts import RequestContext
+
+    request = RequestContext(
+        schema_version="teamctx.request_context.v0", request_id="t", repo="acme/w",
+        branch=None, task="t", paths=["x.py"], linked_issues=[],
+        requested_at="2026-07-04T00:00:00Z", requesting_principal=None,
+    )
+    fresh_pr = source_status(
+        source_id="github_pr_metadata", source_family="git_hosting", scope={"repo": "acme/w"},
+        status="fresh", observed_at="2026-07-04T00:00:00Z", safe_user_message="checked",
+        visibility="silent", policy_reason="status only",
+    )
+    answer = broker_answer(request, [], [fresh_pr])  # gate family absent: not_configured
+    assert class_of_answer(assess(answer)) == "GAP-KNOWN"
