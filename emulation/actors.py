@@ -138,11 +138,12 @@ def build_lab_repo(
 @dataclass(frozen=True)
 class SubprocessEnv:
     """The env for a CLI/hook subprocess: pinned to this worktree's src and to the mock server(s),
-    with a synthetic token. Even if a real credential is inherited, every GitHub/GitLab call is
-    bounded to the ``TEAMCTX_GITHUB_API_ROOT`` / ``TEAMCTX_GITLAB_API_ROOT`` mock, so no live
-    request can escape. A GitHub row passes ``api_root``; a GitLab row passes ``gitlab_api_root``
-    (and, if it needs a credential, ``gitlab_token``). The credential env for the forge NOT under
-    test is cleared, so a real ambient token can never leak into a live call."""
+    with synthetic tokens. Even if a real credential is inherited, every GitHub/GitLab call is
+    bounded to the ``TEAMCTX_GITHUB_API_ROOT`` / ``TEAMCTX_GITLAB_API_ROOT`` mock, and Atlassian
+    env vars are scrubbed unless a row supplies synthetic values. A GitHub row passes ``api_root``;
+    a GitLab row passes ``gitlab_api_root`` (and, if it needs a credential, ``gitlab_token``). The
+    credential env for the forge NOT under test is cleared, so a real ambient token can never leak
+    into a live call."""
 
     api_root: str | None = None
     token: str = SYNTHETIC_TOKEN
@@ -150,6 +151,8 @@ class SubprocessEnv:
     observed_at: str | None = None
     gitlab_api_root: str | None = None
     gitlab_token: str | None = None
+    atlassian_email: str | None = None
+    atlassian_api_token: str | None = None
 
     def as_dict(self) -> dict[str, str]:
         env = dict(os.environ)
@@ -171,6 +174,15 @@ class SubprocessEnv:
             env["GITLAB_TOKEN"] = self.gitlab_token
         else:
             env.pop("GITLAB_TOKEN", None)
+        env.pop("ATLASSIAN_API_TOKEN_FILE", None)
+        if self.atlassian_email is not None:
+            env["ATLASSIAN_EMAIL"] = self.atlassian_email
+        else:
+            env.pop("ATLASSIAN_EMAIL", None)
+        if self.atlassian_api_token is not None:
+            env["ATLASSIAN_API_TOKEN"] = self.atlassian_api_token
+        else:
+            env.pop("ATLASSIAN_API_TOKEN", None)
         if self.hook_cache is not None:
             env["TEAMCTX_HOOK_CACHE"] = str(self.hook_cache)
         return env

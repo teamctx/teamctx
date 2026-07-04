@@ -2,10 +2,10 @@
 
 Runs one row or the whole scenario matrix and writes per-row evidence (actual output + verdict),
 redacted through the program spec's redaction map before anything is written. The BUILDER runs
-ONLY ``--offline``: every row is driven against local tmp git repos and the bundled mock server
-over the ``TEAMCTX_GITHUB_API_ROOT`` seam, so no live network call is ever made. LIVE execution
-against the real lab repos is the CTO's step after review, never the builder's; the runner refuses
-to run without ``--offline`` so that rail is enforced in code, not just in prose.
+ONLY ``--offline``: every row is driven against local tmp git repos and the bundled mock servers,
+so no live network call is ever made. LIVE execution against the real lab repos is the CTO's step
+after review, never the builder's; the runner refuses to run without ``--offline`` so that rail is
+enforced in code, not just in prose.
 
 Runnable as ``python emulation/runner.py --offline --all`` (it bootstraps its own import path) or
 imported as ``emulation.runner``.
@@ -42,7 +42,8 @@ from emulation.rows import (  # noqa: E402
     row12_unbounded,
 )
 
-# The scenario matrix in program order. Rows 2/4/6/8 are honest stubs until their connectors land.
+# The scenario matrix in program order. Row 8 is an honest stub until the Confluence connector
+# lands.
 ROW_MODULES = [
     row01_collision_github,
     row02_collision_gitlab,

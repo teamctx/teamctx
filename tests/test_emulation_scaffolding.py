@@ -1,7 +1,7 @@
 """Unit tests for the emulation actor + mock-transport scaffolding.
 
-The mock is exercised THROUGH the real teamctx connectors over the ``TEAMCTX_GITHUB_API_ROOT``
-seam, so what these tests assert is exactly what the offline rows will drive.
+The mocks are exercised THROUGH the real teamctx connectors over the normal provider seams, so what
+these tests assert is exactly what the offline rows will drive.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from emulation import mockgh, mockgl
+from emulation import mockgh, mockgl, mockjira
 from emulation.actors import (
     build_lab_repo,
     fresh_session_id,
@@ -18,6 +18,7 @@ from emulation.actors import (
 )
 from emulation.mockgh import Fixtures, MockGitHub
 from emulation.mockgl import GitLabFixtures, MockGitLab
+from emulation.mockjira import JiraFixtures, MockJira
 from teamctx.connectors.github import fetch_github_pull_requests
 from teamctx.connectors.github_checks import fetch_failing_check_runs
 from teamctx.connectors.github_issues import fetch_issue_changes
@@ -26,6 +27,7 @@ from teamctx.connectors.gitlab import (
     fetch_gitlab_merge_requests,
     fetch_latest_gitlab_pipeline,
 )
+from teamctx.connectors.jira import fetch_jira_issue_changes
 from teamctx.discover import derive_since
 from teamctx.git_context import detect_branch, detect_forge_repo, detect_repo
 
@@ -222,3 +224,43 @@ def test_mock_serves_failing_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
         assert pipeline is not None
         jobs = fetch_gitlab_failing_pipeline_jobs(repo=SLUG, pipeline=pipeline, token="t")
     assert [name for name, _url in jobs] == ["test"]
+
+
+# --- mockjira: through the real Jira connector ---
+
+
+def test_mock_jira_serves_issue_and_changelog() -> None:
+    fixtures = JiraFixtures(
+        issues={
+            "PROJ-123": mockjira.issue_payload(
+                "PROJ-123",
+                updated_at="2026-07-02T12:00:00.000+0000",
+                labels=("needs-copy",),
+            )
+        },
+        changelogs={
+            "PROJ-123": mockjira.changelog_payload(
+                [
+                    mockjira.changelog_history(
+                        "2026-07-02T11:00:00.000+0000", ("description", "labels")
+                    )
+                ],
+                is_last=True,
+            )
+        },
+    )
+    with MockJira(fixtures) as server:
+        fetch = fetch_jira_issue_changes(
+            base_url=server.base_url,
+            issues=["PROJ-123"],
+            since="2026-07-01T00:00:00Z",
+            auth=("operator@emulation.example", "synthetic-token"),
+            repo=SLUG,
+        )
+
+    assert len(fetch.changes) == 1
+    change = fetch.changes[0]
+    assert change.issue == "PROJ-123"
+    assert change.change_kinds == ("body_edited", "labels_changed")
+    assert change.source_display == "Jira PROJ-123: Acceptance criteria"
+    assert "description updated" in change.detail
