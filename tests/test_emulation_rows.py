@@ -10,8 +10,8 @@ import pytest
 from emulation.evidence import ProgramResult
 from emulation.runner import run_program
 
-_IMPLEMENTED = {"01", "02", "03", "04", "05", "07", "09", "10", "11", "12"}
-_STUBS = {"06", "08"}
+_IMPLEMENTED = {"01", "02", "03", "04", "05", "06", "07", "09", "10", "11", "12"}
+_STUBS = {"08"}
 
 
 @pytest.fixture(scope="module")
