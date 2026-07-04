@@ -41,6 +41,11 @@ def replace_with_clear(fixtures: Fixtures) -> None:
     fixtures.check_runs = check_runs_payload([])
 
 
+def replace_with_unreachable(fixtures: Fixtures) -> None:
+    fixtures.graphql_pages = []
+    fixtures.check_runs = None
+
+
 def only_baseline(state_dir: Path, session_id: str) -> dict[str, Any]:
     state = load_ambient_state(state_dir, session_id)
     baselines = state["baselines"]
