@@ -820,17 +820,28 @@ def run_onboard(
     ]
 
     ok = not any(step.status == "failed" for step in steps)
-    next_step = (
-        "You're set. Team context now appears by itself before the first edit of a Claude Code "
-        "session (agents get the same over MCP). To see it right now: "
-        "`teamctx work-start --path <a file you're about to edit>`."
-        if auth_found
-        else (
+    # The ambient promise is made only when setup actually happened: a dry run wrote nothing,
+    # and a failed step (a hook that did not install) makes "context appears" false.
+    if dry_run:
+        next_step = (
+            "Dry run: nothing was written. Run `teamctx onboard` without --dry-run to set up."
+        )
+    elif not ok:
+        next_step = (
+            "Fix the FAILED line above (or re-run with --force), then re-run `teamctx onboard`."
+        )
+    elif not auth_found:
+        next_step = (
             f"Set a {_provider_display(effective_onboarder.provider)} credential "
             "(see the auth line above); after that, team context appears by itself before the "
             "first edit of a Claude Code session."
         )
-    )
+    else:
+        next_step = (
+            "You're set. Team context now appears by itself before the first edit of a Claude "
+            "Code session (agents get the same over MCP). To see it right now: "
+            "`teamctx work-start --path <a file you're about to edit>`."
+        )
     return OnboardResult(ok, tuple(steps), next_step)
 
 
