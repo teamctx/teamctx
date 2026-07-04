@@ -49,7 +49,12 @@ and delta speech; CLI/MCP unchanged in v1.
   marker machinery is deleted.
 
 ## 3. The silence law (pin A2 + review P1-4)
-Baseline classes GOOD / GAP-KNOWN / NONE as rev 1, with the refinement hardened:
+Baseline classes GOOD / GAP-KNOWN / NONE as rev 1, with the refinement hardened, and the
+enumeration CORRECTED post-build: GAP-KNOWN covers ANY surfaced non-positive important check
+(unreachable, pending, unbounded, not_configured, not_applicable), not just the first three;
+the omission classed a branchless repo NONE and re-spoke on every edit (caught by the
+arbiter's live smoke, fixed with a regression test). NONE is strictly the no-baseline
+sentinel. The hardened rules:
 - **Precedence, pinned:** transition-speak > interval-silence > re-statement-timer. A new
   finding, a disappearance, a coverage shrink, or any class transition ALWAYS speaks at the
   moment it is observed; the timer only governs re-stating the SAME persisting gap.
