@@ -395,7 +395,7 @@ def test_run_onboard_existing_config_needs_force(tmp_path: Path, monkeypatch) ->
 def test_run_onboard_failed_step_sets_ok_false(tmp_path: Path, monkeypatch) -> None:
     _github_origin(tmp_path)
     monkeypatch.setenv("GITHUB_TOKEN", "x")
-    settings = tmp_path / ".claude" / "settings.json"
+    settings = tmp_path / ".claude" / "settings.local.json"
     settings.parent.mkdir()
     settings.write_text('{"hooks": "not a dict"}', encoding="utf-8")  # malformed
     result = run_onboard(
@@ -859,7 +859,9 @@ def test_failed_hook_never_makes_the_ambient_promise(tmp_path: Path, monkeypatch
     # Review finding: a malformed settings file fails the hook step; the promise must not stand.
     _init_repo(tmp_path, "git@github.com:acme/widgets.git")
     (tmp_path / ".claude").mkdir()
-    (tmp_path / ".claude" / "settings.json").write_text("[not an object]", encoding="utf-8")
+    (tmp_path / ".claude" / "settings.local.json").write_text(
+        "[not an object]", encoding="utf-8"
+    )
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     result = run_onboard(
         tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])

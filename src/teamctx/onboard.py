@@ -711,7 +711,7 @@ def _install_hook_step(root: Path, *, dry_run: bool) -> StepResult:
         install_hook_into_settings,  # local: cli imports onboard, break the cycle
     )
 
-    settings_path = root / ".claude" / "settings.json"
+    settings_path = root / ".claude" / "settings.local.json"
     if dry_run:
         return StepResult("hook", "skipped", "--dry-run: would install the PreToolUse reflex hook.")
     try:

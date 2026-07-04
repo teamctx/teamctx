@@ -11,7 +11,9 @@ def test_install_hook_writes_idempotent_settings(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     r1 = CliRunner().invoke(main, ["install-hook"])
     assert r1.exit_code == 0, r1.output
-    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    settings = json.loads(
+        (tmp_path / ".claude" / "settings.local.json").read_text(encoding="utf-8")
+    )
     pre = settings["hooks"]["PreToolUse"]
     assert any(
         h.get("matcher") == "Edit|Write|MultiEdit"
@@ -20,9 +22,23 @@ def test_install_hook_writes_idempotent_settings(tmp_path, monkeypatch) -> None:
     )
     r2 = CliRunner().invoke(main, ["install-hook"])  # idempotent: no duplicate
     assert r2.exit_code == 0, r2.output
-    settings2 = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    settings2 = json.loads(
+        (tmp_path / ".claude" / "settings.local.json").read_text(encoding="utf-8")
+    )
     assert len(settings2["hooks"]["PreToolUse"]) == len(pre)
     assert "work-start" in r1.output  # prints the portable instruction
+
+
+def test_install_hook_fresh_install_does_not_touch_committed_settings(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, ["install-hook"])
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / ".claude" / "settings.local.json").exists()
+    assert not (tmp_path / ".claude" / "settings.json").exists()
 
 
 def test_print_writes_nothing(tmp_path, monkeypatch) -> None:
@@ -30,17 +46,20 @@ def test_print_writes_nothing(tmp_path, monkeypatch) -> None:
     r = CliRunner().invoke(main, ["install-hook", "--print"])
     assert r.exit_code == 0
     assert not (tmp_path / ".claude" / "settings.json").exists()
+    assert not (tmp_path / ".claude" / "settings.local.json").exists()
     assert "teamctx-hook" in r.output
 
 
 def test_install_hook_merges_existing_settings(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".claude").mkdir()
-    (tmp_path / ".claude" / "settings.json").write_text(
+    (tmp_path / ".claude" / "settings.local.json").write_text(
         json.dumps({"model": "opus", "hooks": {"Stop": [{"hooks": []}]}}), encoding="utf-8"
     )
     CliRunner().invoke(main, ["install-hook"])
-    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    settings = json.loads(
+        (tmp_path / ".claude" / "settings.local.json").read_text(encoding="utf-8")
+    )
     assert settings["model"] == "opus"  # preserved
     assert "Stop" in settings["hooks"]  # preserved
     assert "PreToolUse" in settings["hooks"]  # added
@@ -48,7 +67,7 @@ def test_install_hook_merges_existing_settings(tmp_path, monkeypatch) -> None:
 
 def test_malformed_settings_error_paths(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    p = tmp_path / ".claude" / "settings.json"
+    p = tmp_path / ".claude" / "settings.local.json"
     p.parent.mkdir()
     p.write_text("[]", encoding="utf-8")  # valid JSON, not an object
     r = CliRunner().invoke(main, ["install-hook"])
@@ -64,7 +83,7 @@ def test_malformed_settings_error_paths(tmp_path, monkeypatch) -> None:
 def test_install_hook_into_settings_is_idempotent(tmp_path) -> None:
     from teamctx.cli import install_hook_into_settings
 
-    settings_path = tmp_path / ".claude" / "settings.json"
+    settings_path = tmp_path / ".claude" / "settings.local.json"
     assert install_hook_into_settings(settings_path) is True
     assert settings_path.exists()
     # second call is a no-op (hook already present):

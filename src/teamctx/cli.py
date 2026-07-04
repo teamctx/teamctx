@@ -598,12 +598,15 @@ _HOOK_ENTRY = {"matcher": _HOOK_MATCHER, "hooks": [{"type": "command", "command"
     "settings_path",
     default=None,
     type=click.Path(dir_okay=False, path_type=Path),
-    help="Project-local Claude Code settings file (defaults to <repo-root>/.claude/settings.json).",
+    help=(
+        "Project-local Claude Code settings file "
+        "(defaults to <repo-root>/.claude/settings.local.json)."
+    ),
 )
 def install_hook_command(print_only: bool, settings_path: Path | None) -> None:
     """Opt in to the teamctx reflex: add the PreToolUse hook and print the portable snippet."""
 
-    settings_path = settings_path or resolve_project_root() / ".claude" / "settings.json"
+    settings_path = settings_path or resolve_project_root() / ".claude" / "settings.local.json"
     if print_only:
         settings, _ = _settings_with_hook(settings_path)
         click.echo(json.dumps(settings, indent=2))
