@@ -118,7 +118,7 @@ def _coverage_notes_by_family_and_status(
 ) -> dict[tuple[str, str], tuple[str, ...]]:
     notes: dict[tuple[str, str], list[str]] = {}
     for entry in answer.selection.coverage.entries:
-        if entry.status in {"disabled", "unbounded", "stale"} and entry.note:
+        if entry.status in {"disabled", "unbounded", "stale", "not_applicable"} and entry.note:
             notes.setdefault((entry.source_family, entry.status), []).append(entry.note)
     return {key: tuple(values) for key, values in notes.items()}
 
@@ -147,9 +147,9 @@ def _note_for(
         family = CHECK_DEPS_FAMILY[check]
         notes = coverage_notes.get((family, "stale"), ())
         return "; ".join(notes) if notes else None
-    if status not in {"not_configured", "unbounded"}:
+    if status not in {"not_configured", "unbounded", "not_applicable"}:
         return None
     family = CHECK_DEPS_FAMILY[check]
-    coverage_status = "disabled" if status == "not_configured" else "unbounded"
+    coverage_status = "disabled" if status == "not_configured" else status
     notes = coverage_notes.get((family, coverage_status), ())
     return "; ".join(notes) if notes else None

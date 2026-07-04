@@ -6,6 +6,9 @@ from teamctx.runner import WorkStartInputs
 from teamctx.work_start import render_work_start, work_start_answer
 
 OBS = "2026-06-27T00:00:00Z"
+EMPTY_PATH_CONFLICT_NOTE = (
+    "no files in scope yet; open pull requests can't be compared until there are paths"
+)
 
 _EMPTY_FETCH = ForgeReviewFetch(pull_requests=[])
 
@@ -30,6 +33,17 @@ def test_render_work_start_still_renders(monkeypatch) -> None:
     # conflict clear (git_hosting fresh, no collisions); other checks not configured
     assert "Looks clear to start." in text
     assert "no other open PRs touch your files" in text
+
+
+def test_render_work_start_with_empty_paths_reports_conflict_not_applicable() -> None:
+    inputs = WorkStartInputs(repo="acme/widgets", paths=())
+
+    text = render_work_start(inputs, observed_at=OBS)
+
+    assert EMPTY_PATH_CONFLICT_NOTE in text
+    assert "Not applicable:" in text
+    assert "no other open PRs touch your files" not in text
+    assert not text.startswith("Looks clear to start.")
 
 
 def test_work_start_answer_loads_authority_from_project_root(monkeypatch, tmp_path) -> None:

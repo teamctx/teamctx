@@ -413,10 +413,10 @@ def _pending(family: str) -> SourceStatus:
     )
 
 
-def _not_applicable(family: str) -> SourceStatus:
+def _not_applicable(family: str, message: str = "") -> SourceStatus:
     return source_status(
         source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
-        status="not_applicable", observed_at="2026-06-28T00:00:00Z", safe_user_message="n/a",
+        status="not_applicable", observed_at="2026-06-28T00:00:00Z", safe_user_message=message,
         visibility="silent", policy_reason="status only",
     )
 

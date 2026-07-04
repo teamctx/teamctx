@@ -19,6 +19,7 @@ from teamctx.connectors._contract import unavailable_document
 from teamctx.connectors.confluence import run_confluence_docs_probe
 from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.docs_supersession import unavailable_docs_document
+from teamctx.connectors.forge_review import forge_review_source_status
 from teamctx.connectors.github import run_github_pr_probe
 from teamctx.connectors.github_checks import run_github_checks_probe
 from teamctx.connectors.github_issues import run_github_issues_probe
@@ -64,6 +65,9 @@ _CONFLUENCE_REFLEX_SKIP = (
 _CONFLUENCE_HALF_CREDENTIAL = (
     "Confluence is configured but only half the Atlassian credential is set; both ATLASSIAN_EMAIL "
     "and ATLASSIAN_API_TOKEN are needed."
+)
+_EMPTY_PATH_CONFLICT_NOTE = (
+    "no files in scope yet; open pull requests can't be compared until there are paths"
 )
 
 
@@ -135,16 +139,26 @@ def run_work_start_connectors(
     documents: list[CoreContractDocument] = []
     if inputs.forge == "gitlab":
         gitlab_token = resolve_token("GITLAB_TOKEN")
-        documents.append(
-            run_gitlab_mr_probe(
-                repo=inputs.repo,
-                token=gitlab_token,
-                request_context=request_context,
-                observed_at=observed_at,
-                max_pages=max_pages,
-                diff_limit=gitlab_diff_limit,
+        if inputs.paths:
+            documents.append(
+                run_gitlab_mr_probe(
+                    repo=inputs.repo,
+                    token=gitlab_token,
+                    request_context=request_context,
+                    observed_at=observed_at,
+                    max_pages=max_pages,
+                    diff_limit=gitlab_diff_limit,
+                )
             )
-        )
+        else:
+            documents.append(
+                _empty_path_forge_review_document(
+                    request_context,
+                    provider="gitlab",
+                    source_id="gitlab_mr_metadata",
+                    observed_at=observed_at,
+                )
+            )
 
         gate_ref = inputs.ref or inputs.branch
         if gate_ref:
@@ -168,16 +182,26 @@ def run_work_start_connectors(
                 )
             )
     else:
-        documents.append(
-            run_github_pr_probe(
-                repo=inputs.repo,
-                token=inputs.token,
-                request_context=request_context,
-                observed_at=observed_at,
-                include_titles=inputs.include_titles,
-                max_pages=max_pages,
+        if inputs.paths:
+            documents.append(
+                run_github_pr_probe(
+                    repo=inputs.repo,
+                    token=inputs.token,
+                    request_context=request_context,
+                    observed_at=observed_at,
+                    include_titles=inputs.include_titles,
+                    max_pages=max_pages,
+                )
             )
-        )
+        else:
+            documents.append(
+                _empty_path_forge_review_document(
+                    request_context,
+                    provider="github",
+                    source_id="github_pr_metadata",
+                    observed_at=observed_at,
+                )
+            )
 
         gate_ref = inputs.ref or inputs.branch
         if gate_ref:
@@ -244,6 +268,35 @@ def run_work_start_connectors(
         )
 
     return request_context, documents
+
+
+def _empty_path_forge_review_document(
+    request_context: RequestContext,
+    *,
+    provider: ForgeProvider,
+    source_id: str,
+    observed_at: str,
+) -> CoreContractDocument:
+    return CoreContractDocument(
+        schema_version="teamctx.core_contract_document.v0",
+        request_context=request_context,
+        source_signals=[],
+        source_statuses=[
+            forge_review_source_status(
+                source_id=source_id,
+                provider=provider,
+                repo=request_context.repo,
+                status="not_applicable",
+                observed_at=observed_at,
+                safe_user_message=_EMPTY_PATH_CONFLICT_NOTE,
+                visibility="silent",
+            )
+        ],
+        source_open_targets=[],
+        guidance_records=[],
+        session_context_uses=[],
+        context_cards=[],
+    )
 
 
 def _run_confluence_document(

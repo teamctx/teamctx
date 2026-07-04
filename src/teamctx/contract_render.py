@@ -424,7 +424,9 @@ def _still_running_line(assessment: WorkStartAssessment) -> str:
 
 def _not_applicable_line(assessment: WorkStartAssessment) -> str:
     gaps = [
-        _not_applicable_phrase(s.check) for s in assessment.checks if s.status == "not_applicable"
+        s.note or _not_applicable_phrase(s.check)
+        for s in assessment.checks
+        if s.status == "not_applicable"
     ]
     if not gaps:
         return ""
