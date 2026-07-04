@@ -3,322 +3,417 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>teamctx — timely, ambient team context for AI coding agents</title>
-<meta name="description" content="teamctx is a deterministic, read-only broker that gives your agents and your team the same live picture of the current state of the work — surfacing movement in your PRs, issues, and docs at the moment it's relevant. No LLM in the trusted path." />
-<meta property="og:title" content="teamctx — timely, ambient team context" />
-<meta property="og:description" content="The same live picture of the work, for humans and their agents. Deterministic, source-backed, verifiable — no model in the trusted path." />
+<title>teamctx: see what changed before you edit</title>
+<meta name="description" content="Before you or your coding agent edit a file, teamctx checks four things across the systems your team already uses: open pull requests touching your files, CI that is failing or unconfirmed, acceptance criteria that changed on a linked issue, and design docs that were replaced. Source-backed evidence from GitHub, GitLab, Jira, and Confluence. No language model in the content path." />
+<meta property="og:title" content="teamctx: see what changed before you edit" />
+<meta property="og:description" content="Four checks before the first edit, read straight from the record: colliding pull requests, failing or unconfirmed CI, moved acceptance criteria, superseded docs. Source-backed evidence you can judge. No language model in the content path." />
 <meta property="og:type" content="website" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,900&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<meta name="theme-color" content="#0b0e13" />
 <style>
   :root{
-    --ink:#0a0d14; --ink-2:#0c1019; --panel:#141a26; --panel-2:#1a2130;
-    --line:rgba(150,172,205,.12); --line-2:rgba(150,172,205,.24);
-    --text:#eceae3; --muted:#9aa7ba; --faint:#647183;
-    --teal:#4fd6a8; --teal-dim:rgba(79,214,168,.13);
-    --amber:#e6ac63; --azure:#74b6ec; --azure-dim:rgba(116,182,236,.12); --coral:#e88f80;
-    --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
-    --sans:'Hanken Grotesk',-apple-system,BlinkMacSystemFont,sans-serif;
-    --display:'Fraunces',Georgia,serif;
-    --maxw:1080px;
+    --ink:#0b0e13; --ink-2:#0d111a; --panel:#12161f; --panel-2:#161c28;
+    --line:rgba(140,165,200,.12); --line-2:rgba(140,165,200,.22);
+    --text:#e9eaee; --muted:#a3aec0; --faint:#6b7789;
+    --teal:#48d3a6; --teal-dim:rgba(72,211,166,.12);
+    --amber:#e3ab5f; --azure:#79b4e8; --azure-dim:rgba(121,180,232,.12); --rose:#e58a7c;
+    --term-text:#c4ccd8;
+    --mono:ui-monospace,'SF Mono','JetBrains Mono',Menlo,Consolas,'Liberation Mono',monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --display:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;
+    --maxw:1040px;
   }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
   body{
-    margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);line-height:1.6;
-    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+    margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);line-height:1.62;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden;
     background-image:
-      radial-gradient(1100px 560px at 50% -5%, var(--teal-dim), transparent 70%),
-      radial-gradient(900px 600px at 100% 8%, var(--azure-dim), transparent 60%),
+      radial-gradient(1000px 520px at 50% -8%, var(--teal-dim), transparent 68%),
       linear-gradient(var(--line) 1px, transparent 1px),
       linear-gradient(90deg, var(--line) 1px, transparent 1px);
-    background-size:auto, auto, 40px 40px, 40px 40px;
+    background-size:auto, 44px 44px, 44px 44px;
     background-attachment:fixed;
   }
-  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.04;mix-blend-mode:overlay;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
   body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
-    background:radial-gradient(130% 100% at 50% 0%, transparent 60%, rgba(0,0,0,.6) 100%);}
-  .wrap{position:relative;z-index:1;max-width:var(--maxw);margin:0 auto;padding:0 28px;}
+    background:radial-gradient(130% 100% at 50% 0%, transparent 62%, rgba(0,0,0,.55) 100%);}
+  .wrap{position:relative;z-index:1;max-width:var(--maxw);margin:0 auto;padding:0 26px;}
   a{color:inherit;}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:6px;}
+  .skip{position:absolute;left:-9999px;top:auto;}
+  .skip:focus{left:16px;top:12px;z-index:60;background:var(--teal);color:#052018;padding:10px 14px;border-radius:8px;font-weight:600;text-decoration:none;}
 
   /* nav */
   nav{position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);
-    background:linear-gradient(180deg, rgba(10,13,20,.9), rgba(10,13,20,.6));border-bottom:1px solid var(--line);}
-  nav .row{display:flex;align-items:center;gap:24px;height:62px;}
-  .brand{font-family:var(--display);font-weight:600;font-size:21px;letter-spacing:-.02em;text-decoration:none;}
-  .brand .x{color:var(--teal);font-style:italic;font-weight:500;}
-  nav .links{margin-left:auto;display:flex;gap:26px;align-items:center;font-family:var(--mono);font-size:12.5px;letter-spacing:.02em;}
+    background:linear-gradient(180deg, rgba(11,14,19,.92), rgba(11,14,19,.6));border-bottom:1px solid var(--line);}
+  nav .row{display:flex;align-items:center;gap:24px;height:60px;}
+  .brand{font-family:var(--display);font-weight:600;font-size:22px;letter-spacing:-.01em;text-decoration:none;}
+  .brand .x{color:var(--teal);}
+  nav .links{margin-left:auto;display:flex;gap:24px;align-items:center;font-family:var(--mono);font-size:12.5px;letter-spacing:.01em;}
   nav .links a{color:var(--muted);text-decoration:none;transition:color .2s;}
   nav .links a:hover{color:var(--text);}
-  nav .gh{border:1px solid var(--line-2);border-radius:8px;padding:7px 13px;color:var(--text)!important;}
+  nav .gh{border:1px solid var(--line-2);border-radius:8px;padding:7px 13px;color:var(--text);}
   nav .gh:hover{border-color:var(--teal);}
-  @media (max-width:680px){nav .links a:not(.gh){display:none;}}
+  @media (max-width:720px){nav .links a:not(.gh){display:none;}}
 
   /* hero */
-  .hero{padding:96px 0 70px;position:relative;}
-  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--teal);
-    display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .hero{padding:92px 0 66px;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);
+    display:flex;gap:11px;align-items:center;flex-wrap:wrap;}
   .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal);}
   .eyebrow .sep{color:var(--faint);}
-  h1{font-family:var(--display);font-optical-sizing:auto;font-weight:600;letter-spacing:-.025em;
-    font-size:clamp(44px,8.2vw,92px);line-height:.96;margin:22px 0 0;max-width:14ch;}
-  h1 em{color:var(--teal);font-style:italic;font-weight:500;}
-  .hero .sub{max-width:680px;color:var(--muted);font-size:clamp(17px,2.1vw,21px);margin:26px 0 0;line-height:1.5;}
+  h1{font-family:var(--display);font-weight:600;letter-spacing:-.015em;
+    font-size:clamp(42px,7.6vw,82px);line-height:1.02;margin:20px 0 0;max-width:15ch;}
+  h1 em{color:var(--teal);font-style:normal;}
+  .hero .sub{max-width:700px;color:var(--muted);font-size:clamp(17px,2vw,20px);margin:26px 0 0;line-height:1.55;}
   .hero .sub b{color:var(--text);font-weight:600;}
-  .cta{display:flex;gap:14px;flex-wrap:wrap;margin-top:34px;}
-  .btn{font-family:var(--mono);font-size:13.5px;letter-spacing:.02em;text-decoration:none;border-radius:10px;padding:13px 20px;
-    transition:transform .2s, box-shadow .2s, border-color .2s, background .2s;display:inline-flex;align-items:center;gap:9px;}
-  .btn-p{background:var(--teal);color:#06241b;font-weight:600;box-shadow:0 0 30px -8px var(--teal);}
-  .btn-p:hover{transform:translateY(-2px);box-shadow:0 8px 36px -10px var(--teal);}
+  .cta{display:flex;gap:13px;flex-wrap:wrap;margin-top:32px;}
+  .btn{font-family:var(--mono);font-size:13.5px;letter-spacing:.01em;text-decoration:none;border-radius:10px;padding:13px 20px;
+    transition:transform .2s, box-shadow .2s, border-color .2s;display:inline-flex;align-items:center;gap:8px;}
+  .btn-p{background:var(--teal);color:#052018;font-weight:600;box-shadow:0 0 30px -10px var(--teal);}
+  .btn-p:hover{transform:translateY(-2px);box-shadow:0 10px 34px -12px var(--teal);}
   .btn-s{border:1px solid var(--line-2);color:var(--text);}
   .btn-s:hover{border-color:var(--teal);transform:translateY(-2px);}
-  .cat{margin-top:30px;font-family:var(--mono);font-size:12.5px;color:var(--muted);letter-spacing:.02em;
-    border-left:2px solid var(--teal);padding:4px 0 4px 16px;}
-  .cat b{color:var(--teal);}
+  .hero .honest{margin-top:30px;font-size:14.5px;color:var(--muted);max-width:680px;
+    border-left:2px solid var(--teal);padding:5px 0 5px 16px;line-height:1.55;}
+  .hero .honest b{color:var(--text);}
 
   /* sections */
-  section{padding:62px 0;border-top:1px solid var(--line);}
-  .kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--faint);margin:0 0 18px;display:flex;align-items:center;gap:12px;}
+  section{padding:58px 0;border-top:1px solid var(--line);}
+  .kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--faint);margin:0 0 16px;display:flex;align-items:center;gap:12px;}
   .kicker::after{content:"";flex:1;height:1px;background:var(--line);}
-  h2{font-family:var(--display);font-weight:500;font-size:clamp(28px,4.2vw,42px);letter-spacing:-.02em;line-height:1.08;margin:0;}
-  .lead-p{color:var(--muted);font-size:clamp(16px,1.9vw,18px);max-width:740px;margin:18px 0 0;line-height:1.55;}
+  h2{font-family:var(--display);font-weight:600;font-size:clamp(27px,4vw,40px);letter-spacing:-.01em;line-height:1.1;margin:0;}
+  .lead-p{color:var(--muted);font-size:clamp(15.5px,1.8vw,17.5px);max-width:730px;margin:16px 0 0;line-height:1.55;}
   .lead-p b{color:var(--text);}
 
-  /* the shift */
-  .shift{border-left:2px solid var(--coral);padding:6px 0 6px 24px;max-width:880px;}
-  .shift p{font-family:var(--display);font-weight:400;font-size:clamp(20px,3vw,30px);line-height:1.32;margin:0;color:var(--text);}
-  .shift p b{color:var(--coral);font-weight:600;}
-  .shift .small{font-family:var(--sans);font-size:15.5px;color:var(--muted);margin-top:16px;line-height:1.55;}
-  .shift .small b{color:var(--text);}
+  /* problem */
+  .problem p{font-family:var(--display);font-weight:400;font-size:clamp(20px,2.9vw,29px);line-height:1.34;margin:0;max-width:900px;color:var(--text);}
+  .problem p b{color:var(--rose);font-weight:600;}
+  .problem .small{font-family:var(--sans);font-size:15.5px;color:var(--muted);margin-top:18px;max-width:760px;line-height:1.55;}
+  .problem .small b{color:var(--text);}
 
-  /* lead benefit */
-  .benefit{display:flex;gap:40px;flex-wrap:wrap;align-items:center;}
-  .benefit .big{font-family:var(--display);font-weight:600;font-size:clamp(34px,5vw,56px);line-height:1.0;letter-spacing:-.02em;flex:0 0 auto;}
-  .benefit ul{list-style:none;margin:0;padding:0;display:grid;gap:11px;flex:1;min-width:300px;}
-  .benefit li{font-size:15.5px;color:var(--muted);padding-left:24px;position:relative;}
-  .benefit li::before{content:"+";position:absolute;left:0;color:var(--teal);font-family:var(--mono);}
-  .benefit li b{color:var(--text);}
-  .hedge{font-size:14px;color:var(--muted);margin-top:26px;max-width:760px;border-left:2px solid var(--line-2);padding-left:16px;line-height:1.55;}
-  .hedge b{color:var(--text);}
+  /* checks list */
+  .checks{margin-top:30px;display:grid;gap:2px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--line);}
+  .check{background:linear-gradient(180deg,rgba(19,25,36,.7),rgba(13,17,26,.7));padding:24px 24px;display:grid;grid-template-columns:52px 1fr;gap:20px;align-items:start;}
+  .check .num{font-family:var(--mono);font-size:13px;color:var(--teal);padding-top:3px;letter-spacing:.05em;}
+  .check h3{font-family:var(--display);font-weight:600;font-size:20px;line-height:1.2;margin:0 0 8px;letter-spacing:-.005em;}
+  .check p{margin:0;font-size:14.5px;color:var(--muted);line-height:1.55;max-width:760px;}
+  .check p b{color:var(--text);}
+
+  /* run rows (caption + terminal) */
+  .run{display:grid;grid-template-columns:minmax(210px,290px) 1fr;gap:34px;align-items:start;margin-top:34px;}
+  .run + .run{margin-top:40px;}
+  .run .cap h3{font-family:var(--display);font-weight:600;font-size:21px;margin:0 0 10px;line-height:1.2;letter-spacing:-.005em;}
+  .run .cap p{margin:0;font-size:14.5px;color:var(--muted);line-height:1.55;}
+  .run .cap p b{color:var(--text);}
 
   /* terminal */
-  .term{font-family:var(--mono);font-size:13px;line-height:1.7;border:1px solid var(--line-2);border-radius:14px;
-    background:rgba(7,10,16,.8);overflow:hidden;box-shadow:0 30px 80px -40px rgba(0,0,0,.9);}
-  .term .bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.015);}
-  .term .bar i{width:11px;height:11px;border-radius:50%;background:var(--faint);display:inline-block;}
-  .term .bar i:nth-child(1){background:#e8675b;}.term .bar i:nth-child(2){background:#e6ac63;}.term .bar i:nth-child(3){background:#4fd6a8;}
-  .term .bar span{margin-left:10px;color:var(--faint);font-size:11.5px;letter-spacing:.04em;}
-  .term pre{margin:0;padding:20px 22px;white-space:pre-wrap;color:var(--muted);overflow-x:auto;}
-  .term .h{color:var(--teal);font-weight:600;}
-  .term .sec{color:var(--faint);}
-  .term .b{color:var(--text);}
-  .term .w{color:var(--faint);}
-  .term .bad{color:var(--amber);}
-  .cap{font-size:13.5px;color:var(--muted);margin-top:16px;max-width:820px;line-height:1.55;}
-  .cap b{color:var(--text);}
+  .term{font-family:var(--mono);font-size:12.5px;line-height:1.72;border:1px solid var(--line-2);border-radius:12px;
+    background:rgba(6,9,14,.86);overflow:hidden;box-shadow:0 26px 70px -44px rgba(0,0,0,.95);}
+  .term .bar{display:flex;align-items:center;gap:8px;padding:11px 15px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.014);}
+  .term .bar i{width:10px;height:10px;border-radius:50%;background:var(--faint);display:inline-block;opacity:.6;}
+  .term .bar span{margin-left:9px;color:var(--faint);font-size:11px;letter-spacing:.02em;}
+  .term pre{margin:0;padding:18px 20px;white-space:pre-wrap;color:var(--term-text);overflow-x:auto;word-break:break-word;}
+  .c-ok{color:var(--teal);font-weight:600;}
+  .c-act{color:var(--amber);font-weight:600;}
+  .c-warn{color:var(--azure);font-weight:600;}
+  .c-fyi{color:var(--muted);}
 
-  /* grids */
-  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:28px;}
-  .grid2{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-top:28px;align-items:start;}
-  .card{border:1px solid var(--line);border-radius:14px;padding:24px 22px;background:linear-gradient(180deg,rgba(20,26,38,.55),rgba(13,17,26,.5));
-    transition:transform .25s cubic-bezier(.2,.7,.3,1),border-color .25s,box-shadow .25s;}
-  .card:hover{transform:translateY(-5px);border-color:var(--line-2);box-shadow:0 22px 60px -34px rgba(0,0,0,.9);}
-  .card .n{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:.1em;}
-  .card h3{font-family:var(--display);font-weight:600;font-size:21px;line-height:1.15;margin:12px 0 10px;letter-spacing:-.01em;}
-  .card p{font-size:14px;color:var(--muted);margin:0;line-height:1.55;}
+  /* four sources */
+  .srcgrid{margin-top:28px;border:1px solid var(--line-2);border-radius:12px;overflow:hidden;background:rgba(6,9,14,.7);}
+  .srcgrid .head{padding:11px 16px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.014);font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.04em;}
+  .srcrow{display:grid;grid-template-columns:118px 1fr;gap:16px;padding:15px 16px;align-items:baseline;}
+  .srcrow + .srcrow{border-top:1px solid var(--line);}
+  .srcrow .tag{font-family:var(--mono);font-size:12px;color:var(--azure);letter-spacing:.02em;}
+  .srcrow pre{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--term-text);white-space:pre-wrap;word-break:break-word;}
+  .srcnote{margin-top:16px;font-size:14px;color:var(--muted);max-width:760px;line-height:1.55;}
+  .srcnote b{color:var(--text);}
 
-  /* because / guarantees */
-  .because{border:1px solid var(--line);border-radius:16px;padding:30px;background:radial-gradient(600px 260px at 0% 0%,var(--teal-dim),transparent 70%);}
-  .because h3{font-family:var(--display);font-weight:600;font-size:clamp(22px,3vw,28px);margin:0 0 14px;letter-spacing:-.01em;}
-  .because p{color:var(--muted);font-size:15px;line-height:1.6;margin:0;}
-  .because p b{color:var(--text);}
-  .guars{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
-  .guar{border:1px solid var(--line);border-radius:12px;padding:16px;background:rgba(18,23,34,.5);}
-  .guar .gt{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--azure);display:flex;gap:9px;align-items:center;}
-  .badge{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.06em;border:1px solid rgba(116,182,236,.5);color:var(--azure);background:var(--azure-dim);padding:2px 6px;border-radius:999px;}
-  .guar .gd{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.45;}
+  /* trust */
+  .guars{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:28px;}
+  .guar{border:1px solid var(--line);border-radius:14px;padding:22px 22px;background:linear-gradient(180deg,rgba(19,25,36,.55),rgba(13,17,26,.5));}
+  .guar h3{font-family:var(--display);font-weight:600;font-size:19px;margin:0 0 9px;letter-spacing:-.005em;}
+  .guar p{margin:0;font-size:14px;color:var(--muted);line-height:1.55;}
+  .guar p b{color:var(--text);}
+  .scope{margin-top:22px;font-size:14.5px;color:var(--muted);max-width:800px;border-left:2px solid var(--line-2);padding-left:16px;line-height:1.6;}
+  .scope b{color:var(--text);}
 
-  /* positioning */
-  .pos{border:1px solid var(--line);border-radius:14px;padding:24px 22px;background:rgba(15,19,29,.5);}
-  .pos .t{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);}
-  .pos h4{font-family:var(--display);font-weight:500;font-size:20px;margin:10px 0 8px;color:var(--muted);}
-  .pos p{font-size:13.5px;color:var(--faint);margin:0;line-height:1.5;}
-  .pos.us{border-color:rgba(79,214,168,.5);background:radial-gradient(420px 200px at 50% 0%,var(--teal-dim),rgba(15,19,29,.6));}
-  .pos.us h4{color:var(--teal);}.pos.us p{color:var(--muted);}.pos.us .t{color:var(--teal);}
-  .cargo{font-family:var(--display);font-style:italic;font-size:clamp(18px,2.4vw,24px);text-align:center;margin:26px auto 0;max-width:760px;line-height:1.4;color:var(--text);}
-  .cargo b{color:var(--teal);font-style:normal;font-weight:600;}
+  /* sources chips */
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px;}
+  .chip{font-family:var(--mono);font-size:13px;border:1px solid var(--line-2);border-radius:999px;padding:9px 15px;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.012);}
+  .chip .live{font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;color:#052018;background:var(--teal);font-weight:600;}
 
-  /* sources */
-  .srcs{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;}
-  .src{font-family:var(--mono);font-size:13px;border:1px solid var(--line-2);border-radius:999px;padding:9px 15px;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.012);}
-  .src .st{font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;}
-  .src .st.l{color:#06241b;background:var(--teal);}
-  .src .st.p{color:var(--amber);border:1px solid rgba(230,172,99,.5);}
-  .src.planned{opacity:.82;}
+  /* quickstart */
+  .qs .term{margin-top:26px;}
+  .qs pre .cmt{color:var(--faint);}
+  .qs pre .prompt{color:var(--teal);}
+  .qs .more{margin-top:22px;font-size:14.5px;color:var(--muted);max-width:800px;line-height:1.6;}
+  .qs .more b{color:var(--text);}
+  .qs .more code{font-family:var(--mono);font-size:13px;color:var(--text);background:rgba(255,255,255,.05);padding:1px 6px;border-radius:5px;}
 
   /* footer */
-  footer{border-top:1px solid var(--line);padding:48px 0 60px;}
-  .foot{display:flex;flex-wrap:wrap;gap:24px;justify-content:space-between;align-items:flex-start;}
-  .foot .who{max-width:560px;color:var(--muted);font-size:14px;line-height:1.6;}
+  footer{border-top:1px solid var(--line);padding:44px 0 58px;}
+  .foot{display:flex;flex-wrap:wrap;gap:26px;justify-content:space-between;align-items:flex-start;}
+  .foot .who{max-width:540px;color:var(--muted);font-size:14.5px;line-height:1.6;}
   .foot .who b{color:var(--text);}
-  .foot .meta{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:right;line-height:1.9;letter-spacing:.03em;}
+  .foot .stamp{margin-top:14px;color:var(--teal);font-family:var(--mono);font-size:12px;letter-spacing:.02em;}
+  .foot .meta{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:right;line-height:1.9;letter-spacing:.02em;}
   .foot .meta a{color:var(--muted);text-decoration:none;}
   .foot .meta a:hover{color:var(--teal);}
-  .foot .stamp{margin-top:14px;color:var(--teal);}
 
-  /* entrance (load-only; no display toggling, so nothing gets stuck hidden) */
-  @keyframes rise{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
-  .anim{opacity:0;animation:rise .7s cubic-bezier(.2,.7,.3,1) forwards;}
-  .d1{animation-delay:.05s}.d2{animation-delay:.14s}.d3{animation-delay:.23s}.d4{animation-delay:.32s}.d5{animation-delay:.41s}
-  @media (prefers-reduced-motion:reduce){.anim{animation:none;opacity:1;}}
+  /* entrance */
+  @keyframes rise{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+  .anim{opacity:0;animation:rise .65s cubic-bezier(.2,.7,.3,1) forwards;}
+  .d1{animation-delay:.04s}.d2{animation-delay:.12s}.d3{animation-delay:.2s}.d4{animation-delay:.28s}.d5{animation-delay:.36s}
+  @media (prefers-reduced-motion:reduce){.anim{animation:none;opacity:1;}html{scroll-behavior:auto;}}
 
-  @media (max-width:820px){.grid3{grid-template-columns:1fr;}.grid2{grid-template-columns:1fr;}.guars{grid-template-columns:1fr;}}
+  @media (max-width:820px){
+    .run{grid-template-columns:1fr;gap:16px;}
+    .guars{grid-template-columns:1fr;}
+    .check{grid-template-columns:40px 1fr;gap:14px;}
+  }
+  @media (max-width:560px){
+    .srcrow{grid-template-columns:1fr;gap:6px;}
+  }
 </style>
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 
-<nav>
+<nav aria-label="Primary">
   <div class="wrap row">
     <a class="brand" href="#top">team<span class="x">ctx</span></a>
     <div class="links">
-      <a href="#how">How it works</a>
+      <a href="#checks">What it checks</a>
       <a href="#trust">Why trust it</a>
-      <a href="#where">Where it sits</a>
-      <a class="gh" href="https://github.com/teamctx/teamctx">GitHub →</a>
+      <a href="#sources">Sources</a>
+      <a href="#quickstart">Quickstart</a>
+      <a class="gh" href="https://github.com/teamctx/teamctx">GitHub</a>
     </div>
   </div>
 </nav>
 
-<div id="top"></div>
+<span id="top"></span>
 
-<!-- HERO -->
+<main id="main">
+
 <header class="hero">
   <div class="wrap">
-    <div class="eyebrow anim d1"><span class="dot"></span>Deterministic context broker for AI coding agents<span class="sep">·</span>open source<span class="sep">·</span>early</div>
-    <h1 class="anim d2">Timely, <em>ambient team context.</em></h1>
-    <p class="sub anim d3">Your agents and your team, working from the <b>same live picture</b> of the current state of the work — and the standards around it. teamctx surfaces the movement in your PRs, issues, and docs <b>at the moment it's relevant</b>, so fewer changes land on ground that already moved.</p>
+    <div class="eyebrow anim d1"><span class="dot"></span>Context checks for coding agents<span class="sep">·</span>open source<span class="sep">·</span>pre-release</div>
+    <h1 class="anim d2">See what changed <em>before you touch the code.</em></h1>
+    <p class="sub anim d3">Before you or your coding agent edit a file, teamctx checks the systems your team already uses and shows what moved around the work: <b>a pull request touching the same file, CI that is failing or still running, acceptance criteria that changed on the linked issue, a design doc that was replaced.</b> You read source-backed evidence and stay the one who decides.</p>
     <div class="cta anim d4">
-      <a class="btn btn-p" href="#how">See it at work-start ↓</a>
-      <a class="btn btn-s" href="#trust">Why you can trust it</a>
+      <a class="btn btn-p" href="#checks">What it checks</a>
+      <a class="btn btn-s" href="#quickstart">Quickstart</a>
     </div>
-    <div class="cat anim d5"><b>Context, not memory.</b> &nbsp;The facts already live in your tools — teamctx transforms the <b>delivery</b>, not the content. Not compression. Not infrastructure.</div>
+    <p class="honest anim d5">Every result says what teamctx checked and what it could not confirm. There is <b>no language model between the record and you</b>, so the same inputs give the same result every time.</p>
   </div>
 </header>
 
-<!-- THE SHIFT -->
-<section>
+<!-- PROBLEM -->
+<section class="problem">
   <div class="wrap">
-    <div class="kicker">The shift</div>
-    <div class="shift">
-      <p>Agents broke the speed at which work moves. Team coordination didn't keep up — so agents <b>confidently build against a spec another agent already replaced</b>, or a file a teammate is mid-PR on.</p>
-      <p class="small">Authentication and routing don't catch this: two perfectly-secured agents can still act on contradictory context. The failure isn't infrastructural, it's <b>epistemic</b> — nobody is checking whether what the agent believes is still true. That's the gap teamctx closes.</p>
+    <div class="kicker">Why it exists</div>
+    <p>Coding agents made the work move faster than the team can track. So an agent edits a file an open pull request is already changing, builds on a spec that <b>moved yesterday</b>, or trusts a green build that is actually red.</p>
+    <p class="small">The context was wrong, and <b>wrong context delivered through a terminal you trust is the expensive kind of failure</b>. Two agents can be perfectly authenticated and still act on contradictory pictures of the work. Nothing in the stack was checking whether what the agent believed was still true. teamctx checks it, at the moment the work begins.</p>
+  </div>
+</section>
+
+<!-- WHAT IT CHECKS -->
+<section id="checks">
+  <div class="wrap">
+    <div class="kicker">What it checks</div>
+    <h2>Four checks before the first edit.</h2>
+    <p class="lead-p">Run it at the start of a task, on a new branch or a resumed session. teamctx reads metadata from the systems of record your team already uses and reports four things.</p>
+    <div class="checks">
+      <div class="check">
+        <div class="num">01</div>
+        <div>
+          <h3>Colliding pull requests and merge requests</h3>
+          <p>If someone else has an open PR or MR changing a file you are about to edit, you see it first. <b>Your own PR for the branch you are on is set aside with a note</b>, so it never looks like a collision with yourself.</p>
+        </div>
+      </div>
+      <div class="check">
+        <div class="num">02</div>
+        <div>
+          <h3>Failing or unconfirmed CI on your branch</h3>
+          <p>Failing checks are named. Checks that are <b>still running are reported as unconfirmed</b>, so a build in progress is never counted as green.</p>
+        </div>
+      </div>
+      <div class="check">
+        <div class="num">03</div>
+        <div>
+          <h3>Acceptance criteria that moved</h3>
+          <p>teamctx finds the linked issue from your branch name or commits, <b>names how it derived it so you can judge</b>, and tells you if the criteria changed since you started work.</p>
+        </div>
+      </div>
+      <div class="check">
+        <div class="num">04</div>
+        <div>
+          <h3>Design docs you rely on that were replaced</h3>
+          <p>A doc in your declared docs folder, or a <b>Confluence page</b>, that names a newer version surfaces before you build on the old one.</p>
+        </div>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- WHAT YOU GET -->
-<section>
+<!-- WORK-START MOMENT -->
+<section id="run">
   <div class="wrap">
-    <div class="kicker">What it's for</div>
-    <div class="benefit">
-      <div class="big">Fewer collisions.<br/>Less rework.</div>
-      <ul>
-        <li>The <b>standards around the work</b>, actually adhered to</li>
-        <li>Faster ramp onto unfamiliar code, faster resumption after a break</li>
-        <li><b>Cross-agent continuity</b> — swap Claude Code, Cursor, Codex freely; context is just data</li>
-        <li>Fewer stale-spec and missed-gate mistakes</li>
-      </ul>
+    <div class="kicker">At work-start</div>
+    <h2>What a run looks like.</h2>
+    <p class="lead-p">One command at the start of a task. The output is rendered straight from the record. The samples below are real output from the pipeline.</p>
+
+    <div class="run">
+      <div class="cap">
+        <h3>A clear result is itemized</h3>
+        <p>When nothing is in the way, the output <b>lists every check that ran</b>. Each line is something teamctx actually looked at, so a clear result is something you can rely on.</p>
+      </div>
+      <div class="term" role="img" aria-label="teamctx work-start output showing a clear result that lists every check that ran">
+        <div class="bar"><i></i><i></i><i></i><span>teamctx work-start --path src/auth/token.py</span></div>
+<pre><span class="c-ok">Looks clear to start.</span>
+  Checked: no other open PRs touch your files; the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.</pre>
+      </div>
     </div>
-    <p class="hedge">It <b>informs; it doesn't enforce.</b> The benefit is better-informed work when the team acts on it — never a guaranteed outcome. And the absence of a card is never an all-clear: teamctx always tells you what it <b>couldn't</b> check.</p>
+
+    <div class="run">
+      <div class="cap">
+        <h3>A finding comes with the next step</h3>
+        <p>When something needs handling, you get the finding and <b>the exact command to look at it</b>, followed by the checks that came back clean.</p>
+      </div>
+      <div class="term" role="img" aria-label="teamctx work-start output flagging an open pull request that changed the same file, with a gh pr view command">
+        <div class="bar"><i></i><i></i><i></i><span>teamctx work-start --path src/auth/token.py</span></div>
+<pre><span class="c-act">Before you start, here is what to handle first:</span>
+  • Open PR #7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 7 --repo acme/widgets)
+  Also checked: the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.</pre>
+      </div>
+    </div>
+
+    <div class="run">
+      <div class="cap">
+        <h3>It says where it could not look</h3>
+        <p>When teamctx cannot reach a source, it names the check it <b>could not run, why, and how to turn it on</b>. A gap in coverage is reported plainly and never hidden behind a clear result.</p>
+      </div>
+      <div class="term" role="img" aria-label="teamctx work-start output reporting that it could not reach GitHub and which checks were not run">
+        <div class="bar"><i></i><i></i><i></i><span>teamctx work-start --path src/auth/token.py</span></div>
+<pre><span class="c-warn">Heads up: I can't confirm the important things yet:</span>
+  • Open PRs and failing checks: teamctx couldn't reach GitHub. Either it has no access yet (set GITHUB_TOKEN, or GITHUB_TOKEN_FILE with a path to a token file) or it's a temporary connection issue. Until it's back you won't see colliding PRs or red CI on your files.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).</pre>
+      </div>
+    </div>
+
+    <div class="run">
+      <div class="cap">
+        <h3>Your own PR is not a collision</h3>
+        <p>The open PR for the branch you are standing on is <b>set aside with an FYI</b> instead of being flagged against you, so the tool does not cry wolf on your own work.</p>
+      </div>
+      <div class="term" role="img" aria-label="teamctx work-start output where the only overlapping pull request is your own branch's PR, shown as an FYI">
+        <div class="bar"><i></i><i></i><i></i><span>teamctx work-start --path src/auth/token.py</span></div>
+<pre><span class="c-ok">Looks clear to start.</span>
+  Checked: no other open PRs touch your files; the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.
+  <span class="c-fyi">FYI: Your own open PR #12 for this branch touches these files; not flagged as a collision.</span></pre>
+      </div>
+    </div>
   </div>
 </section>
 
-<!-- HOW IT WORKS -->
-<section id="how">
+<!-- FOUR SOURCES -->
+<section id="sources-shape">
   <div class="wrap">
-    <div class="kicker">A work-start moment</div>
-    <h2>Before the agent acts, it gets the picture.</h2>
-    <p class="lead-p">At the start of a task — a new branch, a resumed session — your agent asks teamctx for context and gets compact, typed, permission-scoped <b>cards</b> plus an honest <b>coverage</b> note. Rendered directly, never through a model.</p>
-    <div class="term" style="margin-top:28px">
-      <div class="bar"><i></i><i></i><i></i><span>teamctx · working context · fix-webhook-retries</span></div>
-<pre><span class="sec">─ Needs attention ──────────────────────────────</span>
-• Open PR #214 (yours) already refactors <span class="b">webhooks/retry.py</span> — the file
-  you're about to touch. Unmerged, 3 days old.
-    <span class="w">why: same-file overlap with your changed paths · github PR #214 · 12s ago</span>
-• Linked issue PROJ-88 acceptance criteria changed 6h ago: retry cap is now 5 (was 3).
-    <span class="w">why: criteria changed after your branch point · issue PROJ-88 · 6h ago</span>
-<span class="sec">─ Coverage ──────────────────────────────────────</span>
-checked: git ✓ (12s)   issues ✓ (6h)
-<span class="w">Absence of a card is not an all-clear; unobserved or stale sources are reported as Unknown.</span></pre>
+    <div class="kicker">Across your sources</div>
+    <h2>The same finding, wherever the work lives.</h2>
+    <p class="lead-p">teamctx reads GitHub, GitLab, Jira, and Confluence today. A finding reads the same way whatever the source, in the words that source uses. This was <b>validated live across GitHub, GitLab, Jira, and Confluence</b> with a multi-actor test program and committed evidence.</p>
+    <div class="srcgrid">
+      <div class="head">one finding, four sources</div>
+      <div class="srcrow"><span class="tag">GitHub</span><pre>  • Open PR #7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 7 --repo acme/widgets)</pre></div>
+      <div class="srcrow"><span class="tag">GitLab</span><pre>  • Open MR !7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work</pre></div>
+      <div class="srcrow"><span class="tag">Jira</span><pre>  • Jira PROJ-88 updated: description updated: re-check the criteria before you rely on them</pre></div>
+      <div class="srcrow"><span class="tag">Confluence</span><pre>  • Auth service design was superseded by Auth service design v2: rely on the current one instead</pre></div>
     </div>
-    <p class="cap"><b>Illustrative.</b> One glance kills two silent rework spirals — without leaving the editor or asking "go check all my PRs and issues." That standing question is now answered deterministically, off-model.</p>
+    <p class="srcnote">GitLab speaks in merge requests, GitHub carries the <b>gh</b> command to open the PR, Jira and Confluence name the issue and the page. The check is the same underneath; only the words match the source.</p>
   </div>
 </section>
 
-<!-- THE BECAUSE -->
+<!-- TRUST -->
 <section id="trust">
   <div class="wrap">
-    <div class="kicker">Why you can trust it — the credibility engine</div>
-    <div class="grid2">
-      <div class="because">
-        <h3>A credibility tool has to be more credible than what it checks.</h3>
-        <p><b>No LLM in the content path.</b> Facts arrive <b>verbatim, source-backed, one-click verifiable, and replayable</b> — teamctx is the deterministic ground an agent can stand on and check itself against. <b>Complementary to the model, never adversarial:</b> the LLM does judgment and generation; teamctx hands it trustworthy current facts. The same construction means it <b>can't track</b> you and <b>can't be hijacked</b> by a poisoned artifact. Its guarantees aren't promises — they're properties of a deterministic engine.</p>
+    <div class="kicker">Why you can trust it</div>
+    <h2>Built so a clear result is worth trusting.</h2>
+    <p class="lead-p">A tool you use to check your work has to be steadier than the work it checks. These four properties come from how teamctx is built.</p>
+    <div class="guars">
+      <div class="guar">
+        <h3>No language model in the content path</h3>
+        <p>teamctx normalizes, routes, and renders the record. <b>It never rewrites what the record says</b>, so what you read matches the source and cannot be talked into a false answer by a poisoned artifact.</p>
       </div>
-      <div class="guars">
-        <div class="guar"><div class="gt"><span class="badge">sound</span>Never over-claims</div><div class="gd">A verdict never asserts more than the evidence supports.</div></div>
-        <div class="guar"><div class="gt"><span class="badge">auditable</span>Replayable</div><div class="gd">Every answer reproduces from a digest of its inputs.</div></div>
-        <div class="guar"><div class="gt"><span class="badge">private</span>Existence-safe</div><div class="gd">It can't reveal context you're not permitted to see.</div></div>
-        <div class="guar"><div class="gt"><span class="badge">in its lane</span>Won't adjudicate</div><div class="gd">Surfaces conflict; leaves the call to you.</div></div>
+      <div class="guar">
+        <h3>Source-backed evidence</h3>
+        <p>Every finding carries a handle you can open in the original system. <b>Drill into one with <code style="font-family:var(--mono)">teamctx why</code></b> or open the source directly, down to the pull request, issue, gate, or page.</p>
+      </div>
+      <div class="guar">
+        <h3>Same inputs, same result</h3>
+        <p>Run it again on the same inputs and the verdict is identical. <b>The result reproduces from a digest of what went in</b>, which makes it something you can replay and audit.</p>
+      </div>
+      <div class="guar">
+        <h3>Honest about coverage</h3>
+        <p>Where teamctx could not look, it <b>says so and how to fix it</b>. A coverage gap is always reported on its own line, and it is never folded into a clear result.</p>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- WHERE IT SITS -->
-<section id="where">
-  <div class="wrap">
-    <div class="kicker">Where it sits</div>
-    <h2>The context layer — made trustworthy.</h2>
-    <div class="grid3">
-      <div class="pos"><div class="t">Optimization</div><h4>Context compression</h4><p>Shrinks the window to fit more in. Says nothing about whether the context is still <i>current</i>.</p></div>
-      <div class="pos"><div class="t">Infrastructure</div><h4>Agent platforms &amp; mesh</h4><p>Deploy, route, and authenticate agents. Moves and secures the pipes — not the truth of what flows through them.</p></div>
-      <div class="pos us"><div class="t">Ambient context</div><h4>teamctx</h4><p>The shared live picture of the work — made trustworthy. Rides on top of both; complementary to the LLM.</p></div>
-    </div>
-    <p class="cargo">Compression shrinks the cargo. Infrastructure moves and secures it. <b>teamctx makes sure it's the current cargo — and that you can trust it.</b></p>
+    <p class="scope">teamctx reports what is currently true in the record. <b>Whether that is the right thing to do is your call</b>, and teamctx does not claim the record itself is correct. It delivers the record without distortion so you can judge on it.</p>
   </div>
 </section>
 
 <!-- SOURCES -->
-<section>
+<section id="sources">
   <div class="wrap">
-    <div class="kicker">Draws from your tools</div>
-    <h2>Read-only. Permission-scoped.</h2>
-    <p class="lead-p">Your agent sees exactly what <b>you</b> can see, nothing more — and never learns that what it can't see even exists. No new system of record, nothing to migrate. Honest about what's wired today versus planned.</p>
-    <div class="srcs" style="margin-top:24px">
-      <span class="src">GitHub PRs <span class="st l">live</span></span>
-      <span class="src">Repo docs <span class="st l">live</span></span>
-      <span class="src planned">CI check-runs <span class="st p">planned</span></span>
-      <span class="src planned">GitLab <span class="st p">planned</span></span>
-      <span class="src planned">Jira / Linear <span class="st p">planned</span></span>
-      <span class="src planned">Confluence <span class="st p">planned</span></span>
-      <span class="src planned">Slack handoffs <span class="st p">planned</span></span>
+    <div class="kicker">Sources</div>
+    <h2>Reads what you already have. Read-only.</h2>
+    <p class="lead-p">teamctx reads metadata from the systems of record your team uses. It sees only what <b>you</b> can see. It does not read pull request bodies, comments, patches, or private messages, and it does not write to your systems.</p>
+    <div class="chips">
+      <span class="chip">GitHub <span class="live">live</span></span>
+      <span class="chip">GitLab <span class="live">live</span></span>
+      <span class="chip">Jira <span class="live">live</span></span>
+      <span class="chip">Confluence <span class="live">live</span></span>
     </div>
+    <p class="srcnote">Each source is added only after it proves the same honest coverage behavior. More sources follow the same bar.</p>
   </div>
 </section>
+
+<!-- QUICKSTART -->
+<section id="quickstart" class="qs">
+  <div class="wrap">
+    <div class="kicker">Quickstart</div>
+    <h2>Install from source and run it.</h2>
+    <p class="lead-p">teamctx is pre-release. Install from source, set it up once, then run it before you edit.</p>
+    <div class="term">
+      <div class="bar"><i></i><i></i><i></i><span>bash</span></div>
+<pre><span class="prompt">$</span> git clone https://github.com/teamctx/teamctx
+<span class="prompt">$</span> cd teamctx
+<span class="prompt">$</span> pip install -e .
+
+<span class="cmt"># one-time setup: detects the repo, writes a shareable .teamctx/config.json,</span>
+<span class="cmt"># installs the Claude Code reflex hook, and reports your credential</span>
+<span class="prompt">$</span> teamctx onboard
+
+<span class="cmt"># before you edit a file</span>
+<span class="prompt">$</span> teamctx work-start --path src/auth/token.py</pre>
+    </div>
+    <p class="more"><b>Make it automatic.</b> <code>teamctx onboard</code> installs an opt-in Claude Code hook that runs the check the first time you edit a file in a session. The hook never blocks the edit; it surfaces what is happening around the file you are about to touch. Any agent can also call the <code>work_start</code> tool over MCP through <code>teamctx-mcp</code>, so credentials stay on the server side.</p>
+  </div>
+</section>
+
+</main>
 
 <!-- FOOTER -->
 <footer>
   <div class="wrap foot">
     <div class="who">
-      <b>For teams running more than one agent on a shared codebase</b> — and the platform teams who have to keep them from quietly stepping on each other. Solo founder to regulated enterprise: same engine, configs not editions.
-      <div class="stamp">teamctx · early · Apache-2.0 · no model in the trusted path.</div>
+      <b>For teams running more than one agent on a shared codebase</b>, and the people who keep them from stepping on each other. The same engine serves a solo developer and a large team; the difference is configuration.
+      <div class="stamp">teamctx · pre-release · Apache-2.0 · no language model in the content path</div>
     </div>
     <div class="meta">
       <a href="https://github.com/teamctx/teamctx">github.com/teamctx/teamctx</a><br/>
-      deterministic · read-only · open source<br/>
-      <span style="color:var(--faint)">timely, ambient team context</span>
+      read-only · source-backed · open source<br/>
+      <span style="color:var(--faint)">context checks before you edit</span>
     </div>
   </div>
 </footer>
