@@ -20,22 +20,28 @@ where teamctx could not look, it says so plainly instead of implying all is well
 
 Run it before you start editing. From the systems of record your team already uses, teamctx surfaces:
 
-- Open pull requests that touch the files you are about to change. Your own same-repo PR for the
-  branch you are standing on is set aside with an FYI, never flagged against you (a fork PR still
-  surfaces, on purpose).
-- Checks that are failing on your branch, and checks that are still running (reported as
-  unconfirmed, never assumed green).
-- Acceptance criteria that changed on a linked issue since you started, with the issue and the
-  start time derived from your branch name, commit trailers, and merge point when you don't name
-  them, and the derivation named in the output so you can judge it.
-- Design docs you rely on that have been superseded: any doc under your declared docs folder that
-  names a newer replacement, whether or not you are editing it.
+- Open pull requests or merge requests that touch the files you are about to change. Your own
+  same-repo PR or MR for the branch you are standing on is set aside with an FYI, never flagged
+  against you (a fork PR still surfaces, on purpose).
+- Checks and pipelines that are failing on your branch, along with ones that are still running,
+  skipped, or canceled, each surfaced honestly as not yet confirmed green.
+- Acceptance criteria that changed since you started, on a linked GitHub issue or a Jira issue.
+  The issue and the start time are derived from your branch name (a Jira key like PROJ-123, or a
+  GitHub issue number), commit trailers, and merge point when you don't name them, and the
+  derivation is named in the output so you can judge it.
+- Design docs you rely on that have been superseded: a doc under your declared docs folder that
+  names a newer replacement, or a Confluence page marked with the teamctx.superseded_by property,
+  whether or not you are editing it.
 
-Live today: GitHub (open pull requests, check runs, and linked issues) and design docs declared in
-your repository. The core is source-agnostic; GitHub is simply the first source wired up, with Jira
-and GitLab next. teamctx reads metadata only (it does not read pull request bodies, comments, or
-patches), speaks only to the structured slice it can actually verify, and does no broad search or
-summaries. A source becomes supported only after it proves the same honest-coverage behavior.
+Live today, across four sources: GitHub and GitLab forges (open pull requests and merge requests,
+plus check runs and pipelines), GitHub issues and Jira for acceptance criteria, and local docs
+folders and Confluence spaces for superseded docs. This four-source behavior was exercised by a
+live multi-actor emulation, several people and agents working the same repositories through real
+GitHub, GitLab, Jira, and Confluence, with the run and its evidence committed at
+[docs/validation/team-emulation-2026-07-04/SUMMARY.md](docs/validation/team-emulation-2026-07-04/SUMMARY.md).
+teamctx reads metadata only (it does not read pull request bodies, comments, or patches), speaks
+only to the structured slice it can actually verify, and does no broad search or summaries. A source
+becomes supported only after it proves the same honest-coverage behavior.
 
 ## Install
 
@@ -55,6 +61,42 @@ the value):
 export GITHUB_TOKEN=ghp_...
 # or point at a file instead:
 export GITHUB_TOKEN_FILE=~/.config/teamctx/token
+```
+
+For a GitLab project, set a GitLab token the same way:
+
+```bash
+export GITLAB_TOKEN=glpat-...
+# or point at a file instead:
+export GITLAB_TOKEN_FILE=~/.config/teamctx/gitlab-token
+```
+
+For Jira and Confluence, teamctx uses Atlassian Cloud basic auth: your account email and an API
+token. Both halves must be present, or the source reports itself unavailable and names the missing
+half.
+
+```bash
+export ATLASSIAN_EMAIL=you@example.com
+export ATLASSIAN_API_TOKEN=...
+# or point the token at a file instead:
+export ATLASSIAN_API_TOKEN_FILE=~/.config/teamctx/atlassian-token
+```
+
+Which sources teamctx checks lives in the committed `.teamctx/config.json`. `teamctx onboard`
+writes the forge and docs folder for you; add the `jira` and `confluence` blocks to turn those
+sources on:
+
+```json
+{
+  "schema_version": "teamctx.project_config.v0",
+  "work_start": {
+    "repo": "acme/widgets",
+    "forge": "github",
+    "docs_root": "docs",
+    "jira": { "base_url": "https://jira.example.com" },
+    "confluence": { "base_url": "https://wiki.example.com", "space_key": "ENG" }
+  }
+}
 ```
 
 ## Quickstart
@@ -136,6 +178,16 @@ touch.
 - There is no LLM in the content path. teamctx is the reference for what is currently true in the
   record. It is not the judge of what the right call is (that is your job), and it does not claim to
   make the record itself correct (it delivers the record faithfully).
+
+## How the claims are proven
+
+Two layers back the behavior above. An offline emulation harness (`emulation/`) drives the real
+CLI, hook, and MCP tool through a twelve-row scenario matrix against bundled mock GitHub, GitLab,
+Jira, and Confluence servers; anyone can run it with `python emulation/runner.py --offline --all`,
+and each expected block quotes the real renderer. On top of that, a live multi-actor run against
+real GitHub, GitLab, Jira, and Confluence is committed as evidence at
+[docs/validation/team-emulation-2026-07-04/SUMMARY.md](docs/validation/team-emulation-2026-07-04/SUMMARY.md),
+including the two residuals it left open.
 
 ## What it is not
 
