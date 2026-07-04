@@ -493,3 +493,34 @@ def test_confluence_budget_hit_reads_couldnt_fully_check_not_couldnt_reach() -> 
     assert "couldn't fully check Confluence" in text
     assert "couldn't reach Confluence" not in text
     _no_jargon(text)
+
+
+def _gate_status_note(status: str, msg: str) -> SourceStatus:
+    return source_status(
+        source_id="gitlab_pipeline_state", source_family="ci_deploy",
+        scope={"repo": "acme/widgets"}, status=status, observed_at="2026-06-28T00:00:00Z",
+        safe_user_message=msg, visibility="silent", policy_reason="status only",
+    )
+
+
+def test_skipped_pipeline_never_claims_a_connection_problem() -> None:
+    # a skipped GitLab pipeline was REACHED; the copy must carry the connector's message
+    msg = "The latest pipeline was skipped, so the gate could not be confirmed green."
+    text = render_broker_answer(
+        broker_answer(_request(), [], [_fresh("git_hosting"), _gate_status_note("stale", msg)])
+    )
+    assert msg in text
+    assert "couldn't reach" not in text
+    assert "temporary connection issue" not in text
+    _no_jargon(text)
+
+
+def test_unavailable_gate_keeps_the_connection_copy() -> None:
+    text = render_broker_answer(
+        broker_answer(
+            _request(), [],
+            [_fresh("git_hosting"), _gate_status_note("unavailable", "CI status is unavailable.")],
+        )
+    )
+    assert "couldn't reach GitHub" in text
+    _no_jargon(text)
