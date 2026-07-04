@@ -186,3 +186,22 @@ def test_unreachable_conflict_plus_pending_gate_mentions_both() -> None:
     assert "still running" in text.lower()  # and the pending gate, not falsely "couldn't check"
     # the gate is pending, not unreachable: don't claim we couldn't check failing checks.
     assert "failing checks" not in text
+
+
+def test_hook_skipped_pipeline_never_claims_a_connection_problem() -> None:
+    # Live-run finding: a skipped GitLab pipeline (stale, reached) must carry the connector's
+    # message in the hook signal, never "couldn't reach GitLab".
+    from teamctx.connectors._contract import source_status
+    from teamctx.core.broker import broker_answer
+
+    msg = "The latest pipeline was skipped, so the gate could not be confirmed green."
+    status = source_status(
+        source_id="gitlab_pipeline_state", source_family="ci_deploy",
+        scope={"repo": "acme/widgets"}, status="stale", observed_at="2026-07-04T00:00:00Z",
+        safe_user_message=msg, visibility="silent", policy_reason="status only",
+    )
+    answer = broker_answer(_request(), [], [_fresh_status("git_hosting"), status])
+    signal = hook_signal(answer, file_path="src/x.py", token_present=True)
+    assert msg.rstrip(".") in signal
+    assert "couldn't reach" not in signal
+    assert "transient connection issue" not in signal

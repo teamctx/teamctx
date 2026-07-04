@@ -237,10 +237,28 @@ def _cant_verify_bullets(assessment: WorkStartAssessment, forge: str) -> list[st
     # GitHub-unreachable bullet (to avoid repeating the long fix text when both are unreachable),
     # plus a bullet for each important pending check.
     status = {s.check: s.status for s in assessment.checks}
-    conflict_unreachable = status.get("conflict") == "unreachable"
-    gate_unreachable = status.get("gate") == "unreachable"
+    stale_only = {
+        s.check: bool(s.failing_sources) and all(st == "stale" for _, st in s.failing_sources)
+        for s in assessment.checks
+    }
+    notes = {s.check: s.note for s in assessment.checks}
+    # A reached-but-not-confirmable source (a skipped pipeline, an unexhausted scan) must never
+    # claim a connection problem: it gets its own note-led bullet instead of the fix text.
+    conflict_unreachable = status.get("conflict") == "unreachable" and not stale_only.get(
+        "conflict", False
+    )
+    gate_unreachable = status.get("gate") == "unreachable" and not stale_only.get("gate", False)
     fix = _fix_text(forge)
     bullets: list[str] = []
+    for check in ("conflict", "gate"):
+        if status.get(check) == "unreachable" and stale_only.get(check) and notes.get(check):
+            label = _conflict_label(forge) if check == "conflict" else _gate_label(forge)
+            action = (
+                "If a green build matters for this change, check the run yourself."
+                if check == "gate"
+                else f"Glance at {_source_name(forge)} yourself if this file is sensitive."
+            )
+            bullets.append(f"  • {label.capitalize()}: {notes[check]} {action}")
     if conflict_unreachable and gate_unreachable:
         bullets.append(
             f"  • {_conflict_label(forge)} and {_gate_label(forge)}: {fix} "
@@ -353,6 +371,16 @@ def _unreachable_gap_copy(state: CheckState, forge: str) -> str:
         ]
         if reasons:
             return "the docs you rely on (" + "; ".join(reasons) + ")"
+    if (
+        state.failing_sources
+        and all(st == "stale" for _, st in state.failing_sources)
+        and state.note
+    ):
+        # reached but not confirmable: the connector's precise message, never "couldn't reach"
+        label = _conflict_label(forge) if state.check == "conflict" else (
+            _gate_label(forge) if state.check == "gate" else state.check
+        )
+        return f"{label} ({state.note.rstrip('.')})"
     return check_unreachable_copy(state.check, forge)
 
 

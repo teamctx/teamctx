@@ -118,7 +118,7 @@ def _coverage_notes_by_family_and_status(
 ) -> dict[tuple[str, str], tuple[str, ...]]:
     notes: dict[tuple[str, str], list[str]] = {}
     for entry in answer.selection.coverage.entries:
-        if entry.status in {"disabled", "unbounded"} and entry.note:
+        if entry.status in {"disabled", "unbounded", "stale"} and entry.note:
             notes.setdefault((entry.source_family, entry.status), []).append(entry.note)
     return {key: tuple(values) for key, values in notes.items()}
 
@@ -140,6 +140,13 @@ def _failing_source_ids_by_family(
 def _note_for(
     check: CheckId, status: CheckStatus, coverage_notes: dict[tuple[str, str], tuple[str, ...]]
 ) -> str | None:
+    if status == "unreachable":
+        # An unreachable check whose failing sources were all REACHED (stale: a skipped
+        # pipeline, an unexhausted budget) carries the connector's precise message so the
+        # render never claims a connection problem that did not happen.
+        family = CHECK_DEPS_FAMILY[check]
+        notes = coverage_notes.get((family, "stale"), ())
+        return "; ".join(notes) if notes else None
     if status not in {"not_configured", "unbounded"}:
         return None
     family = CHECK_DEPS_FAMILY[check]
