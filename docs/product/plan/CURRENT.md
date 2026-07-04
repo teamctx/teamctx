@@ -120,8 +120,17 @@ build): `docs/superpowers/specs/2026-07-03-autodiscovery-and-structure.md`.
   and added a correct extra hardening commit the plan missed: a GitLab slug must never
   query GitHub Issues; Fable's arbiter smoke caught two copy bugs (duplicate note; the
   false-comfort "Looks clear" when NOTHING was checked, now "Nothing checked yet"))** ·
-  S9b GitLab connector (codex building) · S10 Jira · S11 Confluence. Write targets verified
-  live: Jira JIRAPLAY, Confluence TS.
+  S9b GitLab connector **DONE (merged `35f9fee`, 653 tests; live-smoked: real MR-worded
+  green against a real project with a genuinely green pipeline)** · S10 Jira **DONE (merged
+  `e060b18`, 715 tests; live-smoked: branch JIRAPLAY-1441-verify derived the real issue and
+  fired field-level detail off the REAL stage changelog)** · S11 Confluence **DONE (merged
+  `a405bee`, 761+ tests; Opus built, live read of space TS came back a real green; the CTO
+  arbiter pass caught a cross-slice integration bug (a configured-Confluence family poisoned
+  by the local-docs disabled note) and a two-round codex loop hardened the fix (status-aware
+  docs failure copy: reached-but-incomplete vs unreachable)). **THE FOUR-SOURCE BROKER IS
+  BUILT: GitHub, GitLab, Jira, Confluence, each live-verified.** Write targets verified
+  live: Jira JIRAPLAY, Confluence TS. Lab repos seeded on both forges
+  (teamctx-emulation-lab, private, controllable + slow CI).
 - **Phase 5 HARNESS DONE (merged `283641e`; Opus built in a worktree, Fable verified with an
   independent offline run): `emulation/` drives all 12 scenario rows through the REAL CLI,
   hook, and MCP; 8 rows PASS offline today (GitHub + local + transports + replay + the
