@@ -10,6 +10,9 @@ may change while the product is hardened.
 ### Added
 
 - Confluence support: pages in a configured space that carry the teamctx.superseded_by property fire the docs check with an openable link, beside local docs in one honest coverage picture.
+- Emulation harness: the Confluence docs row now runs offline against a bundled Confluence v2 mock
+  through the normal `work_start.confluence.base_url` config seam, including superseded-page,
+  space-key typo, clean-space, and reflex-skip/hook-silence cases.
 - Jira support: acceptance-criteria changes on PROJ-123 style issues derived from your branch or commits, with field-level change detail, alongside GitHub issues in one honest coverage picture.
 - Emulation harness: the Jira criteria row now runs offline against a bundled Jira REST mock through
   the normal `work_start.jira.base_url` config seam, including changed, unconfigured, and mixed

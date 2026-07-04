@@ -10,15 +10,17 @@ from pathlib import Path
 
 import pytest
 
-from emulation import mockgh, mockgl, mockjira
+from emulation import mockconfluence, mockgh, mockgl, mockjira
 from emulation.actors import (
     build_lab_repo,
     fresh_session_id,
     pretooluse_event,
 )
+from emulation.mockconfluence import ConfluenceFixtures, MockConfluence
 from emulation.mockgh import Fixtures, MockGitHub
 from emulation.mockgl import GitLabFixtures, MockGitLab
 from emulation.mockjira import JiraFixtures, MockJira
+from teamctx.connectors.confluence import run_confluence_docs_probe
 from teamctx.connectors.github import fetch_github_pull_requests
 from teamctx.connectors.github_checks import fetch_failing_check_runs
 from teamctx.connectors.github_issues import fetch_issue_changes
@@ -28,10 +30,12 @@ from teamctx.connectors.gitlab import (
     fetch_latest_gitlab_pipeline,
 )
 from teamctx.connectors.jira import fetch_jira_issue_changes
+from teamctx.core.contracts import RequestContext
 from teamctx.discover import derive_since
 from teamctx.git_context import detect_branch, detect_forge_repo, detect_repo
 
 SLUG = "teamctx-emulation-lab/widgets"
+OBSERVED = "2026-07-03T12:00:00Z"
 
 
 # --- actors: tmp-repo builder ---
@@ -264,3 +268,61 @@ def test_mock_jira_serves_issue_and_changelog() -> None:
     assert change.change_kinds == ("body_edited", "labels_changed")
     assert change.source_display == "Jira PROJ-123: Acceptance criteria"
     assert "description updated" in change.detail
+
+
+# --- mockconfluence: through the real Confluence connector ---
+
+
+def _request_context() -> RequestContext:
+    return RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id="test",
+        repo=SLUG,
+        task="test",
+        paths=["src/app.py"],
+        linked_issues=[],
+        requested_at=OBSERVED,
+        requesting_principal=None,
+    )
+
+
+def test_mock_confluence_serves_space_pages_cursor_and_properties() -> None:
+    fixtures = ConfluenceFixtures(
+        spaces={"TS": mockconfluence.space_item("space-1", "TS")},
+        pages={
+            "space-1": mockconfluence.pages_payload(
+                mockconfluence.page_item(
+                    "10", "Old A", webui="/spaces/TS/pages/10/Old+A"
+                ),
+                next_link="/wiki/api/v2/spaces/space-1/pages?cursor=NEXT&limit=100",
+            )
+        },
+        cursor_pages={
+            "NEXT": mockconfluence.pages_payload(
+                mockconfluence.page_item(
+                    "20", "Old B", webui="/spaces/TS/pages/20/Old+B"
+                )
+            )
+        },
+        properties={
+            "10": mockconfluence.property_payload("New A"),
+            "20": mockconfluence.no_property_payload(),
+        },
+    )
+
+    with MockConfluence(fixtures) as server:
+        base_url = server.base_url
+        doc = run_confluence_docs_probe(
+            base_url=base_url,
+            space_key="TS",
+            auth=("operator@emulation.example", "synthetic-token"),
+            request_context=_request_context(),
+            observed_at=OBSERVED,
+        )
+
+    assert doc.source_statuses[0].status == "fresh"
+    assert [signal.scope["doc"] for signal in doc.source_signals] == ["Old A"]
+    assert doc.source_signals[0].scope["superseded_by"] == "New A"
+    assert doc.source_signals[0].scope["url"] == (
+        f"{base_url}/wiki/spaces/TS/pages/10/Old+A"
+    )

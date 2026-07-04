@@ -42,8 +42,7 @@ from emulation.rows import (  # noqa: E402
     row12_unbounded,
 )
 
-# The scenario matrix in program order. Row 8 is an honest stub until the Confluence connector
-# lands.
+# The scenario matrix in program order.
 ROW_MODULES = [
     row01_collision_github,
     row02_collision_gitlab,
