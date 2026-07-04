@@ -411,6 +411,7 @@ def test_run_onboard_migrates_hook_out_of_committed_settings_preserving_other_by
 ) -> None:
     _github_origin(tmp_path)
     monkeypatch.setenv("GITHUB_TOKEN", "x")
+    (tmp_path / ".gitignore").write_text(".claude/settings.local.json\n", encoding="utf-8")
     settings = tmp_path / ".claude" / "settings.json"
     settings.parent.mkdir()
     before = (
@@ -525,6 +526,53 @@ def test_run_onboard_dry_run_leaves_committed_and_local_settings_alone(
 
     assert settings.read_text(encoding="utf-8") == settings_before
     assert local.read_text(encoding="utf-8") == local_before
+
+
+def test_run_onboard_warns_when_local_settings_is_not_gitignored(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _github_origin(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    hook_step = next(s for s in result.steps if s.name == "hook")
+    assert hook_step.status == "wrote"
+    assert hook_step.detail.endswith(
+        "note: .claude/settings.local.json is not gitignored here; add it to .gitignore so "
+        "the hook stays personal."
+    )
+
+
+def test_run_onboard_no_ignore_warning_when_local_settings_is_gitignored(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _github_origin(tmp_path)
+    (tmp_path / ".gitignore").write_text(".claude/settings.local.json\n", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    hook_step = next(s for s in result.steps if s.name == "hook")
+    assert "note: .claude/settings.local.json is not gitignored here" not in hook_step.detail
+
+
+def test_run_onboard_non_git_skips_local_settings_ignore_check(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _write_config(tmp_path, "acme/widgets")
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+
+    result = run_onboard(
+        tmp_path, repo_override=None, force=False, dry_run=False, opener=_opener_returning([])
+    )
+
+    hook_step = next(s for s in result.steps if s.name == "hook")
+    assert "note: .claude/settings.local.json is not gitignored here" not in hook_step.detail
 
 
 def test_run_onboard_invalid_repo_override(tmp_path: Path) -> None:

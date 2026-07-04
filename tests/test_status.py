@@ -103,6 +103,25 @@ def _step(report_steps, name: str):  # type: ignore[no-untyped-def]
     return next(step for step in report_steps if step.name == name)
 
 
+def _write_hook_settings(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Edit|Write|MultiEdit",
+                            "hooks": [{"type": "command", "command": "teamctx-hook"}],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_run_status_empty_non_git_reports_setup_gaps(tmp_path: Path) -> None:
     report = run_status(tmp_path, opener=_opener_returning([]))
 
@@ -115,6 +134,51 @@ def test_run_status_empty_non_git_reports_setup_gaps(tmp_path: Path) -> None:
         == "no valid repo resolved, so no reachability check was run."
     )
     assert report.next_step == "Run `teamctx onboard` to finish setup."
+
+
+def test_run_status_reports_hook_from_local_settings(tmp_path: Path) -> None:
+    _write_hook_settings(tmp_path / ".claude" / "settings.local.json")
+
+    report = run_status(tmp_path, opener=_opener_returning([]))
+
+    hook = _step(report.steps, "hook")
+    assert hook.status == "ok"
+    assert "the reflex hook is installed in" in hook.detail
+    assert ".claude/settings.local.json" in hook.detail
+
+
+def test_run_status_committed_hook_reports_move_fix(tmp_path: Path) -> None:
+    _write_hook_settings(tmp_path / ".claude" / "settings.json")
+
+    report = run_status(tmp_path, opener=_opener_returning([]))
+
+    hook = _step(report.steps, "hook")
+    assert hook.status == "noted"
+    assert hook.detail == (
+        "the reflex hook is in the committed .claude/settings.json; re-run `teamctx onboard` "
+        "to move it to .claude/settings.local.json (a committed hook auto-runs on teammates' "
+        "machines)."
+    )
+
+
+def test_run_status_committed_hook_is_not_ok_even_when_local_exists(tmp_path: Path) -> None:
+    _write_hook_settings(tmp_path / ".claude" / "settings.local.json")
+    _write_hook_settings(tmp_path / ".claude" / "settings.json")
+
+    report = run_status(tmp_path, opener=_opener_returning([]))
+
+    hook = _step(report.steps, "hook")
+    assert hook.status == "noted"
+    assert "committed .claude/settings.json" in hook.detail
+
+
+def test_run_status_missing_hook_names_local_settings(tmp_path: Path) -> None:
+    report = run_status(tmp_path, opener=_opener_returning([]))
+
+    hook = _step(report.steps, "hook")
+    assert hook.status == "noted"
+    assert ".claude/settings.local.json" in hook.detail
+    assert ".claude/settings.json" not in hook.detail
 
 
 def test_run_status_after_onboard_reports_read_only_twin(
