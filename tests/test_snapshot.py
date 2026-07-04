@@ -10,7 +10,7 @@ from teamctx.core.contracts import CoreContractDocument
 from teamctx.core.snapshot import snapshot_digest
 
 ROOT = Path(__file__).resolve().parent.parent
-FIXTURE = ROOT / "docs/product/discovery/fixtures/contracts/v0/core-contract-document.json"
+FIXTURE = ROOT / "tests/fixtures/contracts/v0/core-contract-document.json"
 
 
 def _document() -> CoreContractDocument:

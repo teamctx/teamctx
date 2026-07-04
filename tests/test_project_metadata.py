@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import teamctx
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -14,6 +16,9 @@ def test_project_metadata_names_teamctx() -> None:
     assert 'Homepage = "https://teamctx.dev"' in pyproject
 
 
+@pytest.mark.skipif(
+    not (ROOT / "docs").is_dir(), reason="repo-only guard; docs are not shipped in the artifact"
+)
 def test_product_boundary_is_documented() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
     product = (ROOT / "docs/product/product-brief.md").read_text(encoding="utf-8").lower()

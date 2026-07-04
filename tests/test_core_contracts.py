@@ -17,11 +17,11 @@ from teamctx.core.contracts import (
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTRACT_FIXTURE = (
-    ROOT / "docs/product/discovery/fixtures/contracts/v0/core-contract-document.json"
+    ROOT / "tests/fixtures/contracts/v0/core-contract-document.json"
 )
 ISSUE_CONTRACT_FIXTURE = (
     ROOT
-    / "docs/product/discovery/fixtures/contracts/v0/issue-tracker-acceptance-criteria-document.json"
+    / "tests/fixtures/contracts/v0/issue-tracker-acceptance-criteria-document.json"
 )
 CORE_DIR = ROOT / "src/teamctx/core"
 JsonObject = dict[str, Any]

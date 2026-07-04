@@ -7,6 +7,8 @@ may change while the product is hardened.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-04
+
 ### Added
 
 - The ambient behaviors are proven like everything else: pinned zero-network silence and request budgets in the suite, and four delta scenario rows in the emulation matrix (16 rows total).

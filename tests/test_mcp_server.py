@@ -6,6 +6,10 @@ seam: the tool is registered, callable, returns the broker's text, and degrades 
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("mcp", reason="the optional mcp extra is not installed")
+
 import asyncio
 
 from teamctx.mcp_server import mcp, work_start

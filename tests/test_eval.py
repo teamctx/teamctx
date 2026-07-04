@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -147,6 +148,10 @@ def test_export_pack_empty_dir_raises(tmp_path) -> None:
         export_eval_pack(tmp_path, tmp_path / "out")
 
 
+@pytest.mark.skipif(
+    not (Path(__file__).resolve().parent.parent / "examples").is_dir(),
+    reason="repo-only asset; not shipped in the artifact",
+)
 def test_shipped_example_scenario_is_valid_and_runs() -> None:
     """The checked-in example must stay loadable and produce a real context arm; it is the
     out-of-the-box proof that the evidence engine runs against the live engine."""

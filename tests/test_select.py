@@ -49,7 +49,7 @@ from teamctx.core.select import (
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTRACT_FIXTURE = (
-    ROOT / "docs/product/discovery/fixtures/contracts/v0/core-contract-document.json"
+    ROOT / "tests/fixtures/contracts/v0/core-contract-document.json"
 )
 
 
