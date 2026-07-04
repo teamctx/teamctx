@@ -22,10 +22,12 @@ exclude = [
   "site",
   ".github",
   ".remember",
-  ".gitignore",
   "AGENTS.md",
   "tests/test_emulation_*.py",
 ]
+# Known exception, accepted and verified: hatchling special-cases .gitignore and ships it
+# despite any exclude. Its contents are generic ignore rules (reviewed; nothing sensitive),
+# so the artifact carries this one file beyond the list above.
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/teamctx"]
