@@ -54,6 +54,7 @@ may change while the product is hardened.
 
 ### Changed
 
+- The gate check is branch-scoped: failing checks and pipelines on your branch surface no matter which files you are editing.
 - The collision probe now fetches open PRs in batched GraphQL pages with a pinned budget; a repo busier than the budget reads "Partially checked", never a false "couldn't reach GitHub" and never a silent clear. The pre-edit hook is a single round-trip.
 - The docs check now covers the whole declared docs folder: any doc there that names a newer replacement is flagged at work-start, whether or not you are editing it. A clean scan is a real green.
 - Internal: card kinds are now a single registry (core/kinds.py); adding a kind is a one-entry change. No behavior change.
@@ -68,6 +69,7 @@ may change while the product is hardened.
 
 ### Fixed
 
+- A work-start with no files in scope reports the conflict check as not applicable instead of a false clear.
 - The Claude Code reflex hook now installs to .claude/settings.local.json (personal, gitignored) instead of the committed settings file, and onboard migrates existing installs out; a committed hook would auto-run on teammates' machines.
 - A skipped check now says exactly which input is missing and how to provide it, and issue-change time comparisons are chronological, never lexical.
 - A malformed .teamctx/authority.json now fails closed with a plain message naming the file and the fix, instead of a traceback (CLI and MCP).
