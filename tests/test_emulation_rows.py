@@ -10,8 +10,8 @@ import pytest
 from emulation.evidence import ProgramResult
 from emulation.runner import run_program
 
-_IMPLEMENTED = {"01", "02", "03", "04", "05", "06", "07", "09", "10", "11", "12"}
-_STUBS = {"08"}
+_IMPLEMENTED = {"01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"}
+_STUBS: set[str] = set()
 
 
 @pytest.fixture(scope="module")
@@ -29,12 +29,9 @@ def test_implemented_offline_rows_pass(program: ProgramResult) -> None:
     assert passed >= _IMPLEMENTED
 
 
-def test_provider_rows_are_honest_skips(program: ProgramResult) -> None:
+def test_no_provider_rows_remain_as_honest_skips(program: ProgramResult) -> None:
     stubs = {row.row_id for row in program.rows if row.status == "SKIP"}
     assert stubs == _STUBS
-    for row in program.rows:
-        if row.status == "SKIP":
-            assert "requires" in row.note
 
 
 def test_every_matrix_row_is_present(program: ProgramResult) -> None:

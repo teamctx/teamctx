@@ -15,9 +15,9 @@ The harness never makes a live network call and never touches real GitHub, GitLa
 Every offline row runs against:
 
 - local tmp git repos built by `actors.py` (a github.com or gitlab.com origin selects the forge),
-- the bundled mock servers (`mockgh.py`, `mockgl.py`, `mockjira.py`) reached only through the
-  `TEAMCTX_GITHUB_API_ROOT` / `TEAMCTX_GITLAB_API_ROOT` seams or the normal
-  `work_start.jira.base_url` config seam,
+- the bundled mock servers (`mockgh.py`, `mockgl.py`, `mockjira.py`, `mockconfluence.py`) reached
+  only through the `TEAMCTX_GITHUB_API_ROOT` / `TEAMCTX_GITLAB_API_ROOT` seams or the normal
+  `work_start.jira.base_url` / `work_start.confluence.base_url` config seams,
 - synthetic PreToolUse events carrying exactly the fields `teamctx.hook` reads.
 
 `runner.py` refuses to run without `--offline`, so the rail is enforced in code. LIVE execution
@@ -34,8 +34,7 @@ python emulation/runner.py --offline --all --out DIR  # write evidence under DIR
 
 Each row writes `rowNN/actual.txt` (the captured output, redacted) and `rowNN/verdict.txt` (the
 per-span PASS/FAIL). Without `--out`, evidence goes to a fresh temp dir printed on completion.
-Implemented rows report PASS; the provider rows that wait on a connector report SKIP with the slice
-they need; a FAIL exits non-zero.
+Implemented rows report PASS; a FAIL exits non-zero.
 
 ## Scenario matrix
 
@@ -48,7 +47,7 @@ they need; a FAIL exits non-zero.
 | 05 | Criteria, GitHub (changed; unchanged with provenance) | runnable |
 | 06 | Criteria, Jira | runnable |
 | 07 | Docs, local (superseded; clean tree clear) | runnable |
-| 08 | Docs, Confluence | stub (Confluence connector) |
+| 08 | Docs, Confluence | runnable |
 | 09 | Onboard/status truth | runnable |
 | 10 | Transports agree (CLI == MCP, hook agrees) | runnable |
 | 11 | Replay (identical observed_at, identical digest) | runnable |
@@ -72,9 +71,9 @@ a row PASSES when every required block matches and no forbidden literal (for exa
   GitHub or GitLab call is bounded to `127.0.0.1`. A GitHub row passes `api_root`; a GitLab row
   passes `gitlab_api_root` (and `gitlab_token`); the credential env for the forge NOT under test
   is cleared so a real ambient token can never leak into a live call.
-- Jira rows write `work_start.jira.base_url` to the local mock server and set
-  `ATLASSIAN_EMAIL` / `ATLASSIAN_API_TOKEN` to synthetic values only for the configured sub-row;
-  the subprocess env scrubs any ambient Atlassian credential otherwise.
+- Jira and Confluence rows write `work_start.{jira,confluence}.base_url` to the local mock server
+  and set `ATLASSIAN_EMAIL` / `ATLASSIAN_API_TOKEN` to synthetic values only for the configured
+  sub-row; the subprocess env scrubs any ambient Atlassian credential otherwise.
 - `GITHUB_TOKEN` / `GITLAB_TOKEN` are synthetic operator tokens (they authenticate only to the
   mock). The token keys nothing in the product: collision keys on the PR/MR source branch vs the
   request branch, criteria keys on timestamps, so ONE token stages every actor role (spec rev 2,
