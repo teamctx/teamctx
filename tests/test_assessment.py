@@ -155,10 +155,13 @@ def test_class_of_answer_is_gap_known_for_important_unknowns() -> None:
     assert class_of_answer(unbounded) == "GAP-KNOWN"
 
 
-def test_class_of_answer_is_none_for_unchecked_important_checks() -> None:
+def test_class_of_answer_treats_surfaced_nonpositive_states_as_gap_known() -> None:
+    # An all-not-configured answer is fully SURFACED ("Nothing checked yet; here's why") and
+    # stable until inputs change; classing it NONE made decide() re-speak on every edit (found
+    # in the live smoke). GAP-KNOWN gives say-once + interval silence + re-statement, the law.
     unchecked = assess(broker_answer(_request(), [], []))
 
-    assert class_of_answer(unchecked) == "NONE"
+    assert class_of_answer(unchecked) == "GAP-KNOWN"
 
 
 def test_checks_are_ordered_conflict_criteria_docs_gate() -> None:

@@ -74,7 +74,7 @@ def test_same_session_second_edit_inside_interval_is_silent(monkeypatch, capsys,
     now = iter([1000.0, 1001.0])
     calls: list[str] = []
 
-    def fake_ground(root, rel_file, inputs, token_present):  # type: ignore[no-untyped-def]
+    def fake_ground(root, rel_file, inputs, token_present, baseline=None):  # type: ignore[no-untyped-def]
         calls.append(rel_file)
         return _grounding("first", "digest-1")
 
@@ -226,6 +226,73 @@ def test_non_git_dir_fails_safe(monkeypatch, capsys, tmp_path) -> None:
     assert out.strip() == "" or "permissionDecision" not in json.loads(out)["hookSpecificOutput"]
 
 
+def _prompt_payload(root: Path, session_id: str = "ups-1") -> str:
+    return json.dumps({
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": str(root),
+        "session_id": session_id,
+    })
+
+
+def test_user_prompt_submit_grounds_clean_tree_and_emits_file_path_free(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    _init_repo(tmp_path)
+    _state(monkeypatch, tmp_path)
+    import teamctx.connectors.github_checks as ghc
+    from teamctx.connectors.github_checks import CheckRunsFetch
+
+    # clean tree: no paths in scope, so conflict is not-applicable; the gate is still branch-real
+    # and checked against the current branch (A-1 empty-path law).
+    monkeypatch.setattr(
+        ghc, "fetch_failing_check_runs",
+        lambda **kw: CheckRunsFetch(failing=[], truncated=False, pending=False),
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+    out = _run(_prompt_payload(tmp_path), monkeypatch, capsys)
+
+    data = json.loads(out)
+    assert data["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
+    ctx = data["hookSpecificOutput"]["additionalContext"]
+    assert ctx == "teamctx: looks clear to start (no failing checks found)."
+    assert "before you edit" not in ctx and str(tmp_path) not in ctx
+
+
+def test_user_prompt_submit_gate_fires_on_a_red_branch_with_no_paths(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    _init_repo(tmp_path)
+    _state(monkeypatch, tmp_path)
+    import teamctx.connectors.github_checks as ghc
+    from teamctx.connectors.github_checks import CheckRunsFetch
+
+    monkeypatch.setattr(
+        ghc, "fetch_failing_check_runs",
+        lambda **kw: CheckRunsFetch(
+            failing=[("build", "https://github.com/acme/widgets/runs/1")],
+            truncated=False, pending=False,
+        ),
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+    out = _run(_prompt_payload(tmp_path), monkeypatch, capsys)
+
+    ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+    assert "before you start, from the team's current work:" in ctx  # file-path-free heads-up lead
+    assert "build" in ctx
+
+
+def test_unknown_event_is_a_noop(monkeypatch, capsys, tmp_path) -> None:
+    _state(monkeypatch, tmp_path)
+    payload = json.dumps({
+        "hook_event_name": "SessionStart",
+        "cwd": str(tmp_path),
+        "session_id": "s9",
+    })
+    assert _run(payload, monkeypatch, capsys).strip() == ""
+
+
 def test_non_edit_tool_is_noop(monkeypatch, capsys, tmp_path) -> None:
     _state(monkeypatch, tmp_path)
     payload = json.dumps({
@@ -282,13 +349,13 @@ def test_network_calls_are_time_bounded(monkeypatch, capsys, tmp_path) -> None:
         lambda **kw: ForgeReviewFetch(pull_requests=[]),
     )
     seen: dict[str, object] = {}
-    real = ws.work_start_answer
+    real = ws.ground_work_start
 
     def spy(*a, **k):  # type: ignore[no-untyped-def]
         seen["timeout"] = socket.getdefaulttimeout()
         return real(*a, **k)
 
-    monkeypatch.setattr(ws, "work_start_answer", spy)
+    monkeypatch.setattr(ws, "ground_work_start", spy)
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     before = socket.getdefaulttimeout()
     _run(_payload(tmp_path), monkeypatch, capsys)
@@ -303,11 +370,11 @@ def test_ground_sets_reflex_profile(monkeypatch, tmp_path) -> None:
 
     seen: dict[str, object] = {}
 
-    def fake_answer(inputs, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_ground(inputs, **kwargs):  # type: ignore[no-untyped-def]
         seen["profile"] = inputs.profile
         raise RuntimeError("stop after profile capture")
 
-    monkeypatch.setattr(ws, "work_start_answer", fake_answer)
+    monkeypatch.setattr(ws, "ground_work_start", fake_ground)
     monkeypatch.setattr(hs, "hook_signal", lambda *args, **kwargs: "ok")
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     inputs = replace(
@@ -321,7 +388,87 @@ def test_ground_sets_reflex_profile(monkeypatch, tmp_path) -> None:
     assert seen["profile"] == "reflex"
 
 
+def test_ground_mints_deltas_when_material_changed_since_the_baseline(
+    monkeypatch, tmp_path
+) -> None:
+    from teamctx.ambient import Baseline, BaselineMaterial, CheckMaterial, FindingMaterial
+
+    _init_repo(tmp_path)
+    _state(monkeypatch, tmp_path)
+    import teamctx.connectors.github as gh
+
+    # the world now: no open PRs touch the file. The baseline recorded PR #7 as a live collision.
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: ForgeReviewFetch(
+        pull_requests=[],
+    ))
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    inputs = replace(
+        resolve_work_start_inputs(paths=("src/app.py",), token="t", root=tmp_path),
+        profile="reflex",
+    )
+    baseline = Baseline(
+        key="k", content_digest="old", class_of_answer="GOOD",
+        last_network_check_at=1000.0, last_spoken_at=1000.0,
+        material=BaselineMaterial((
+            CheckMaterial(
+                check="conflict", status="found",
+                findings=(FindingMaterial(key="conflict:7", source_display="GitHub PR #7",
+                                          paths=("src/app.py",)),),
+            ),
+        )),
+    )
+
+    grounding = hook._ground(tmp_path, "src/app.py", inputs, True, baseline)
+
+    assert grounding.has_deltas is True
+    conflict = next(c for c in grounding.material.checks if c.check == "conflict")
+    assert conflict.status == "clear"
+    assert conflict.findings == ()
+
+
+def test_first_grounding_has_no_deltas(monkeypatch, tmp_path) -> None:
+    _init_repo(tmp_path)
+    _state(monkeypatch, tmp_path)
+    import teamctx.connectors.github as gh
+
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: ForgeReviewFetch(
+        pull_requests=[],
+    ))
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    inputs = replace(
+        resolve_work_start_inputs(paths=("src/app.py",), token="t", root=tmp_path),
+        profile="reflex",
+    )
+
+    grounding = hook._ground(tmp_path, "src/app.py", inputs, True, None)
+
+    assert grounding.has_deltas is False
+
+
 def test_marker_helpers_are_deleted() -> None:
     assert not hasattr(hook, "_already_grounded")
     assert not hasattr(hook, "_mark_grounded")
     assert not hasattr(hook, "_marker")
+
+
+def test_not_configured_important_check_still_allows_interval_silence(monkeypatch, tmp_path):
+    # Live-smoke regression: a repo with no branch (no commits) has a not_configured gate on
+    # every answer; that is a stated condition, not first-contact. The second edit within the
+    # interval must be silent, never an eternal re-speak.
+    from teamctx.assessment import assess, class_of_answer
+    from teamctx.connectors._contract import source_status
+    from teamctx.core.broker import broker_answer
+    from teamctx.core.contracts import RequestContext
+
+    request = RequestContext(
+        schema_version="teamctx.request_context.v0", request_id="t", repo="acme/w",
+        branch=None, task="t", paths=["x.py"], linked_issues=[],
+        requested_at="2026-07-04T00:00:00Z", requesting_principal=None,
+    )
+    fresh_pr = source_status(
+        source_id="github_pr_metadata", source_family="git_hosting", scope={"repo": "acme/w"},
+        status="fresh", observed_at="2026-07-04T00:00:00Z", safe_user_message="checked",
+        visibility="silent", policy_reason="status only",
+    )
+    answer = broker_answer(request, [], [fresh_pr])  # gate family absent: not_configured
+    assert class_of_answer(assess(answer)) == "GAP-KNOWN"

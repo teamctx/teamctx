@@ -12,17 +12,29 @@ import json
 import os
 import subprocess
 import tempfile
-from collections.abc import Iterable
-from dataclasses import asdict, dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from teamctx import __version__
+
+if TYPE_CHECKING:  # keep the module import-light on the no-op path (P2-2): lazy at runtime
+    from teamctx.core.broker import BrokerAnswer
+    from teamctx.core.contracts import (
+        ContextCard,
+        CoreContractDocument,
+        RequestContext,
+        SourceFamily,
+        SourceSignal,
+    )
 
 AnswerClass = Literal["GOOD", "GAP-KNOWN", "NONE"]
 Decision = Literal["speak_full", "silent", "recheck_due"]
 
-_STATE_SCHEMA_VERSION = "teamctx.ambient_state.v0"
+# Bumped from v0: a baseline now carries the per-check delta material beside the digest, so any
+# v0 file is a different shape and is read as no-baseline (the corrupt-is-NONE path covers it).
+_STATE_SCHEMA_VERSION = "teamctx.ambient_state.v1"
 _DEFAULT_INTERVAL_SECONDS = 90
 _MIN_INTERVAL_SECONDS = 30
 _RESTATEMENT_FLOOR_SECONDS = 900
@@ -34,12 +46,222 @@ _AMBIENT_IGNORE_STANZA = (
 
 
 @dataclass(frozen=True)
+class FindingMaterial:
+    """One finding's stable identity, captured so a later run can say EXACTLY what appeared or
+    left ("PR #7 appeared, touching src/app.py"). Only source_display and the check-specific
+    identity fields; never evidence prose beyond what a delta line needs."""
+
+    key: str
+    source_display: str = ""
+    paths: tuple[str, ...] = ()
+    gate: str = ""
+    detail: str = ""
+    doc: str = ""
+    superseded_by: str = ""
+
+
+@dataclass(frozen=True)
+class CheckMaterial:
+    """One check's delta material: its current status plus the identities of its findings."""
+
+    check: str
+    status: str
+    note: str | None = None
+    findings: tuple[FindingMaterial, ...] = ()
+
+
+@dataclass(frozen=True)
+class BaselineMaterial:
+    """The delta material for a whole answer: one entry per check, in check order."""
+
+    checks: tuple[CheckMaterial, ...] = ()
+
+
+DeltaDirection = Literal["appear", "disappear", "transition", "coverage_shrank"]
+
+
+@dataclass(frozen=True)
+class Delta:
+    """One thing that changed since the session's baseline for this key. ``identity`` carries the
+    finding for appear/disappear (and is a sentinel for the whole-check transition/shrank, which the
+    render reads off the current world). ``note`` carries a coverage-shrank reason."""
+
+    direction: DeltaDirection
+    check: str
+    identity: FindingMaterial
+    note: str | None = None
+
+
+# A check is "verifiable" when it reached a real answer, a "gap" when it could not be confirmed.
+_VERIFIED_STATUSES: frozenset[str] = frozenset({"clear", "found"})
+_GAP_STATUSES: frozenset[str] = frozenset({"unreachable", "pending", "unbounded"})
+
+
+def compute_deltas(old: BaselineMaterial | None, new: BaselineMaterial) -> tuple[Delta, ...]:
+    """What changed from ``old`` to ``new``, per check, as ordered ``Delta`` records.
+
+    Last-value semantics by construction: the baseline holds only the last observed material, so a
+    finding that leaves and returns diffs as a disappearance and then a fresh appearance (the
+    reopened-PR re-speak). No baseline (first grounding) yields no deltas: nothing has changed since
+    a start that just happened."""
+
+    if old is None:
+        return ()
+    old_by_check = {check.check: check for check in old.checks}
+    deltas: list[Delta] = []
+    for new_check in new.checks:
+        old_check = old_by_check.get(new_check.check) or CheckMaterial(
+            check=new_check.check, status=""
+        )
+        deltas.extend(_check_deltas(old_check, new_check))
+    return tuple(deltas)
+
+
+def _check_deltas(old: CheckMaterial, new: CheckMaterial) -> tuple[Delta, ...]:
+    if old.status in _GAP_STATUSES and new.status in _VERIFIED_STATUSES:
+        # a gap closed: the source is back. The render reads the current world for the clear phrase
+        # or the finding line, so the whole-check transition is one voice (no separate appear).
+        return (Delta("transition", new.check, _sentinel_identity(new.check)),)
+    if old.status in _VERIFIED_STATUSES and new.status == "unreachable":
+        # coverage shrank: what could be verified no longer can.
+        return (Delta("coverage_shrank", new.check, _sentinel_identity(new.check), note=new.note),)
+    old_by_key = {finding.key: finding for finding in old.findings}
+    new_by_key = {finding.key: finding for finding in new.findings}
+    deltas: list[Delta] = []
+    for key, finding in new_by_key.items():
+        if key not in old_by_key:
+            deltas.append(Delta("appear", new.check, finding))
+    for key, finding in old_by_key.items():
+        if key not in new_by_key:
+            deltas.append(Delta("disappear", new.check, finding))
+    return tuple(deltas)
+
+
+def _sentinel_identity(check: str) -> FindingMaterial:
+    return FindingMaterial(key=f"{check}:__source__")
+
+
+# Which source family a delta about each check belongs to, so the minted signal is well-formed.
+_DELTA_FAMILY: dict[str, SourceFamily] = {
+    "conflict": "git_hosting",
+    "criteria": "issue_tracker",
+    "docs": "docs",
+    "gate": "ci_deploy",
+}
+_DELTA_DIRECTIONS: frozenset[str] = frozenset(
+    {"appear", "disappear", "transition", "coverage_shrank"}
+)
+
+
+def build_delta_document(
+    request: RequestContext, deltas: Iterable[Delta], *, observed_at: str
+) -> CoreContractDocument:
+    """Mint the edge delta document: one ``changed_since_start`` signal per delta, for the broker to
+    compose beside the real connector documents. These carry NO CardKind, so they never derive a
+    card, verdict, or closure entry; the kind stays the current world. The assessment reads them
+    back with ``deltas_from_signals``."""
+
+    from teamctx.core.contracts import CoreContractDocument
+
+    signals = [
+        _delta_signal(delta, request=request, observed_at=observed_at, index=index)
+        for index, delta in enumerate(deltas)
+    ]
+    return CoreContractDocument(
+        schema_version="teamctx.core_contract_document.v0",
+        request_context=request,
+        source_signals=signals,
+        source_statuses=[],
+        source_open_targets=[],
+        guidance_records=[],
+        session_context_uses=[],
+        context_cards=[],
+    )
+
+
+def _delta_signal(
+    delta: Delta, *, request: RequestContext, observed_at: str, index: int
+) -> SourceSignal:
+    from teamctx.connectors._contract import metadata_only_policy
+    from teamctx.core.contracts import SourceSignal
+
+    scope: dict[str, Any] = {
+        "delta_check": delta.check,
+        "delta_direction": delta.direction,
+        "delta_key": delta.identity.key,
+        "delta_source_display": delta.identity.source_display,
+        "delta_paths": list(delta.identity.paths),
+        "delta_gate": delta.identity.gate,
+        "delta_detail": delta.identity.detail,
+        "delta_doc": delta.identity.doc,
+        "delta_superseded_by": delta.identity.superseded_by,
+        "delta_note": delta.note or "",
+        "reason_code": f"delta.{delta.check}.{delta.direction}",
+    }
+    return SourceSignal(
+        schema_version="teamctx.source_signal.v0",
+        id=f"sig_delta_{delta.check}_{delta.direction}_{index}",
+        signal_type="changed_since_start",
+        source_family=_DELTA_FAMILY.get(delta.check, "local_workspace"),
+        scope=scope,
+        evidence_summary=f"{delta.check} {delta.direction} since work start",
+        source_display=delta.identity.source_display or delta.check,
+        freshness="fresh",
+        confidence="high",
+        visibility="visible",
+        created_at=observed_at,
+        observed_at=observed_at,
+        expires_at="next_refresh",
+        policy=metadata_only_policy(
+            "delta is derived at the edge; source bodies are not included"
+        ),
+    )
+
+
+def deltas_from_signals(signals: Iterable[SourceSignal]) -> tuple[Delta, ...]:
+    """Read the deltas back out of the composed answer's ``changed_since_start`` signals, so the
+    assessment lane and the render can speak them without re-diffing. The inverse of the minting
+    above; the scope schema is defined once, here."""
+
+    deltas: list[Delta] = []
+    for signal in signals:
+        if signal.signal_type != "changed_since_start":
+            continue
+        scope = signal.scope
+        direction = str(scope.get("delta_direction", ""))
+        if direction not in _DELTA_DIRECTIONS:
+            continue
+        paths_raw = scope.get("delta_paths")
+        paths = tuple(str(path) for path in paths_raw) if isinstance(paths_raw, list) else ()
+        note = scope.get("delta_note")
+        identity = FindingMaterial(
+            key=str(scope.get("delta_key", "")),
+            source_display=str(scope.get("delta_source_display", "")),
+            paths=paths,
+            gate=str(scope.get("delta_gate", "")),
+            detail=str(scope.get("delta_detail", "")),
+            doc=str(scope.get("delta_doc", "")),
+            superseded_by=str(scope.get("delta_superseded_by", "")),
+        )
+        deltas.append(
+            Delta(
+                direction=cast("DeltaDirection", direction),
+                check=str(scope.get("delta_check", "")),
+                identity=identity,
+                note=str(note) if note else None,
+            )
+        )
+    return tuple(deltas)
+
+
+@dataclass(frozen=True)
 class Baseline:
     key: str
     content_digest: str
     class_of_answer: AnswerClass
     last_network_check_at: float
     last_spoken_at: float
+    material: BaselineMaterial = field(default_factory=BaselineMaterial)
 
 
 def ambient_state_dir(project_root: Path) -> Path:
@@ -155,6 +377,95 @@ def decide(
     return "silent"
 
 
+# The scope field that carries each check's finding identity, so one PR/issue/doc/gate is the
+# SAME finding across runs (a re-appearing PR keeps its identity; last-value dedup rides on this).
+_FINDING_KEY_FIELD: dict[str, str] = {
+    "conflict": "pr_number",
+    "criteria": "issue",
+    "docs": "doc",
+    "gate": "gate",
+}
+
+
+def finding_key(check: str, scope: Mapping[str, Any]) -> str:
+    """The stable identity key for a finding of ``check``, from the same scope field a signal and
+    its card both carry, so the extractor and the bullet suppression agree by construction."""
+
+    key_field = _FINDING_KEY_FIELD.get(check)
+    value = scope.get(key_field) if key_field is not None else None
+    return f"{check}:{value}"
+
+
+def compute_baseline_material(answer: BrokerAnswer) -> BaselineMaterial:
+    """Distill a broker answer into per-check delta material: each check's status and the
+    identities of its current findings. Delta (``changed_since_start``) signals never enter this:
+    it is derived from the assessment, whose kind is the current world (P1-1 keeps silence
+    reachable)."""
+
+    from teamctx.assessment import assess  # lazy: the no-op path must not import the core
+
+    assessment = assess(answer)
+    checks = tuple(
+        CheckMaterial(
+            check=state.check,
+            status=state.status,
+            note=state.note,
+            findings=tuple(_finding_material(state.check, card) for card in state.cards),
+        )
+        for state in assessment.checks
+    )
+    return BaselineMaterial(checks=checks)
+
+
+def _finding_material(check: str, card: ContextCard) -> FindingMaterial:
+    scope = card.scope
+    files = scope.get("files")
+    paths = tuple(str(path) for path in files) if check == "conflict" and isinstance(files, list) \
+        else ()
+    return FindingMaterial(
+        key=finding_key(check, scope),
+        source_display=card.source_display,
+        paths=paths,
+        gate=str(scope.get("gate", "")) if check == "gate" else "",
+        detail=card.text if check == "criteria" else "",
+        doc=str(scope.get("doc", "")) if check == "docs" else "",
+        superseded_by=str(scope.get("superseded_by", "")) if check == "docs" else "",
+    )
+
+
+def _material_from_json(data: Any) -> BaselineMaterial:
+    if not isinstance(data, dict):
+        return BaselineMaterial()
+    checks_raw = data.get("checks")
+    if not isinstance(checks_raw, list):
+        raise ValueError("baseline material: checks must be a list")
+    checks: list[CheckMaterial] = []
+    for check_data in checks_raw:
+        if not isinstance(check_data, dict):
+            raise ValueError("baseline material: each check must be an object")
+        findings = tuple(
+            FindingMaterial(
+                key=str(finding["key"]),
+                source_display=str(finding.get("source_display", "")),
+                paths=tuple(str(path) for path in (finding.get("paths") or ())),
+                gate=str(finding.get("gate", "")),
+                detail=str(finding.get("detail", "")),
+                doc=str(finding.get("doc", "")),
+                superseded_by=str(finding.get("superseded_by", "")),
+            )
+            for finding in check_data.get("findings", [])
+        )
+        checks.append(
+            CheckMaterial(
+                check=str(check_data["check"]),
+                status=str(check_data["status"]),
+                note=check_data.get("note"),
+                findings=findings,
+            )
+        )
+    return BaselineMaterial(checks=tuple(checks))
+
+
 def _read_state(path: Path) -> dict[str, dict[str, Any]] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -182,6 +493,7 @@ def _baseline_from_json(key: str, data: dict[str, Any]) -> Baseline | None:
             class_of_answer=data["class_of_answer"],
             last_network_check_at=float(data["last_network_check_at"]),
             last_spoken_at=float(data["last_spoken_at"]),
+            material=_material_from_json(data.get("material")),
         )
     except (KeyError, TypeError, ValueError):
         return None

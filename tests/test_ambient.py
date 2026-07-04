@@ -11,13 +11,25 @@ import pytest
 
 from teamctx.ambient import (
     Baseline,
+    BaselineMaterial,
+    CheckMaterial,
+    Delta,
+    FindingMaterial,
     ambient_interval_seconds,
     ambient_state_dir,
+    build_delta_document,
+    compute_baseline_material,
+    compute_deltas,
     compute_key,
     decide,
+    deltas_from_signals,
+    finding_key,
     load_baseline,
     store_baseline,
 )
+from teamctx.connectors._contract import metadata_only_policy, source_status
+from teamctx.core.broker import broker_answer
+from teamctx.core.contracts import RequestContext, SourceSignal
 
 
 def _baseline(
@@ -27,6 +39,7 @@ def _baseline(
     class_of_answer: str = "GOOD",
     last_network_check_at: float = 1000.0,
     last_spoken_at: float = 1000.0,
+    material: BaselineMaterial | None = None,
 ) -> Baseline:
     return Baseline(
         key=key,
@@ -34,6 +47,7 @@ def _baseline(
         class_of_answer=class_of_answer,
         last_network_check_at=last_network_check_at,
         last_spoken_at=last_spoken_at,
+        material=material if material is not None else BaselineMaterial(),
     )
 
 
@@ -72,6 +86,249 @@ def test_corrupt_state_file_is_none_and_next_store_overwrites(tmp_path: Path) ->
     baseline = _baseline()
     store_baseline(state_dir, "sess-1", baseline, now=1000.0)
     assert load_baseline(state_dir, "sess-1", "key-1") == baseline
+
+
+def test_v0_state_file_reads_as_no_baseline_after_the_schema_bump(tmp_path: Path) -> None:
+    # A well-formed v0 file (the A-2a shape, before delta material) is a different schema and must
+    # read as no-baseline; the next write overwrites it with a v1 file.
+    state_dir = tmp_path / ".teamctx" / "ambient"
+    state_dir.mkdir(parents=True)
+    (state_dir / "sess-1.json").write_text(
+        json.dumps({
+            "schema_version": "teamctx.ambient_state.v0",
+            "session_id": "sess-1",
+            "baselines": {
+                "key-1": {
+                    "key": "key-1",
+                    "content_digest": "digest-1",
+                    "class_of_answer": "GOOD",
+                    "last_network_check_at": 1000.0,
+                    "last_spoken_at": 1000.0,
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    assert load_baseline(state_dir, "sess-1", "key-1") is None
+
+
+def test_material_round_trips_through_store_and_load(tmp_path: Path) -> None:
+    state_dir = tmp_path / ".teamctx" / "ambient"
+    material = BaselineMaterial(
+        checks=(
+            CheckMaterial(
+                check="conflict",
+                status="found",
+                note=None,
+                findings=(
+                    FindingMaterial(
+                        key="conflict:7",
+                        source_display="GitHub PR #7",
+                        paths=("src/app.py",),
+                    ),
+                ),
+            ),
+            CheckMaterial(check="gate", status="unreachable", note="couldn't reach GitHub"),
+        )
+    )
+    baseline = _baseline(material=material)
+
+    store_baseline(state_dir, "sess-1", baseline, now=1000.0, project_root=tmp_path)
+
+    assert load_baseline(state_dir, "sess-1", "key-1") == baseline
+
+
+def test_corrupt_material_shape_is_read_as_no_baseline(tmp_path: Path) -> None:
+    state_dir = tmp_path / ".teamctx" / "ambient"
+    state_dir.mkdir(parents=True)
+    (state_dir / "sess-1.json").write_text(
+        json.dumps({
+            "schema_version": "teamctx.ambient_state.v1",
+            "session_id": "sess-1",
+            "baselines": {
+                "key-1": {
+                    "key": "key-1",
+                    "content_digest": "digest-1",
+                    "class_of_answer": "GOOD",
+                    "last_network_check_at": 1000.0,
+                    "last_spoken_at": 1000.0,
+                    "material": {"checks": "not-a-list"},
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    assert load_baseline(state_dir, "sess-1", "key-1") is None
+
+
+def _request(paths: tuple[str, ...] = ("src/app.py",)) -> RequestContext:
+    return RequestContext(
+        schema_version="teamctx.request_context.v0", request_id="t", repo="acme/widgets",
+        branch="feature", task="work", paths=list(paths), linked_issues=[],
+        requested_at="2026-07-04T00:00:00Z", requesting_principal=None,
+    )
+
+
+def _collision_signal() -> SourceSignal:
+    return SourceSignal(
+        schema_version="teamctx.source_signal.v0", id="sig_pr_7", signal_type="collision",
+        source_family="git_hosting",
+        scope={"provider": "github", "repo": "acme/widgets", "pr_number": 7,
+               "files": ["src/app.py"]},
+        evidence_summary="Open PR #7 changed src/app.py.", source_display="GitHub PR #7",
+        freshness="fresh", confidence="high", visibility="visible",
+        created_at="2026-07-04T00:00:00Z", observed_at="2026-07-04T00:00:00Z",
+        expires_at="next_refresh", policy=metadata_only_policy("pr metadata is evidence"),
+    )
+
+
+def _fresh(family: str) -> object:
+    return source_status(
+        source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
+        status="fresh", observed_at="2026-07-04T00:00:00Z", safe_user_message="checked",
+        visibility="silent", policy_reason="status only",
+    )
+
+
+def test_compute_baseline_material_captures_status_and_finding_identity() -> None:
+    answer = broker_answer(_request(), [_collision_signal()], [_fresh("git_hosting")])
+
+    material = compute_baseline_material(answer)
+
+    by_check = {c.check: c for c in material.checks}
+    assert by_check["conflict"].status == "found"
+    assert by_check["conflict"].findings == (
+        FindingMaterial(key="conflict:7", source_display="GitHub PR #7", paths=("src/app.py",)),
+    )
+    assert by_check["gate"].status == "not_configured"
+    assert by_check["gate"].findings == ()
+
+
+def test_finding_key_is_stable_per_check_identity_field() -> None:
+    assert finding_key("conflict", {"pr_number": 7}) == "conflict:7"
+    assert finding_key("criteria", {"issue": "#12"}) == "criteria:#12"
+    assert finding_key("docs", {"doc": "spec.md"}) == "docs:spec.md"
+    assert finding_key("gate", {"gate": "build"}) == "gate:build"
+
+
+def _pr(number: int, paths: tuple[str, ...] = ("src/app.py",)) -> FindingMaterial:
+    return FindingMaterial(
+        key=f"conflict:{number}", source_display=f"GitHub PR #{number}", paths=paths
+    )
+
+
+def _check(check: str, status: str, *findings: FindingMaterial, note: str | None = None) -> (
+    CheckMaterial
+):
+    return CheckMaterial(check=check, status=status, note=note, findings=findings)
+
+
+def test_no_baseline_yields_no_deltas() -> None:
+    assert compute_deltas(None, BaselineMaterial((_check("conflict", "found", _pr(7)),))) == ()
+
+
+def test_appear_per_check() -> None:
+    conflict = compute_deltas(
+        BaselineMaterial((_check("conflict", "clear"),)),
+        BaselineMaterial((_check("conflict", "found", _pr(7)),)),
+    )
+    assert conflict == (Delta("appear", "conflict", _pr(7)),)
+
+    gate_finding = FindingMaterial(key="gate:build", source_display="CI: build", gate="build")
+    gate = compute_deltas(
+        BaselineMaterial((_check("gate", "clear"),)),
+        BaselineMaterial((_check("gate", "found", gate_finding),)),
+    )
+    assert gate == (Delta("appear", "gate", gate_finding),)
+
+
+def test_disappear_per_check() -> None:
+    result = compute_deltas(
+        BaselineMaterial((_check("conflict", "found", _pr(7)),)),
+        BaselineMaterial((_check("conflict", "clear"),)),
+    )
+    assert result == (Delta("disappear", "conflict", _pr(7)),)
+
+
+def test_transition_when_a_gap_closes() -> None:
+    result = compute_deltas(
+        BaselineMaterial((_check("gate", "unreachable"),)),
+        BaselineMaterial((_check("gate", "clear"),)),
+    )
+    assert result == (Delta("transition", "gate", FindingMaterial(key="gate:__source__")),)
+
+
+def test_coverage_shrank_when_verified_becomes_unreachable() -> None:
+    result = compute_deltas(
+        BaselineMaterial((_check("conflict", "clear"),)),
+        BaselineMaterial((_check("conflict", "unreachable", note="couldn't reach GitHub"),)),
+    )
+    assert result == (
+        Delta(
+            "coverage_shrank",
+            "conflict",
+            FindingMaterial(key="conflict:__source__"),
+            note="couldn't reach GitHub",
+        ),
+    )
+
+
+def test_reopened_pr_re_speaks_as_a_fresh_appearance() -> None:
+    present = BaselineMaterial((_check("conflict", "found", _pr(7)),))
+    absent = BaselineMaterial((_check("conflict", "clear"),))
+
+    assert compute_deltas(present, absent) == (Delta("disappear", "conflict", _pr(7)),)
+    assert compute_deltas(absent, present) == (Delta("appear", "conflict", _pr(7)),)
+
+
+def test_same_finding_across_runs_is_no_delta() -> None:
+    present = BaselineMaterial((_check("conflict", "found", _pr(7)),))
+    assert compute_deltas(present, present) == ()
+
+
+def test_swapped_finding_is_a_disappear_and_an_appear() -> None:
+    result = compute_deltas(
+        BaselineMaterial((_check("conflict", "found", _pr(7)),)),
+        BaselineMaterial((_check("conflict", "found", _pr(8)),)),
+    )
+    assert result == (Delta("appear", "conflict", _pr(8)), Delta("disappear", "conflict", _pr(7)))
+
+
+def test_delta_signals_round_trip_through_mint_and_read() -> None:
+    deltas = (
+        Delta("appear", "conflict", _pr(7)),
+        Delta(
+            "disappear", "gate",
+            FindingMaterial(key="gate:build", source_display="CI: build", gate="build"),
+        ),
+        Delta(
+            "coverage_shrank", "conflict", FindingMaterial(key="conflict:__source__"),
+            note="couldn't reach GitHub",
+        ),
+    )
+
+    document = build_delta_document(_request(), deltas, observed_at="2026-07-04T00:00:00Z")
+
+    assert all(s.signal_type == "changed_since_start" for s in document.source_signals)
+    assert deltas_from_signals(document.source_signals) == deltas
+
+
+def test_delta_signals_never_derive_a_card_verdict_or_closure() -> None:
+    deltas = (Delta("appear", "conflict", _pr(7)),)
+    document = build_delta_document(_request(), deltas, observed_at="2026-07-04T00:00:00Z")
+
+    answer = broker_answer(_request(), document.source_signals, [_fresh("git_hosting")])
+
+    # the changed_since_start signal rides in source_signals but derives no card and no closure
+    # entry (no CardKind), so the kind stays the current world.
+    assert answer.selection.cards == ()
+    assert deltas_from_signals(answer.source_signals) == deltas
+
+
+def test_deltas_from_signals_ignores_non_delta_signals() -> None:
+    assert deltas_from_signals([_collision_signal()]) == ()
 
 
 def test_wrong_shape_or_version_is_none(tmp_path: Path) -> None:

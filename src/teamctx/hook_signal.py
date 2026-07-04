@@ -9,27 +9,52 @@ Low-stakes coverage gaps (a check not configured) are never headlined.
 from __future__ import annotations
 
 from teamctx.assessment import IMPORTANT_CHECKS, CheckState, WorkStartAssessment, assess
-from teamctx.contract_render import check_hook_clear_copy, check_hook_gap_copy
+from teamctx.contract_render import (
+    appear_suppressed_keys,
+    bullet_suppressed,
+    check_hook_clear_copy,
+    check_hook_gap_copy,
+    delta_lines,
+    recovered_found_checks,
+    shrank_checks,
+)
 from teamctx.core.broker import BrokerAnswer
 
 
-def hook_signal(answer: BrokerAnswer, *, file_path: str, token_present: bool) -> str:
-    """One glanceable signal for the PreToolUse injection. Empty string = nothing worth saying."""
+def hook_signal(answer: BrokerAnswer, *, file_path: str | None, token_present: bool) -> str:
+    """One glanceable signal for the injection. The delta lane speaks first and once (a mid-session
+    change), then the steady signal for the current world. Empty string = nothing worth saying; a
+    lone delta still speaks, because the delta lane is independent of the steady ready-guard.
+
+    ``file_path`` is the edit target for the PreToolUse entry point; it is ``None`` for the
+    UserPromptSubmit grounding, whose copy is deliberately file-path-free."""
 
     a = assess(answer)
+    forge = answer.request.forge
+    parts = delta_lines(a.deltas, a.checks, forge)
+    steady = _steady_signal(a, file_path, token_present, forge)
+    if steady:
+        parts.append(steady)
+    return "\n".join(parts)
+
+
+def _steady_signal(
+    a: WorkStartAssessment, file_path: str | None, token_present: bool, forge: str
+) -> str:
     if a.kind == "heads_up":
-        return _heads_up(a, file_path, answer.request.forge)
+        return _heads_up(a, file_path, forge)
     if a.kind == "cant_verify":
-        return _cant_verify(a, token_present, answer.request.forge)
-    return _ready(a.checks, file_path, answer.request.forge)
+        return _cant_verify(a, token_present, forge)
+    return _ready(a.checks, file_path, forge)
 
 
 def _important_gap_notes(a: WorkStartAssessment, forge: str) -> list[str]:
     # Brief, honest notes for important checks that are unconfirmed (unreachable or pending), so a
     # finding-driven heads_up never hides that the gate or PR check could not be confirmed.
+    shrank = shrank_checks(a.deltas)  # a coverage-shrank delta already speaks these; don't repeat
     notes: list[str] = []
     for s in a.checks:
-        if s.check not in IMPORTANT_CHECKS:
+        if s.check not in IMPORTANT_CHECKS or s.check in shrank:
             continue
         if s.status == "pending":
             notes.append("CI checks are still running, so the gate isn't confirmed green yet.")
@@ -52,10 +77,26 @@ def _stale_only(state: CheckState) -> bool:
     return bool(state.failing_sources) and all(st == "stale" for _, st in state.failing_sources)
 
 
-def _heads_up(a: WorkStartAssessment, file_path: str, forge: str) -> str:
-    lines = [f"teamctx: before you edit {file_path}, from the team's current work:"]
-    lines.extend(f"  • {card.text} ({card.why_this_matters})" for card in a.findings)
-    lines.extend(f"  • {note}" for note in _important_gap_notes(a, forge))
+def _heads_up(a: WorkStartAssessment, file_path: str | None, forge: str) -> str:
+    keys = appear_suppressed_keys(a.deltas)
+    recovered = recovered_found_checks(a.deltas)
+    bullets = [
+        f"  • {card.text} ({card.why_this_matters})"
+        for card in a.findings
+        if not bullet_suppressed(card, keys, recovered)
+    ]
+    gap_notes = [f"  • {note}" for note in _important_gap_notes(a, forge)]
+    if not bullets and not gap_notes:
+        # every finding was already spoken by a delta line; nothing steady to add here.
+        return ""
+    lead = (
+        f"teamctx: before you edit {file_path}, from the team's current work:"
+        if file_path is not None
+        else "teamctx: before you start, from the team's current work:"
+    )
+    lines = [lead]
+    lines.extend(bullets)
+    lines.extend(gap_notes)
     lines.append(
         "Factor these into your plan, and surface anything relevant to your human "
         "collaborator so they can decide."
@@ -64,15 +105,23 @@ def _heads_up(a: WorkStartAssessment, file_path: str, forge: str) -> str:
 
 
 def _cant_verify(a: WorkStartAssessment, token_present: bool, forge: str) -> str:
+    shrank = shrank_checks(a.deltas)  # a coverage-shrank delta already speaks these; don't repeat
     unreachable = [
         s.check
         for s in a.checks
-        if s.status == "unreachable" and s.check in IMPORTANT_CHECKS and not _stale_only(s)
+        if s.status == "unreachable"
+        and s.check in IMPORTANT_CHECKS
+        and not _stale_only(s)
+        and s.check not in shrank
     ]
     stale_checks = [
         s
         for s in a.checks
-        if s.status == "unreachable" and s.check in IMPORTANT_CHECKS and _stale_only(s) and s.note
+        if s.status == "unreachable"
+        and s.check in IMPORTANT_CHECKS
+        and _stale_only(s)
+        and s.note
+        and s.check not in shrank
     ]
     unbounded = [s for s in a.checks if s.status == "unbounded" and s.check in IMPORTANT_CHECKS]
     pending = [s.check for s in a.checks if s.status == "pending" and s.check in IMPORTANT_CHECKS]
@@ -131,11 +180,13 @@ def _unbounded_note(state: CheckState, forge: str) -> str:
     ).strip()
 
 
-def _ready(checks: tuple[CheckState, ...], file_path: str, forge: str) -> str:
+def _ready(checks: tuple[CheckState, ...], file_path: str | None, forge: str) -> str:
     clear = [check_hook_clear_copy(s.check, forge) for s in checks if s.status == "clear"]
     if not clear:
         return ""
-    return f"teamctx: looks clear to start on {file_path} ({_join(clear)})."
+    if file_path is not None:
+        return f"teamctx: looks clear to start on {file_path} ({_join(clear)})."
+    return f"teamctx: looks clear to start ({_join(clear)})."
 
 
 def _join(items: list[str]) -> str:

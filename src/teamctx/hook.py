@@ -13,13 +13,14 @@ import json
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from teamctx.ambient import (
     AnswerClass,
     Baseline,
+    BaselineMaterial,
     ambient_interval_seconds,
     ambient_state_dir,
     compute_key,
@@ -45,6 +46,8 @@ class Grounding:
     text: str
     content_digest: str
     class_of_answer: AnswerClass
+    material: BaselineMaterial = field(default_factory=BaselineMaterial)
+    has_deltas: bool = False
 
 
 def main() -> None:
@@ -60,12 +63,13 @@ def _run() -> None:
     if not raw.strip():
         return
     event = json.loads(raw)
-    if event.get("hook_event_name") != "PreToolUse" or event.get("tool_name") not in _EDIT_TOOLS:
+    event_name = event.get("hook_event_name")
+    applicable, file_path = _entry_target(event, event_name)
+    if not applicable:
         return
-    file_path = event.get("tool_input", {}).get("file_path")
     cwd = event.get("cwd")
     session_id = event.get("session_id")
-    if not file_path or not cwd or not session_id:
+    if not cwd or not session_id:
         return
     root = resolve_project_root(start=Path(cwd))
     rel_file, inputs, token_present = _prepare_grounding(root, file_path)
@@ -85,8 +89,10 @@ def _run() -> None:
         if precheck == "silent":
             return
 
-    grounding = _ground(root, rel_file, inputs, token_present)  # imports the broker lazily
-    should_speak = baseline is None or decide(
+    grounding = _ground(root, rel_file, inputs, token_present, baseline)  # broker imported lazily
+    # A delta always speaks: it means the pre-delta content changed, so decide() already returns
+    # speak_full; has_deltas makes the transition-speak-over-silence law explicit in code.
+    should_speak = grounding.has_deltas or baseline is None or decide(
         baseline,
         now=now,
         interval=interval,
@@ -107,17 +113,43 @@ def _run() -> None:
                 if should_speak and grounding.text
                 else baseline.last_spoken_at if baseline is not None else now
             ),
+            material=grounding.material,
         ),
         now=now,
         project_root=root,
     )
     if should_speak and grounding.text:
-        _emit(grounding.text)
+        emit_name: Literal["PreToolUse", "UserPromptSubmit"] = (
+            "UserPromptSubmit" if event_name == "UserPromptSubmit" else "PreToolUse"
+        )
+        _emit(grounding.text, emit_name)
 
 
-def _emit(text: str) -> None:
+def _entry_target(event: object, event_name: object) -> tuple[bool, str | None]:
+    """Resolve the grounding target for the two ambient entry points.
+
+    PreToolUse grounds around the edited file (its path). UserPromptSubmit is the session's first
+    grounding moment: it carries no tool or file, so it grounds around the dirty tree with
+    file-path-free copy (``None`` here). Any other event, or a PreToolUse without an edit target,
+    is a no-op. Returns ``(applicable, file_path)``."""
+
+    if not isinstance(event, dict):
+        return False, None
+    if event_name == "PreToolUse":
+        if event.get("tool_name") not in _EDIT_TOOLS:
+            return False, None
+        file_path = event.get("tool_input", {}).get("file_path")
+        if not file_path:
+            return False, None
+        return True, file_path
+    if event_name == "UserPromptSubmit":
+        return True, None
+    return False, None
+
+
+def _emit(text: str, event_name: Literal["PreToolUse", "UserPromptSubmit"]) -> None:
     print(json.dumps(
-        {"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": text}}
+        {"hookSpecificOutput": {"hookEventName": event_name, "additionalContext": text}}
     ))
 
 
@@ -140,13 +172,19 @@ def _changed_paths(root: Path) -> list[str]:
     return paths
 
 
-def _prepare_grounding(root: Path, file_path: str) -> tuple[str, WorkStartInputs, bool]:
+def _prepare_grounding(
+    root: Path, file_path: str | None
+) -> tuple[str | None, WorkStartInputs, bool]:
     from teamctx.resolve import resolve_work_start_inputs
     from teamctx.tokens import resolve_github_token, resolve_token
 
-    rel_file = repo_relative_path(root, file_path)
+    # UserPromptSubmit carries no edit target, so it grounds around the dirty tree alone (possibly
+    # empty: A-1 makes that honest, with conflict not-applicable and the gate still branch-real).
+    rel_file = repo_relative_path(root, file_path) if file_path is not None else None
     github_token = resolve_github_token()
-    paths = tuple(dict.fromkeys([rel_file, *_changed_paths(root)]))  # dedup, order-preserving
+    changed = _changed_paths(root)
+    ordered = [rel_file, *changed] if rel_file is not None else list(changed)
+    paths = tuple(dict.fromkeys(ordered))  # dedup, order-preserving
     inputs = replace(
         resolve_work_start_inputs(paths=paths, token=github_token, root=root),
         profile="reflex",
@@ -186,29 +224,50 @@ def _now_seconds() -> float:
 
 
 def _ground(
-    root: Path, file_path: str, inputs: WorkStartInputs, token_present: bool
+    root: Path,
+    file_path: str | None,
+    inputs: WorkStartInputs,
+    token_present: bool,
+    baseline: Baseline | None = None,
 ) -> Grounding:
     import socket
 
+    from teamctx.ambient import build_delta_document, compute_baseline_material, compute_deltas
+    from teamctx.connectors.declared_authority import load_declared_authority
+    from teamctx.core.broker import broker_answer_from_documents
     from teamctx.hook_signal import hook_signal
-    from teamctx.work_start import work_start_answer
+    from teamctx.work_start import DEFAULT_AUTHORITY_PATH, ground_work_start
 
+    observed_at = utc_now_iso()
     old_timeout = socket.getdefaulttimeout()
     socket.setdefaulttimeout(8)  # bound every network call so a hung GitHub never freezes the edit
     try:
-        answer = work_start_answer(inputs, observed_at=utc_now_iso(), project_root=root)
+        request, documents = ground_work_start(inputs, observed_at=observed_at, project_root=root)
     finally:
         socket.setdefaulttimeout(old_timeout)
-    assessment = assess(answer)
+    declarations = load_declared_authority(root / DEFAULT_AUTHORITY_PATH)
+    base_answer = broker_answer_from_documents(request, documents, declarations)
+
+    material = compute_baseline_material(base_answer)
+    deltas = compute_deltas(baseline.material if baseline is not None else None, material)
+    if deltas:
+        # Compose the SAME documents again with an edge-minted delta document: no second network.
+        delta_document = build_delta_document(request, deltas, observed_at=observed_at)
+        answer = broker_answer_from_documents(request, [*documents, delta_document], declarations)
+    else:
+        answer = base_answer
+
     return Grounding(
         text=hook_signal(answer, file_path=file_path, token_present=token_present),
-        content_digest=content_digest(
-            answer.source_signals,
-            answer.source_statuses,
-            answer.selection.closure,
-            answer.selection.authority,
+        content_digest=content_digest(  # over the PRE-DELTA answer; delta signals are excluded
+            base_answer.source_signals,
+            base_answer.source_statuses,
+            base_answer.selection.closure,
+            base_answer.selection.authority,
         ),
-        class_of_answer=class_of_answer(assessment),
+        class_of_answer=class_of_answer(assess(base_answer)),
+        material=material,
+        has_deltas=bool(deltas),
     )
 
 
