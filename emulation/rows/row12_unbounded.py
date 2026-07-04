@@ -67,7 +67,7 @@ def _cli_sub_row(tmp: Path) -> RowResult:
 def _hook_sub_row(tmp: Path) -> RowResult:
     repo = build_lab_repo(tmp / "hook", branch="feature", files={"src/a.py": "x\n"})
     with MockGitHub(_fixtures()) as server:
-        env = SubprocessEnv(api_root=server.api_root, hook_cache=tmp / "hookcache")
+        env = SubprocessEnv(api_root=server.api_root, ambient_state=tmp / "ambient")
         event = pretooluse_event(cwd=repo.root, file_path="src/a.py")
         context = run_hook(event, cwd=repo.root, env=env)
     expectation = Expectation(

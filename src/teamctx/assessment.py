@@ -46,6 +46,20 @@ class WorkStartAssessment:
     findings: tuple[ContextCard, ...]
 
 
+AnswerClass = Literal["GOOD", "GAP-KNOWN", "NONE"]
+
+
+def class_of_answer(assessment: WorkStartAssessment) -> AnswerClass:
+    """Classify whether an ambient baseline can legally serve silence for important checks."""
+
+    important = [state for state in assessment.checks if state.check in IMPORTANT_CHECKS]
+    if any(state.status in {"unreachable", "pending", "unbounded"} for state in important):
+        return "GAP-KNOWN"
+    if important and all(state.status in {"clear", "found"} for state in important):
+        return "GOOD"
+    return "NONE"
+
+
 def _status_for(valuation: Valuation) -> CheckStatus:
     if valuation.value == "true":
         return "clear"

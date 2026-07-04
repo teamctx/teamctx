@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from teamctx.assessment import assess
+from teamctx.assessment import assess, class_of_answer
 from teamctx.connectors._contract import metadata_only_policy, source_status
 from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import RequestContext, SourceSignal, SourceStatus
@@ -127,6 +127,38 @@ def test_clear_important_with_only_policy_gaps_is_ready() -> None:
     assert a.kind == "ready"
     assert next(c for c in a.checks if c.check == "conflict").status == "clear"
     assert next(c for c in a.checks if c.check == "criteria").status == "not_configured"
+
+
+def test_class_of_answer_is_good_when_important_checks_are_checked() -> None:
+    clear = assess(
+        broker_answer(_request(), [], [_fresh_status("git_hosting"), _fresh_status("ci_deploy")])
+    )
+    found = assess(
+        broker_answer(
+            _request(),
+            [_collision_signal()],
+            [_fresh_status("git_hosting"), _fresh_status("ci_deploy")],
+        )
+    )
+
+    assert class_of_answer(clear) == "GOOD"
+    assert class_of_answer(found) == "GOOD"
+
+
+def test_class_of_answer_is_gap_known_for_important_unknowns() -> None:
+    unreachable = assess(broker_answer(_request(), [], [_unavailable_status("git_hosting")]))
+    pending = assess(broker_answer(_request(), [], [_pending_status("ci_deploy")]))
+    unbounded = assess(broker_answer(_request(), [], [_unbounded_status("git_hosting")]))
+
+    assert class_of_answer(unreachable) == "GAP-KNOWN"
+    assert class_of_answer(pending) == "GAP-KNOWN"
+    assert class_of_answer(unbounded) == "GAP-KNOWN"
+
+
+def test_class_of_answer_is_none_for_unchecked_important_checks() -> None:
+    unchecked = assess(broker_answer(_request(), [], []))
+
+    assert class_of_answer(unchecked) == "NONE"
 
 
 def test_checks_are_ordered_conflict_criteria_docs_gate() -> None:
