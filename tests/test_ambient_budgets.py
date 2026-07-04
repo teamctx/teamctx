@@ -27,7 +27,10 @@ def _init_repo(root: Path) -> None:
     (root / "src" / "app.py").write_text("x\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(root), "add", "."], check=True)
     subprocess.run(["git", "-C", str(root), "commit", "-qm", "base"], check=True)
-    subprocess.run(["git", "-C", str(root), "remote", "add", "origin", "git@github.com:acme/widgets.git"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "remote", "add", "origin", "git@github.com:acme/widgets.git"],
+        check=True,
+    )
     subprocess.run(["git", "-C", str(root), "checkout", "-qb", "feature"], check=True)
 
 
@@ -41,7 +44,9 @@ def _payload(root: Path, *, session_id: str = "budget-session") -> str:
     })
 
 
-def _run_hook(payload: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> str:
+def _run_hook(
+    payload: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> str:
     monkeypatch.setattr("sys.stdin.read", lambda: payload)
     hook.main()
     return capsys.readouterr().out
