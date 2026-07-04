@@ -42,7 +42,18 @@ strict + CI green. teamctx.dev landing page on Vercel (pending DNS `A` record). 
 `refresh`/`context` snapshot flow is **legacy**: frozen since 2026-06-16 while the product
 moved to the live broker; retired in Sprint 2.
 
-## 2026-07-03: full review + delegated build-out (the active arc)
+## 2026-07-04: THE NEXT ARC IS AMBIENT (read the plan first)
+
+The CPO set the product frame 2026-07-04: users NEVER run commands; team context is ambient
+and appears like magic, or nobody will use it. The committed plan translating that frame into
+workstreams (moments, actors, feel, copy, evidence) is
+**`docs/product/plan/2026-07-04-ambient-magic-plan.md`**: read it FIRST next session; it
+supersedes "what's next" below. It goes through adversarial spec review before building.
+The ambient copy law is also in auto-memory (feedback_teamctx_ambient_never_commands).
+Landing page + README + validation evidence all shipped 2026-07-04 (see below); main clean
+at `93f450b`+.
+
+## 2026-07-03: full review + delegated build-out (the active arc, COMPLETED)
 
 A full code/product/architecture review of main `54ca04e` landed 13 findings (no new
 false-clear paths; the honesty invariants held). Findings + locked designs:
