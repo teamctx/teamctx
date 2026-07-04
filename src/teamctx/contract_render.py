@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
+from teamctx.ambient import Delta, FindingMaterial
 from teamctx.assessment import (
     IMPORTANT_CHECKS,
     CheckState,
     WorkStartAssessment,
     assess,
+    card_finding_key,
 )
 from teamctx.core.authority import AuthorityEntry
 from teamctx.core.broker import BrokerAnswer
@@ -16,7 +19,7 @@ from teamctx.core.contracts import (
     ContextCard,
     SourceOpenTarget,
 )
-from teamctx.core.kinds import CARD_KINDS, CheckId
+from teamctx.core.kinds import CARD_KINDS, REASON_PREFIX, CheckId
 from teamctx.core.select import ContextSelection
 
 _HEADLINE = {
@@ -145,6 +148,102 @@ def check_hook_gap_copy(check: CheckId, forge: str) -> str | None:
     return copy.hook_gap
 
 
+# --- the delta lane: what changed since work start, spoken first and once, in one voice ---
+# The CTO owns every string here; each maps a delta direction+check to its pinned "since you
+# started: ..." line. The delta lane is transport-agnostic: the hook signal and the full report
+# both prepend these, so a mid-session change reads identically in either surface.
+
+
+def delta_lines(
+    deltas: tuple[Delta, ...], checks: tuple[CheckState, ...], forge: str
+) -> list[str]:
+    """The pinned delta lines, one per delta, in delta order. Empty when nothing changed, so the
+    CLI/MCP report and the quiet hook are byte-for-byte unchanged with no delta document."""
+
+    return [_delta_line(delta, checks, forge) for delta in deltas]
+
+
+def _delta_line(delta: Delta, checks: tuple[CheckState, ...], forge: str) -> str:
+    if delta.direction == "appear":
+        return "since you started: " + _appear_body(delta.check, delta.identity)
+    if delta.direction == "disappear":
+        return "since you started: " + _disappear_body(delta.check, delta.identity)
+    if delta.direction == "transition":
+        return f"{_source_name(forge)} is back: " + _recovery_tail(delta.check, checks, forge)
+    phrase = check_hook_gap_copy(_as_check(delta.check), forge) or delta.check
+    note = delta.note or _shrank_default_note(delta.check, forge)
+    return f"since you started: {phrase} can no longer be verified ({note})"
+
+
+def _appear_body(check: str, identity: FindingMaterial) -> str:
+    if check == "conflict":
+        return f"{identity.source_display} appeared, touching {', '.join(identity.paths)}"
+    if check == "gate":
+        return f"check '{identity.gate}' started failing on this branch"
+    if check == "criteria":
+        return f"{identity.source_display} changed: {identity.detail}"
+    if identity.superseded_by:
+        return f"{identity.doc} was superseded by {identity.superseded_by}"
+    return f"{identity.doc} was superseded"
+
+
+def _disappear_body(check: str, identity: FindingMaterial) -> str:
+    if check == "conflict":
+        return f"{identity.source_display} no longer touches your files"
+    if check == "gate":
+        return f"check '{identity.gate}' is green again"
+    if check == "criteria":
+        return f"{identity.source_display} is no longer flagged"
+    return f"the note about {identity.doc} cleared"
+
+
+def _recovery_tail(check: str, checks: tuple[CheckState, ...], forge: str) -> str:
+    # A gap closed: read the current world for the clear phrase or the finding line it recovered to.
+    state = next((s for s in checks if s.check == check), None)
+    if state is not None and state.status == "found" and state.cards:
+        return "; ".join(card.text.rstrip(".") for card in state.cards)
+    return check_hook_clear_copy(_as_check(check), forge)
+
+
+def _shrank_default_note(check: str, forge: str) -> str:
+    if check in {"conflict", "gate"}:
+        return f"couldn't reach {_source_name(forge)}"
+    return "the source can't be reached"
+
+
+def appear_suppressed_keys(deltas: tuple[Delta, ...]) -> frozenset[str]:
+    """Finding keys a fresh appearance already spoke: their steady bullet is suppressed."""
+
+    return frozenset(delta.identity.key for delta in deltas if delta.direction == "appear")
+
+
+def recovered_found_checks(deltas: tuple[Delta, ...]) -> frozenset[str]:
+    """Checks whose recovery line carries the finding, so the steady found bullet is suppressed."""
+
+    return frozenset(delta.check for delta in deltas if delta.direction == "transition")
+
+
+def shrank_checks(deltas: tuple[Delta, ...]) -> frozenset[str]:
+    """Checks a coverage-shrank line speaks, so the steady can't-verify line for them is dropped."""
+
+    return frozenset(delta.check for delta in deltas if delta.direction == "coverage_shrank")
+
+
+def bullet_suppressed(card: ContextCard, keys: frozenset[str], checks: frozenset[str]) -> bool:
+    """A found card's steady bullet is suppressed when a fresh appearance already named it, or when
+    the check recovered to it (its recovery line carries the finding). One fact, one voice."""
+
+    key = card_finding_key(card)
+    if key is not None and key in keys:
+        return True
+    check = REASON_PREFIX.get(card.reason_code.split(".", 1)[0])
+    return check is not None and check in checks
+
+
+def _as_check(check: str) -> CheckId:
+    return cast("CheckId", check)
+
+
 def _authority_line(entry: AuthorityEntry) -> str:
     if entry.state == "resolved":
         return f"- {entry.subject}: resolved (value {entry.value})"
@@ -161,12 +260,13 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
     never via an LLM, and prints: it never blocks."""
 
     assessment = assess(answer)
+    forge = answer.request.forge
     headline = _HEADLINE[assessment.kind]
     if assessment.kind == "ready" and not any(s.status == "clear" for s in assessment.checks):
         # nothing ran at all (every check not configured): "clear" would be false comfort
         headline = "Nothing checked yet; here's why:"
-    lines = [headline]
-    forge = answer.request.forge
+    # The delta lane speaks first and once: what changed since work start, before the current world.
+    lines = [*delta_lines(assessment.deltas, assessment.checks, forge), headline]
     lines.extend(_finding_bullets(assessment, forge))
     coverage = _coverage_line(answer, assessment)
     if coverage:
@@ -193,10 +293,16 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
 
 def _finding_bullets(assessment: WorkStartAssessment, forge: str) -> list[str]:
     if assessment.kind == "heads_up":
+        keys = appear_suppressed_keys(assessment.deltas)
+        recovered = recovered_found_checks(assessment.deltas)
         bullets: list[str] = []
         for state in assessment.checks:
             if state.status == "found":
-                bullets.extend(f"  • {_finding_text(state, card)}" for card in state.cards)
+                bullets.extend(
+                    f"  • {_finding_text(state, card)}"
+                    for card in state.cards
+                    if not bullet_suppressed(card, keys, recovered)
+                )
         return bullets
     if assessment.kind == "cant_verify":
         return _cant_verify_bullets(assessment, forge)
@@ -242,15 +348,26 @@ def _cant_verify_bullets(assessment: WorkStartAssessment, forge: str) -> list[st
         for s in assessment.checks
     }
     notes = {s.check: s.note for s in assessment.checks}
+    # A coverage-shrank delta already speaks these checks ("... can no longer be verified"); drop
+    # their steady can't-verify bullet so one fact gets one voice.
+    shrank = shrank_checks(assessment.deltas)
     # A reached-but-not-confirmable source (a skipped pipeline, an unexhausted scan) must never
     # claim a connection problem: it gets its own note-led bullet instead of the fix text.
-    conflict_unreachable = status.get("conflict") == "unreachable" and not stale_only.get(
-        "conflict", False
+    conflict_unreachable = (
+        status.get("conflict") == "unreachable"
+        and not stale_only.get("conflict", False)
+        and "conflict" not in shrank
     )
-    gate_unreachable = status.get("gate") == "unreachable" and not stale_only.get("gate", False)
+    gate_unreachable = (
+        status.get("gate") == "unreachable"
+        and not stale_only.get("gate", False)
+        and "gate" not in shrank
+    )
     fix = _fix_text(forge)
     bullets: list[str] = []
     for check in ("conflict", "gate"):
+        if check in shrank:
+            continue
         if status.get(check) == "unreachable" and stale_only.get(check) and notes.get(check):
             label = _conflict_label(forge) if check == "conflict" else _gate_label(forge)
             action = (
@@ -342,10 +459,12 @@ def _couldnt_check_line(assessment: WorkStartAssessment, forge: str) -> str:
     # other mode (a found check made it heads_up) the unreachable important checks must be
     # surfaced here too. Honest-UNKNOWN is never silently dropped.
     in_bullets = assessment.kind == "cant_verify"
+    shrank = shrank_checks(assessment.deltas)
     gaps = [
         _unreachable_gap_copy(s, forge)
         for s in assessment.checks
         if s.status == "unreachable"
+        and s.check not in shrank  # a coverage-shrank delta already speaks this check
         and not (in_bullets and s.check in IMPORTANT_CHECKS)
     ]
     if not gaps:

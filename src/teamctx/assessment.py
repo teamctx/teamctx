@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from teamctx.ambient import Delta, deltas_from_signals, finding_key
 from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import ContextCard
 from teamctx.core.evaluate import Valuation
@@ -44,6 +45,9 @@ class WorkStartAssessment:
     kind: Literal["ready", "heads_up", "cant_verify"]
     checks: tuple[CheckState, ...]
     findings: tuple[ContextCard, ...]
+    # What changed since the session baseline. The kind above is the CURRENT world and never moves
+    # because of a delta; deltas are a separate lane the render speaks first.
+    deltas: tuple[Delta, ...] = ()
 
 
 AnswerClass = Literal["GOOD", "GAP-KNOWN", "NONE"]
@@ -80,6 +84,16 @@ def _status_for(valuation: Valuation) -> CheckStatus:
 
 def _check_of_card(card: ContextCard) -> CheckId | None:
     return REASON_PREFIX.get(card.reason_code.split(".", 1)[0])
+
+
+def card_finding_key(card: ContextCard) -> str | None:
+    """The delta identity key of a finding card, so the render can suppress the steady bullet for a
+    finding a fresh-appearance delta already spoke (one fact, one voice)."""
+
+    check = _check_of_card(card)
+    if check is None:
+        return None
+    return finding_key(check, card.scope)
 
 
 def assess(answer: BrokerAnswer) -> WorkStartAssessment:
@@ -124,7 +138,12 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
         kind = "cant_verify"
     else:
         kind = "ready"
-    return WorkStartAssessment(kind=kind, checks=tuple(states), findings=tuple(findings))
+    return WorkStartAssessment(
+        kind=kind,
+        checks=tuple(states),
+        findings=tuple(findings),
+        deltas=deltas_from_signals(answer.source_signals),
+    )
 
 
 def _coverage_notes_by_family_and_status(
