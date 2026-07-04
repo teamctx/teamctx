@@ -48,7 +48,19 @@ The CPO set the product frame 2026-07-04: users NEVER run commands; team context
 and appears like magic, or nobody will use it. The committed plan translating that frame into
 workstreams (moments, actors, feel, copy, evidence) is
 **`docs/product/plan/2026-07-04-ambient-magic-plan.md`**: read it FIRST next session; it
-supersedes "what's next" below. Reviewed adversarially (rev 2 pins all 12 findings; the committed-hook idea is formally rejected) and **APPROVED BY EDGAR 2026-07-04 ('approved, keep going')**. B1 DONE (merged: the reflex installs to settings.local.json, migration surgical and behaviorally verified). A-1 DONE (branch-scoped gate; empty paths never clear). A-2a DONE (merged: continuous grounding under the silence law; content digest + per-session baselines; the marker is gone; 863+ tests). A-2b DONE (merged: the delta voice, 900+ tests; the arbiter's live smoke caught a class-taxonomy hole that would have re-spoken on every edit in branchless repos, fixed + spec corrected). WORKSTREAM A COMPLETE: onboard once, context appears, reappears exactly when reality changes, silence is lawful. C+E DONE (merged: zero-network silence and request budgets pinned in the suite; the four delta rows land the matrix at 16 of 16). Claims refreshed on every surface, precision-reviewed. **THE AMBIENT ARC IS COMPLETE: built, proven, and described exactly. Open: Edgar's PyPI call (gates the one-liner install).** Superseded sequencing: Workstream C then E (the delta evidence rows). The delta-engine spec (`docs/superpowers/specs/2026-07-04-ambient-delta-engine.md`, in review).
+supersedes "what's next" below. Reviewed adversarially (rev 2 pins all 12 findings; the committed-hook idea is formally rejected) and **APPROVED BY EDGAR 2026-07-04 ('approved, keep going')**. B1 DONE (merged: the reflex installs to settings.local.json, migration surgical and behaviorally verified). A-1 DONE (branch-scoped gate; empty paths never clear). A-2a DONE (merged: continuous grounding under the silence law; content digest + per-session baselines; the marker is gone; 863+ tests). A-2b DONE (merged: the delta voice, 900+ tests; the arbiter's live smoke caught a class-taxonomy hole that would have re-spoken on every edit in branchless repos, fixed + spec corrected). WORKSTREAM A COMPLETE: onboard once, context appears, reappears exactly when reality changes, silence is lawful. C+E DONE (merged: zero-network silence and request budgets pinned in the suite; the four delta rows land the matrix at 16 of 16). Claims refreshed on every surface, precision-reviewed. **THE AMBIENT ARC IS COMPLETE: built, proven, and described exactly.**
+
+**LAUNCH-READY STATE (2026-07-04, per Edgar: staged, NOT flipped).** The landing page wears
+the engineering-record design (print-inspired, zero JS, verbatim samples; merged). The 0.1.0
+release sits COMPLETE and adversarially reviewed on branch `release/0.1.0` (pushed): version
++ Alpha classifier, artifact audited to zero name/instance/credential hits, shipped suite
+passes with and without the mcp extra in a fresh venv, twine check green, the one hatchling
+.gitignore exception verified and documented. THE FLIP, when Edgar says go: (1) he creates a
+PyPI API token -> `.secrets/pypi-token`; (2) merge `release/0.1.0` to main; (3) `git tag
+v0.1.0 && git push origin v0.1.0`; (4) `python -m build && TWINE_USERNAME=__token__
+TWINE_PASSWORD=$(cat ~/.secrets/pypi-token) twine upload dist/*`; (5) verify `pip install
+teamctx` from PyPI; separate switches, also his: repo public, site deploy (Vercel), DNS.
+Publishing the package publishes the source (an sdist is the code). Superseded sequencing: Workstream C then E (the delta evidence rows). The delta-engine spec (`docs/superpowers/specs/2026-07-04-ambient-delta-engine.md`, in review).
 The ambient copy law is also in auto-memory (feedback_teamctx_ambient_never_commands).
 Landing page + README + validation evidence all shipped 2026-07-04 (see below); main clean
 at `93f450b`+.
