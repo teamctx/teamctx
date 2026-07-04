@@ -15,13 +15,19 @@ import tempfile
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from teamctx import __version__
 
 if TYPE_CHECKING:  # keep the module import-light on the no-op path (P2-2): lazy at runtime
     from teamctx.core.broker import BrokerAnswer
-    from teamctx.core.contracts import ContextCard
+    from teamctx.core.contracts import (
+        ContextCard,
+        CoreContractDocument,
+        RequestContext,
+        SourceFamily,
+        SourceSignal,
+    )
 
 AnswerClass = Literal["GOOD", "GAP-KNOWN", "NONE"]
 Decision = Literal["speak_full", "silent", "recheck_due"]
@@ -133,6 +139,119 @@ def _check_deltas(old: CheckMaterial, new: CheckMaterial) -> tuple[Delta, ...]:
 
 def _sentinel_identity(check: str) -> FindingMaterial:
     return FindingMaterial(key=f"{check}:__source__")
+
+
+# Which source family a delta about each check belongs to, so the minted signal is well-formed.
+_DELTA_FAMILY: dict[str, SourceFamily] = {
+    "conflict": "git_hosting",
+    "criteria": "issue_tracker",
+    "docs": "docs",
+    "gate": "ci_deploy",
+}
+_DELTA_DIRECTIONS: frozenset[str] = frozenset(
+    {"appear", "disappear", "transition", "coverage_shrank"}
+)
+
+
+def build_delta_document(
+    request: RequestContext, deltas: Iterable[Delta], *, observed_at: str
+) -> CoreContractDocument:
+    """Mint the edge delta document: one ``changed_since_start`` signal per delta, for the broker to
+    compose beside the real connector documents. These carry NO CardKind, so they never derive a
+    card, verdict, or closure entry; the kind stays the current world. The assessment reads them
+    back with ``deltas_from_signals``."""
+
+    from teamctx.core.contracts import CoreContractDocument
+
+    signals = [
+        _delta_signal(delta, request=request, observed_at=observed_at, index=index)
+        for index, delta in enumerate(deltas)
+    ]
+    return CoreContractDocument(
+        schema_version="teamctx.core_contract_document.v0",
+        request_context=request,
+        source_signals=signals,
+        source_statuses=[],
+        source_open_targets=[],
+        guidance_records=[],
+        session_context_uses=[],
+        context_cards=[],
+    )
+
+
+def _delta_signal(
+    delta: Delta, *, request: RequestContext, observed_at: str, index: int
+) -> SourceSignal:
+    from teamctx.connectors._contract import metadata_only_policy
+    from teamctx.core.contracts import SourceSignal
+
+    scope: dict[str, Any] = {
+        "delta_check": delta.check,
+        "delta_direction": delta.direction,
+        "delta_key": delta.identity.key,
+        "delta_source_display": delta.identity.source_display,
+        "delta_paths": list(delta.identity.paths),
+        "delta_gate": delta.identity.gate,
+        "delta_detail": delta.identity.detail,
+        "delta_doc": delta.identity.doc,
+        "delta_superseded_by": delta.identity.superseded_by,
+        "delta_note": delta.note or "",
+        "reason_code": f"delta.{delta.check}.{delta.direction}",
+    }
+    return SourceSignal(
+        schema_version="teamctx.source_signal.v0",
+        id=f"sig_delta_{delta.check}_{delta.direction}_{index}",
+        signal_type="changed_since_start",
+        source_family=_DELTA_FAMILY.get(delta.check, "local_workspace"),
+        scope=scope,
+        evidence_summary=f"{delta.check} {delta.direction} since work start",
+        source_display=delta.identity.source_display or delta.check,
+        freshness="fresh",
+        confidence="high",
+        visibility="visible",
+        created_at=observed_at,
+        observed_at=observed_at,
+        expires_at="next_refresh",
+        policy=metadata_only_policy(
+            "delta is derived at the edge; source bodies are not included"
+        ),
+    )
+
+
+def deltas_from_signals(signals: Iterable[SourceSignal]) -> tuple[Delta, ...]:
+    """Read the deltas back out of the composed answer's ``changed_since_start`` signals, so the
+    assessment lane and the render can speak them without re-diffing. The inverse of the minting
+    above; the scope schema is defined once, here."""
+
+    deltas: list[Delta] = []
+    for signal in signals:
+        if signal.signal_type != "changed_since_start":
+            continue
+        scope = signal.scope
+        direction = str(scope.get("delta_direction", ""))
+        if direction not in _DELTA_DIRECTIONS:
+            continue
+        paths_raw = scope.get("delta_paths")
+        paths = tuple(str(path) for path in paths_raw) if isinstance(paths_raw, list) else ()
+        note = scope.get("delta_note")
+        identity = FindingMaterial(
+            key=str(scope.get("delta_key", "")),
+            source_display=str(scope.get("delta_source_display", "")),
+            paths=paths,
+            gate=str(scope.get("delta_gate", "")),
+            detail=str(scope.get("delta_detail", "")),
+            doc=str(scope.get("delta_doc", "")),
+            superseded_by=str(scope.get("delta_superseded_by", "")),
+        )
+        deltas.append(
+            Delta(
+                direction=cast("DeltaDirection", direction),
+                check=str(scope.get("delta_check", "")),
+                identity=identity,
+                note=str(note) if note else None,
+            )
+        )
+    return tuple(deltas)
 
 
 @dataclass(frozen=True)

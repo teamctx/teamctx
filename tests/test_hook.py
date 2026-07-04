@@ -74,7 +74,7 @@ def test_same_session_second_edit_inside_interval_is_silent(monkeypatch, capsys,
     now = iter([1000.0, 1001.0])
     calls: list[str] = []
 
-    def fake_ground(root, rel_file, inputs, token_present):  # type: ignore[no-untyped-def]
+    def fake_ground(root, rel_file, inputs, token_present, baseline=None):  # type: ignore[no-untyped-def]
         calls.append(rel_file)
         return _grounding("first", "digest-1")
 
@@ -282,13 +282,13 @@ def test_network_calls_are_time_bounded(monkeypatch, capsys, tmp_path) -> None:
         lambda **kw: ForgeReviewFetch(pull_requests=[]),
     )
     seen: dict[str, object] = {}
-    real = ws.work_start_answer
+    real = ws.ground_work_start
 
     def spy(*a, **k):  # type: ignore[no-untyped-def]
         seen["timeout"] = socket.getdefaulttimeout()
         return real(*a, **k)
 
-    monkeypatch.setattr(ws, "work_start_answer", spy)
+    monkeypatch.setattr(ws, "ground_work_start", spy)
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     before = socket.getdefaulttimeout()
     _run(_payload(tmp_path), monkeypatch, capsys)
@@ -303,11 +303,11 @@ def test_ground_sets_reflex_profile(monkeypatch, tmp_path) -> None:
 
     seen: dict[str, object] = {}
 
-    def fake_answer(inputs, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_ground(inputs, **kwargs):  # type: ignore[no-untyped-def]
         seen["profile"] = inputs.profile
         raise RuntimeError("stop after profile capture")
 
-    monkeypatch.setattr(ws, "work_start_answer", fake_answer)
+    monkeypatch.setattr(ws, "ground_work_start", fake_ground)
     monkeypatch.setattr(hs, "hook_signal", lambda *args, **kwargs: "ok")
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     inputs = replace(
@@ -319,6 +319,63 @@ def test_ground_sets_reflex_profile(monkeypatch, tmp_path) -> None:
         hook._ground(tmp_path, "src/app.py", inputs, token_present=True)
 
     assert seen["profile"] == "reflex"
+
+
+def test_ground_mints_deltas_when_material_changed_since_the_baseline(
+    monkeypatch, tmp_path
+) -> None:
+    from teamctx.ambient import Baseline, BaselineMaterial, CheckMaterial, FindingMaterial
+
+    _init_repo(tmp_path)
+    _state(monkeypatch, tmp_path)
+    import teamctx.connectors.github as gh
+
+    # the world now: no open PRs touch the file. The baseline recorded PR #7 as a live collision.
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: ForgeReviewFetch(
+        pull_requests=[],
+    ))
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    inputs = replace(
+        resolve_work_start_inputs(paths=("src/app.py",), token="t", root=tmp_path),
+        profile="reflex",
+    )
+    baseline = Baseline(
+        key="k", content_digest="old", class_of_answer="GOOD",
+        last_network_check_at=1000.0, last_spoken_at=1000.0,
+        material=BaselineMaterial((
+            CheckMaterial(
+                check="conflict", status="found",
+                findings=(FindingMaterial(key="conflict:7", source_display="GitHub PR #7",
+                                          paths=("src/app.py",)),),
+            ),
+        )),
+    )
+
+    grounding = hook._ground(tmp_path, "src/app.py", inputs, True, baseline)
+
+    assert grounding.has_deltas is True
+    conflict = next(c for c in grounding.material.checks if c.check == "conflict")
+    assert conflict.status == "clear"
+    assert conflict.findings == ()
+
+
+def test_first_grounding_has_no_deltas(monkeypatch, tmp_path) -> None:
+    _init_repo(tmp_path)
+    _state(monkeypatch, tmp_path)
+    import teamctx.connectors.github as gh
+
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: ForgeReviewFetch(
+        pull_requests=[],
+    ))
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    inputs = replace(
+        resolve_work_start_inputs(paths=("src/app.py",), token="t", root=tmp_path),
+        profile="reflex",
+    )
+
+    grounding = hook._ground(tmp_path, "src/app.py", inputs, True, None)
+
+    assert grounding.has_deltas is False
 
 
 def test_marker_helpers_are_deleted() -> None:

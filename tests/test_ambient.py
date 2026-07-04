@@ -17,10 +17,12 @@ from teamctx.ambient import (
     FindingMaterial,
     ambient_interval_seconds,
     ambient_state_dir,
+    build_delta_document,
     compute_baseline_material,
     compute_deltas,
     compute_key,
     decide,
+    deltas_from_signals,
     finding_key,
     load_baseline,
     store_baseline,
@@ -292,6 +294,41 @@ def test_swapped_finding_is_a_disappear_and_an_appear() -> None:
         BaselineMaterial((_check("conflict", "found", _pr(8)),)),
     )
     assert result == (Delta("appear", "conflict", _pr(8)), Delta("disappear", "conflict", _pr(7)))
+
+
+def test_delta_signals_round_trip_through_mint_and_read() -> None:
+    deltas = (
+        Delta("appear", "conflict", _pr(7)),
+        Delta(
+            "disappear", "gate",
+            FindingMaterial(key="gate:build", source_display="CI: build", gate="build"),
+        ),
+        Delta(
+            "coverage_shrank", "conflict", FindingMaterial(key="conflict:__source__"),
+            note="couldn't reach GitHub",
+        ),
+    )
+
+    document = build_delta_document(_request(), deltas, observed_at="2026-07-04T00:00:00Z")
+
+    assert all(s.signal_type == "changed_since_start" for s in document.source_signals)
+    assert deltas_from_signals(document.source_signals) == deltas
+
+
+def test_delta_signals_never_derive_a_card_verdict_or_closure() -> None:
+    deltas = (Delta("appear", "conflict", _pr(7)),)
+    document = build_delta_document(_request(), deltas, observed_at="2026-07-04T00:00:00Z")
+
+    answer = broker_answer(_request(), document.source_signals, [_fresh("git_hosting")])
+
+    # the changed_since_start signal rides in source_signals but derives no card and no closure
+    # entry (no CardKind), so the kind stays the current world.
+    assert answer.selection.cards == ()
+    assert deltas_from_signals(answer.source_signals) == deltas
+
+
+def test_deltas_from_signals_ignores_non_delta_signals() -> None:
+    assert deltas_from_signals([_collision_signal()]) == ()
 
 
 def test_wrong_shape_or_version_is_none(tmp_path: Path) -> None:
