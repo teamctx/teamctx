@@ -107,8 +107,10 @@ sources on:
 #    credential and a live reachability check. Idempotent; re-run any time. --dry-run previews.
 teamctx onboard
 
-# 2. Before you edit, see what changed around your files (the next three samples are from a
-#    branch named 42-fix-auth in a repo with a docs/ folder, so all four checks fire).
+# 2. That's it. From now on, team context appears by itself before the first edit of each
+#    Claude Code session, and agents get the same answer over MCP. What appears looks like
+#    the samples below (from a branch named 42-fix-auth in a repo with a docs/ folder, so
+#    all four checks fire). To reproduce them by hand:
 teamctx work-start --path src/auth/token.py
 ```
 
@@ -157,11 +159,13 @@ teamctx open-source pr:7 --path src/auth/token.py
 
 Selectors are the handles you see in the output: `pr:N`, `issue:#N`, `path:X`, `doc:PATH`, `gate:NAME`.
 
-## Make it a reflex (Claude Code)
+## It appears on its own
 
-Grounding you do not run is worthless. `teamctx onboard` already installs an opt-in Claude Code
-hook that runs the check automatically the first time you edit a file in a session, plus a one-line
-CLAUDE.md instruction any agent can follow. If you only want the hook without the rest of onboard:
+Team context is ambient by design: after onboard, nobody runs a command in daily use. The opt-in
+Claude Code hook that onboard installs fires the check by itself the first time a file is edited
+in a session, and the CLAUDE.md instruction it writes tells any agent how to receive and use what
+appears (with a fallback for environments that do not run hooks). If you only want the hook
+without the rest of onboard:
 
 ```bash
 teamctx install-hook

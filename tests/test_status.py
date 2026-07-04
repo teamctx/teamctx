@@ -150,7 +150,10 @@ def test_run_status_after_onboard_reports_read_only_twin(
     assert _step(report.steps, "reachability").detail == _step(onboard.steps, "health").detail
     assert (
         report.next_step
-        == "You're set. Run `teamctx work-start --path <a file you're about to edit>`."
+        == (
+            "You're set. Team context appears by itself before the first edit of a Claude "
+            "Code session."
+        )
     )
 
 

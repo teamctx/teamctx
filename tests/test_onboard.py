@@ -823,3 +823,22 @@ def test_docs_detection_mirrors_runtime_symlink_fail_closed(tmp_path: Path, monk
     assert "docs_root" not in config.get("work_start", {})
     docs_step = next(s for s in result.steps if s.name == "docs")
     assert "couldn't be safely configured" in docs_step.detail
+
+
+def test_command_framed_snippet_migrates_as_outdated(tmp_path: Path) -> None:
+    # The ambient law (2026-07-04): the previous command-framed body is a known generated body
+    # and upserts to the receiving-framed snippet.
+    from teamctx.onboard import (
+        _SNIPPET_BODY_2026_07_04,
+        classify_claude_md,
+        upsert_claude_md_snippet,
+    )
+
+    marked_old = f"<!-- teamctx:start -->\n{_SNIPPET_BODY_2026_07_04}<!-- teamctx:end -->\n"
+    (tmp_path / "CLAUDE.md").write_text(marked_old, encoding="utf-8")
+    assert classify_claude_md(marked_old) == "outdated"
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "wrote"
+    body = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "Team context appears in this repo by itself" in body
+    assert "If this environment does not run hooks" in body
