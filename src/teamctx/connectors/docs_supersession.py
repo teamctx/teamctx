@@ -33,11 +33,14 @@ _SOURCE_FAMILY: SourceFamily = "docs"
 class SupersededDoc:
     """A doc that declares it has been superseded, with the doc that replaces it.
 
-    All paths are repo-root-relative POSIX strings."""
+    Local docs use repo-root-relative POSIX strings for ``doc`` and carry no ``url``. A remote
+    docs source (Confluence) sets ``doc`` to the page title and ``url`` to the openable page
+    link, so the render edge can print where to open it."""
 
     repo: str
     doc: str
     superseded_by: str
+    url: str | None = None
 
 
 def normalize_superseded_docs(
@@ -47,10 +50,15 @@ def normalize_superseded_docs(
     observed_at: str,
     expires_at: str = "next_refresh",
     source_id: str = "docs_supersession",
+    coverage_truncated: bool = False,
+    truncated_user_message: str = "The docs scan was truncated, so this is not a complete check.",
 ) -> CoreContractDocument:
     # A completed scan is a real green: reliance is the whole declared docs set, so a readable
     # docs root that scanned to the end is ``fresh`` (any superseded docs ride the signals). There
-    # is no out-of-scope for docs, so a completed scan is always reported ``fresh`` here.
+    # is no out-of-scope for docs, so a completed scan is always reported ``fresh`` here. A scan
+    # that could not read the whole space (budget hit, or a per-page marker that could not be read)
+    # is ``stale`` with an honest message: the superseded docs it DID find still ride the signals,
+    # but the family can never read complete-green off a partial scan.
     source_signals: list[SourceSignal] = []
     for entry in docs:
         scope: Scope = {
@@ -58,6 +66,8 @@ def normalize_superseded_docs(
             "doc": entry.doc,
             "superseded_by": entry.superseded_by,
         }
+        if entry.url:
+            scope["url"] = entry.url
         source_signals.append(
             SourceSignal(
                 schema_version="teamctx.source_signal.v0",
@@ -76,8 +86,10 @@ def normalize_superseded_docs(
                 policy=metadata_only_policy(_POLICY_REASON),
             )
         )
-    status: SourceStatusValue = "fresh"
-    safe_user_message = "Docs supersession metadata refreshed."
+    status: SourceStatusValue = "stale" if coverage_truncated else "fresh"
+    safe_user_message = (
+        truncated_user_message if coverage_truncated else "Docs supersession metadata refreshed."
+    )
     source_statuses = [
         source_status(
             source_id=source_id,

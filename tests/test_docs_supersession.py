@@ -63,6 +63,35 @@ def test_normalize_emits_doc_superseded_signal_with_scope() -> None:
     assert any(s.source_family == "docs" and s.status == "fresh" for s in document.source_statuses)
 
 
+def test_normalize_threads_url_into_scope_when_present() -> None:
+    doc = SupersededDoc(
+        repo="tempo-64/model-citizens",
+        doc="Rounding Policy",
+        superseded_by="docs/new.md",
+        url="https://example.atlassian.net/wiki/spaces/DEV/pages/12345/Rounding+Policy",
+    )
+    document = normalize_superseded_docs(
+        _request(), [doc], observed_at="2026-06-20T00:00:00Z"
+    )
+    signal = document.source_signals[0]
+    assert signal.scope["url"] == (
+        "https://example.atlassian.net/wiki/spaces/DEV/pages/12345/Rounding+Policy"
+    )
+
+
+def test_normalize_omits_url_from_scope_when_absent() -> None:
+    # Local docs carry no url; the scope must not gain a url key (open-source falls back to path).
+    doc = SupersededDoc(
+        repo="tempo-64/model-citizens",
+        doc="docs/superpowers/specs/old.md",
+        superseded_by="docs/superpowers/research/new.md",
+    )
+    document = normalize_superseded_docs(
+        _request(), [doc], observed_at="2026-06-20T00:00:00Z"
+    )
+    assert "url" not in document.source_signals[0].scope
+
+
 def test_unavailable_docs_document_reports_status_only() -> None:
     document = unavailable_docs_document(
         _request(),

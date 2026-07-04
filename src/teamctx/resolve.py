@@ -146,6 +146,8 @@ def resolve_work_start_inputs(
         ref=ref,
         forge=resolved_forge,
         jira_base_url=_config_jira_base_url(config),
+        confluence_base_url=_config_confluence_base_url(config),
+        confluence_space_key=_config_confluence_space_key(config),
         atlassian_auth=atlassian_auth,
         atlassian_auth_missing_half=atlassian_auth_state == "partial",
     )
@@ -173,6 +175,18 @@ def _config_jira_base_url(config: WorkStartConfig | None) -> str | None:
     if config is None or config.jira is None:
         return None
     return config.jira.base_url
+
+
+def _config_confluence_base_url(config: WorkStartConfig | None) -> str | None:
+    if config is None or config.confluence is None:
+        return None
+    return config.confluence.base_url
+
+
+def _config_confluence_space_key(config: WorkStartConfig | None) -> str | None:
+    if config is None or config.confluence is None:
+        return None
+    return config.confluence.space_key
 
 
 def _parse_repo_for_forge(repo: str, forge: ForgeProvider) -> str | None:

@@ -398,6 +398,79 @@ def _make_collision_card() -> object:
     return answer.selection.cards[0]
 
 
+def _make_doc_card(url: str | None = None) -> object:
+    """Build a realistic doc-superseded card via the real broker, from a doc_superseded signal."""
+
+    from teamctx.connectors._contract import metadata_only_policy, source_status
+    from teamctx.core.broker import broker_answer
+    from teamctx.core.contracts import RequestContext, SourceSignal
+
+    observed = "2026-01-01T00:00:00Z"
+    repo = "acme/widgets"
+    request = RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id="t",
+        repo=repo,
+        branch="feature",
+        task="work",
+        paths=["docs/old.md"],
+        linked_issues=[],
+        requested_at=observed,
+        requesting_principal=None,
+    )
+    scope: dict[str, object] = {
+        "repo": repo,
+        "doc": "docs/old.md",
+        "superseded_by": "docs/new.md",
+    }
+    if url is not None:
+        scope["url"] = url
+    signal = SourceSignal(
+        schema_version="teamctx.source_signal.v0",
+        id="sig_doc_superseded_docs_old_md",
+        signal_type="doc_superseded",
+        source_family="docs",
+        scope=scope,
+        evidence_summary="docs/old.md was superseded by docs/new.md.",
+        source_display="docs/old.md",
+        freshness="fresh",
+        confidence="high",
+        visibility="visible",
+        created_at=observed,
+        observed_at=observed,
+        expires_at="next_refresh",
+        policy=metadata_only_policy("docs metadata"),
+    )
+    status = source_status(
+        source_id="docs_supersession",
+        source_family="docs",
+        scope={"repo": repo},
+        status="fresh",
+        observed_at=observed,
+        safe_user_message="checked",
+        visibility="silent",
+        policy_reason="status only",
+    )
+    answer = broker_answer(request, [signal], [status])
+    return answer.selection.cards[0]
+
+
+def test_render_open_source_doc_prints_url_when_present() -> None:
+    from teamctx.contract_render import render_open_source
+
+    card = _make_doc_card(url="https://example.atlassian.net/wiki/spaces/DEV/pages/12345/Old")
+    output = render_open_source(card, ())  # type: ignore[arg-type]
+    assert "open https://example.atlassian.net/wiki/spaces/DEV/pages/12345/Old" in output
+
+
+def test_render_open_source_doc_prints_path_when_no_url() -> None:
+    from teamctx.contract_render import render_open_source
+
+    card = _make_doc_card(url=None)
+    output = render_open_source(card, ())  # type: ignore[arg-type]
+    assert "open docs/old.md" in output
+
+
 def test_render_why_includes_finding_text() -> None:
     from teamctx.contract_render import render_why
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 import teamctx.runner as runner
+from teamctx.connectors.docs_supersession import SupersededDoc, normalize_superseded_docs
 from teamctx.connectors.issue_criteria import normalize_issue_changes
 from teamctx.core.broker import broker_answer_from_documents
 from teamctx.core.contracts import CoreContractDocument, RequestContext
@@ -519,3 +520,206 @@ def _status_for_source(documents: list[CoreContractDocument], source_id: str):
             if status.source_id == source_id:
                 return status
     raise AssertionError(f"missing status {source_id}")
+
+
+def test_confluence_configured_full_profile_runs_probe(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runner, "run_github_pr_probe", lambda **kw: _empty_doc(kw["request_context"])
+    )
+    captured: dict[str, object] = {}
+
+    def fake_confluence(**kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return _empty_doc(kwargs["request_context"])
+
+    monkeypatch.setattr(runner, "run_confluence_docs_probe", fake_confluence)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        confluence_base_url="https://example.atlassian.net",
+        confluence_space_key="DEV",
+        atlassian_auth=("person@example.com", "atlassian-token"),
+    )
+
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    assert captured["base_url"] == "https://example.atlassian.net"
+    assert captured["space_key"] == "DEV"
+    assert captured["auth"] == ("person@example.com", "atlassian-token")
+    # collision + gate-disabled + criteria-disabled + confluence = 4 (NO local-docs disabled
+    # entry when Confluence is the configured docs source; it would poison the family)
+    assert len(documents) == 4
+
+
+def test_confluence_reflex_profile_skips_with_verbatim_note(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runner, "run_github_pr_probe", lambda **kw: _empty_doc(kw["request_context"])
+    )
+
+    def fail_confluence(**kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"Confluence probe must not run in reflex profile: {kwargs}")
+
+    monkeypatch.setattr(runner, "run_confluence_docs_probe", fail_confluence)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        profile="reflex",
+        confluence_base_url="https://example.atlassian.net",
+        confluence_space_key="DEV",
+        atlassian_auth=("person@example.com", "atlassian-token"),
+    )
+
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    status = _status_for_source(documents, "confluence_pages")
+    assert status.status == "disabled"
+    assert status.source_family == "docs"
+    assert status.safe_user_message == (
+        "Confluence docs are skipped in the quick pre-edit check; run teamctx work-start for "
+        "the full scan."
+    )
+
+
+def test_confluence_half_credential_emits_verbatim_note(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runner, "run_github_pr_probe", lambda **kw: _empty_doc(kw["request_context"])
+    )
+
+    def fail_confluence(**kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"Confluence probe must not run with a half credential: {kwargs}")
+
+    monkeypatch.setattr(runner, "run_confluence_docs_probe", fail_confluence)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        confluence_base_url="https://example.atlassian.net",
+        confluence_space_key="DEV",
+        atlassian_auth=None,
+        atlassian_auth_missing_half=True,
+    )
+
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    status = _status_for_source(documents, "confluence_pages")
+    assert status.status == "unavailable"
+    assert status.safe_user_message == (
+        "Confluence is configured but only half the Atlassian credential is set; both "
+        "ATLASSIAN_EMAIL and ATLASSIAN_API_TOKEN are needed."
+    )
+
+
+def test_confluence_missing_credential_emits_no_credential_copy(monkeypatch) -> None:
+    # No patch of the confluence probe: the real connector returns early on a missing credential
+    # (no network) with the verbatim no-credential copy, proving the runner passes auth through.
+    monkeypatch.setattr(
+        runner, "run_github_pr_probe", lambda **kw: _empty_doc(kw["request_context"])
+    )
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        confluence_base_url="https://example.atlassian.net",
+        confluence_space_key="DEV",
+        atlassian_auth=None,
+    )
+
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    status = _status_for_source(documents, "confluence_pages")
+    assert status.status == "unavailable"
+    assert status.safe_user_message == (
+        "Confluence is configured but no Atlassian credential was found. Set ATLASSIAN_EMAIL "
+        "and ATLASSIAN_API_TOKEN (or ATLASSIAN_API_TOKEN_FILE)."
+    )
+
+
+def test_confluence_absent_config_adds_no_confluence_document(monkeypatch) -> None:
+    _record_calls(monkeypatch)
+    inputs = WorkStartInputs(repo="teamctx/teamctx", paths=("src/x.py",))
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+    source_ids = {s.source_id for d in documents for s in d.source_statuses}
+    assert "confluence_pages" not in source_ids
+
+
+def _request_ctx() -> RequestContext:
+    return build_request_context(
+        WorkStartInputs(repo="acme/widgets", paths=("src/x.py",)), observed_at=OBSERVED
+    )
+
+
+def _local_docs_fresh(request_context: RequestContext) -> CoreContractDocument:
+    return normalize_superseded_docs(
+        request_context, [], observed_at=OBSERVED, source_id="docs_supersession"
+    )
+
+
+def test_local_fresh_confluence_stale_docs_family_never_complete_green() -> None:
+    # Two docs sources compose under the worst-status rule: local docs fresh but Confluence stale
+    # means the docs family can never read complete-green (honest "couldn't fully check").
+    request_context = _request_ctx()
+    confluence_stale = normalize_superseded_docs(
+        request_context,
+        [],
+        observed_at=OBSERVED,
+        source_id="confluence_pages",
+        coverage_truncated=True,
+        truncated_user_message="A page's supersession marker couldn't be read; the docs scan is "
+        "not complete.",
+    )
+    answer = broker_answer_from_documents(
+        request_context, [_local_docs_fresh(request_context), confluence_stale]
+    )
+    assert dict(answer.verdicts)["Docs check"] == Valuation("unknown", "incomplete[stale-dep]")
+
+
+def test_local_fresh_confluence_fresh_docs_family_complete() -> None:
+    request_context = _request_ctx()
+    confluence_fresh = normalize_superseded_docs(
+        request_context,
+        [
+            SupersededDoc(
+                repo=request_context.repo,
+                doc="Rounding Policy",
+                superseded_by="docs/new.md",
+                url="https://example.atlassian.net/wiki/spaces/DEV/pages/42/Rounding",
+            )
+        ],
+        observed_at=OBSERVED,
+        source_id="confluence_pages",
+    )
+    answer = broker_answer_from_documents(
+        request_context, [_local_docs_fresh(request_context), confluence_fresh]
+    )
+    # A superseded Confluence page fires the docs card, so the universal is refuted (false), but
+    # the family is complete: both docs sources scanned to the end.
+    assert dict(answer.verdicts)["Docs check"] == Valuation("false")
+
+
+def test_confluence_only_docs_config_emits_no_local_disabled_note(monkeypatch) -> None:
+    # An unset docs_root beside a configured Confluence space is NOT a coverage gap: the
+    # disabled entry would poison the family (disabled+fresh -> stale-dep) and read a clean
+    # Confluence scan as unreachable.
+    _record_calls(monkeypatch)
+
+    def fake_confluence(*, request_context, observed_at, **kwargs):  # type: ignore[no-untyped-def]
+        from teamctx.connectors._contract import source_status
+        doc = _empty_doc(request_context)
+        doc.source_statuses.append(source_status(
+            source_id="confluence_pages", source_family="docs",
+            scope={"repo": request_context.repo}, status="fresh", observed_at=observed_at,
+            safe_user_message="Docs supersession metadata refreshed.", visibility="silent",
+            policy_reason="status only",
+        ))
+        return doc
+
+    monkeypatch.setattr(runner, "run_confluence_docs_probe", fake_confluence)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx", paths=("src/x.py",),
+        confluence_base_url="https://x.example", confluence_space_key="TS",
+        atlassian_auth=("e@x", "t"),
+    )
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+    docs_statuses = [
+        s for d in documents for s in d.source_statuses if s.source_family == "docs"
+    ]
+    assert docs_statuses, "the docs family must not be empty when Confluence is configured"
+    assert all(s.source_id != "docs_supersession" or s.status != "disabled" for s in docs_statuses)

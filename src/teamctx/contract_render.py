@@ -325,7 +325,7 @@ def _couldnt_check_line(assessment: WorkStartAssessment, forge: str) -> str:
     # surfaced here too. Honest-UNKNOWN is never silently dropped.
     in_bullets = assessment.kind == "cant_verify"
     gaps = [
-        check_unreachable_copy(s.check, forge)
+        _unreachable_gap_copy(s, forge)
         for s in assessment.checks
         if s.status == "unreachable"
         and not (in_bullets and s.check in IMPORTANT_CHECKS)
@@ -333,6 +333,27 @@ def _couldnt_check_line(assessment: WorkStartAssessment, forge: str) -> str:
     if not gaps:
         return ""
     return "  Couldn't check: " + "; ".join(gaps) + "."
+
+
+# The docs family can fail in two very different places AND in two very different ways; the
+# parenthetical must name both truthfully: a Confluence budget hit or property-read failure was
+# REACHED but not exhausted ("couldn't fully check"), while an unavailable space was not.
+_DOCS_FAILURE_COPY = {
+    ("docs_supersession", "unavailable"): "couldn't read the local docs folder",
+    ("docs_supersession", "stale"): "couldn't fully check the local docs folder",
+    ("confluence_pages", "unavailable"): "couldn't reach Confluence",
+    ("confluence_pages", "stale"): "couldn't fully check Confluence",
+}
+
+
+def _unreachable_gap_copy(state: CheckState, forge: str) -> str:
+    if state.check == "docs" and state.failing_sources:
+        reasons = [
+            _DOCS_FAILURE_COPY[pair] for pair in state.failing_sources if pair in _DOCS_FAILURE_COPY
+        ]
+        if reasons:
+            return "the docs you rely on (" + "; ".join(reasons) + ")"
+    return check_unreachable_copy(state.check, forge)
 
 
 def _partially_checked_line(assessment: WorkStartAssessment) -> str:
@@ -482,8 +503,11 @@ def render_open_source(card: ContextCard, open_targets: tuple[SourceOpenTarget, 
         if isinstance(url, str):
             lines.append(f"  open {url}")
     elif card.reason_code.startswith("doc"):
+        url = card.scope.get("url")
         doc = card.scope.get("doc")
-        if isinstance(doc, str):
+        if isinstance(url, str) and url:
+            lines.append(f"  open {url}")
+        elif isinstance(doc, str):
             lines.append(f"  open {doc}")
 
     availability = open_target.body_availability if open_target is not None else card.source_body

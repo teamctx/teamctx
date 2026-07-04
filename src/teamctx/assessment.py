@@ -36,6 +36,7 @@ class CheckState:
     status: CheckStatus
     cards: tuple[ContextCard, ...]
     note: str | None = None
+    failing_sources: tuple[tuple[str, str], ...] = ()  # when unreachable: (source_id, status)
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,7 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
         "conflict": [], "criteria": [], "docs": [], "gate": []
     }
     coverage_notes = _coverage_notes_by_family_and_status(answer)
+    failing_by_family = _failing_source_ids_by_family(answer)
     findings: list[ContextCard] = []
     for card in answer.selection.cards:
         check = _check_of_card(card)
@@ -90,6 +92,11 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
                 status=status,
                 cards=tuple(cards_by_check[check]),
                 note=_note_for(check, status, coverage_notes),
+                failing_sources=(
+                    failing_by_family.get(CHECK_DEPS_FAMILY[check], ())
+                    if status == "unreachable"
+                    else ()
+                ),
             )
         )
 
@@ -114,6 +121,20 @@ def _coverage_notes_by_family_and_status(
         if entry.status in {"disabled", "unbounded"} and entry.note:
             notes.setdefault((entry.source_family, entry.status), []).append(entry.note)
     return {key: tuple(values) for key, values in notes.items()}
+
+
+def _failing_source_ids_by_family(
+    answer: BrokerAnswer,
+) -> dict[str, tuple[tuple[str, str], ...]]:
+    """(source_id, status) pairs whose unhealthy status made a family unreachable, so the render
+    can name WHICH source failed and HOW (a Confluence budget hit is "couldn't fully check",
+    never "couldn't reach"; a local-folder failure never wears Confluence copy)."""
+
+    failing: dict[str, list[tuple[str, str]]] = {}
+    for entry in answer.selection.coverage.entries:
+        if entry.status in {"stale", "unavailable", "blocked"}:
+            failing.setdefault(entry.source_family, []).append((entry.source_id, entry.status))
+    return {family: tuple(pairs) for family, pairs in failing.items()}
 
 
 def _note_for(
