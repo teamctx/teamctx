@@ -223,7 +223,7 @@
   <div class="wrap">
     <div class="kicker">What it checks</div>
     <h2>Four checks before the first edit.</h2>
-    <p class="lead-p">Run it at the start of a task, on a new branch or a resumed session. teamctx reads metadata from the systems of record your team already uses and reports four things.</p>
+    <p class="lead-p">At the start of a task, on a new branch or a resumed session, teamctx reads metadata from the systems of record your team already uses and surfaces four things on its own.</p>
     <div class="checks">
       <div class="check">
         <div class="num">01</div>
@@ -261,16 +261,16 @@
 <section id="run">
   <div class="wrap">
     <div class="kicker">At work-start</div>
-    <h2>What a run looks like.</h2>
-    <p class="lead-p">One command at the start of a task. The output is rendered straight from the record. The samples below are real output from the pipeline.</p>
+    <h2>What you see before the first edit.</h2>
+    <p class="lead-p">After a one-time <code>teamctx onboard</code>, this check runs by itself: a hook fires it the first time you or your coding agent edit a file in a session, and agents can call the same check over MCP. Nobody types a command before an edit. The output is rendered straight from the record; the samples below are real output from the pipeline.</p>
 
     <div class="run">
       <div class="cap">
         <h3>A clear result is itemized</h3>
         <p>When nothing is in the way, the output <b>lists every check that ran</b>. Each line is something teamctx actually looked at, so a clear result is something you can rely on.</p>
       </div>
-      <div class="term" role="img" aria-label="teamctx work-start output showing a clear result that lists every check that ran">
-        <div class="bar"><i></i><i></i><i></i><span>teamctx work-start --path src/auth/token.py</span></div>
+      <div class="term" role="img" aria-label="teamctx context appearing before an edit: a clear result that lists every check that ran">
+        <div class="bar"><i></i><i></i><i></i><span>teamctx, before the session's first edit to src/auth/token.py</span></div>
 <pre><span class="c-ok">Looks clear to start.</span>
   Checked: no other open PRs touch your files; the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.</pre>
       </div>
@@ -281,8 +281,8 @@
         <h3>A finding comes with the next step</h3>
         <p>When something needs handling, you get the finding and <b>the exact command to look at it</b>, followed by the checks that came back clean.</p>
       </div>
-      <div class="term" role="img" aria-label="teamctx work-start output flagging an open pull request that changed the same file, with a gh pr view command">
-        <div class="bar"><i></i><i></i><i></i><span>teamctx work-start --path src/auth/token.py</span></div>
+      <div class="term" role="img" aria-label="teamctx context appearing before an edit: an open pull request changed the same file">
+        <div class="bar"><i></i><i></i><i></i><span>teamctx, before the session's first edit to src/auth/token.py</span></div>
 <pre><span class="c-act">Before you start, here is what to handle first:</span>
   • Open PR #7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 7 --repo acme/widgets)
   Also checked: the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.</pre>
@@ -294,8 +294,8 @@
         <h3>It says where it could not look</h3>
         <p>When teamctx cannot reach a source, it names the check it <b>could not run, why, and how to turn it on</b>. A gap in coverage is reported plainly and never hidden behind a clear result.</p>
       </div>
-      <div class="term" role="img" aria-label="teamctx work-start output reporting that it could not reach GitHub and which checks were not run">
-        <div class="bar"><i></i><i></i><i></i><span>teamctx work-start --path src/auth/token.py</span></div>
+      <div class="term" role="img" aria-label="teamctx context appearing before an edit: it could not reach GitHub and says which checks were not run">
+        <div class="bar"><i></i><i></i><i></i><span>teamctx, before the session's first edit to src/auth/token.py</span></div>
 <pre><span class="c-warn">Heads up: I can't confirm the important things yet:</span>
   • Open PRs and failing checks: teamctx couldn't reach GitHub. Either it has no access yet (set GITHUB_TOKEN, or GITHUB_TOKEN_FILE with a path to a token file) or it's a temporary connection issue. Until it's back you won't see colliding PRs or red CI on your files.
   Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).</pre>
@@ -307,8 +307,8 @@
         <h3>Your own PR is not a collision</h3>
         <p>The open PR for the branch you are standing on is <b>set aside with an FYI</b> instead of being flagged against you, so the tool does not cry wolf on your own work.</p>
       </div>
-      <div class="term" role="img" aria-label="teamctx work-start output where the only overlapping pull request is your own branch's PR, shown as an FYI">
-        <div class="bar"><i></i><i></i><i></i><span>teamctx work-start --path src/auth/token.py</span></div>
+      <div class="term" role="img" aria-label="teamctx context appearing before an edit: the only overlapping pull request is your own, shown as an FYI">
+        <div class="bar"><i></i><i></i><i></i><span>teamctx, before the session's first edit to src/auth/token.py</span></div>
 <pre><span class="c-ok">Looks clear to start.</span>
   Checked: no other open PRs touch your files; the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.
   <span class="c-fyi">FYI: Your own open PR #12 for this branch touches these files; not flagged as a collision.</span></pre>
@@ -347,11 +347,11 @@
       </div>
       <div class="guar">
         <h3>Source-backed evidence</h3>
-        <p>Every finding carries a handle you can open in the original system. <b>Drill into one with <code style="font-family:var(--mono)">teamctx why</code></b> or open the source directly, down to the pull request, issue, gate, or page.</p>
+        <p><b>Every finding traces back to its source.</b> Each one carries a handle that opens the original record, down to the pull request, issue, gate, or page, so anything teamctx surfaces can be checked against the system it came from.</p>
       </div>
       <div class="guar">
         <h3>Same inputs, same result</h3>
-        <p>Run it again on the same inputs and the verdict is identical. <b>The result reproduces from a digest of what went in</b>, which makes it something you can replay and audit.</p>
+        <p>Given the same inputs, the verdict is identical every time. <b>The result reproduces from a digest of what went in</b>, which makes it something you can replay and audit.</p>
       </div>
       <div class="guar">
         <h3>Honest about coverage</h3>
@@ -382,8 +382,8 @@
 <section id="quickstart" class="qs">
   <div class="wrap">
     <div class="kicker">Quickstart</div>
-    <h2>Install from source and run it.</h2>
-    <p class="lead-p">teamctx is pre-release. Install from source, set it up once, then run it before you edit.</p>
+    <h2>Set it up once. Then it just appears.</h2>
+    <p class="lead-p">teamctx is pre-release. Install from source and set it up once. That is the last command anyone runs: from then on, team context is ambient. It shows up on its own, before the work starts.</p>
     <div class="term">
       <div class="bar"><i></i><i></i><i></i><span>bash</span></div>
 <pre><span class="prompt">$</span> git clone https://github.com/teamctx/teamctx
@@ -394,10 +394,10 @@
 <span class="cmt"># installs the Claude Code reflex hook, and reports your credential</span>
 <span class="prompt">$</span> teamctx onboard
 
-<span class="cmt"># before you edit a file</span>
-<span class="prompt">$</span> teamctx work-start --path src/auth/token.py</pre>
+<span class="cmt"># that's it. you never run another command: from now on, team context</span>
+<span class="cmt"># appears by itself before the first edit of every session.</span></pre>
     </div>
-    <p class="more"><b>Make it automatic.</b> <code>teamctx onboard</code> installs an opt-in Claude Code hook that runs the check the first time you edit a file in a session. The hook never blocks the edit; it surfaces what is happening around the file you are about to touch. Any agent can also call the <code>work_start</code> tool over MCP through <code>teamctx-mcp</code>, so credentials stay on the server side.</p>
+    <p class="more"><b>It runs by itself.</b> The hook <code>teamctx onboard</code> installs is opt-in and fires the check the first time you edit a file in a session. It never blocks the edit; it surfaces what is happening around the file you are about to touch. Any agent can also call the <code>work_start</code> tool over MCP through <code>teamctx-mcp</code>, so credentials stay on the server side.</p>
   </div>
 </section>
 
