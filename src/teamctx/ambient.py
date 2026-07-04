@@ -71,6 +71,70 @@ class BaselineMaterial:
     checks: tuple[CheckMaterial, ...] = ()
 
 
+DeltaDirection = Literal["appear", "disappear", "transition", "coverage_shrank"]
+
+
+@dataclass(frozen=True)
+class Delta:
+    """One thing that changed since the session's baseline for this key. ``identity`` carries the
+    finding for appear/disappear (and is a sentinel for the whole-check transition/shrank, which the
+    render reads off the current world). ``note`` carries a coverage-shrank reason."""
+
+    direction: DeltaDirection
+    check: str
+    identity: FindingMaterial
+    note: str | None = None
+
+
+# A check is "verifiable" when it reached a real answer, a "gap" when it could not be confirmed.
+_VERIFIED_STATUSES: frozenset[str] = frozenset({"clear", "found"})
+_GAP_STATUSES: frozenset[str] = frozenset({"unreachable", "pending", "unbounded"})
+
+
+def compute_deltas(old: BaselineMaterial | None, new: BaselineMaterial) -> tuple[Delta, ...]:
+    """What changed from ``old`` to ``new``, per check, as ordered ``Delta`` records.
+
+    Last-value semantics by construction: the baseline holds only the last observed material, so a
+    finding that leaves and returns diffs as a disappearance and then a fresh appearance (the
+    reopened-PR re-speak). No baseline (first grounding) yields no deltas: nothing has changed since
+    a start that just happened."""
+
+    if old is None:
+        return ()
+    old_by_check = {check.check: check for check in old.checks}
+    deltas: list[Delta] = []
+    for new_check in new.checks:
+        old_check = old_by_check.get(new_check.check) or CheckMaterial(
+            check=new_check.check, status=""
+        )
+        deltas.extend(_check_deltas(old_check, new_check))
+    return tuple(deltas)
+
+
+def _check_deltas(old: CheckMaterial, new: CheckMaterial) -> tuple[Delta, ...]:
+    if old.status in _GAP_STATUSES and new.status in _VERIFIED_STATUSES:
+        # a gap closed: the source is back. The render reads the current world for the clear phrase
+        # or the finding line, so the whole-check transition is one voice (no separate appear).
+        return (Delta("transition", new.check, _sentinel_identity(new.check)),)
+    if old.status in _VERIFIED_STATUSES and new.status == "unreachable":
+        # coverage shrank: what could be verified no longer can.
+        return (Delta("coverage_shrank", new.check, _sentinel_identity(new.check), note=new.note),)
+    old_by_key = {finding.key: finding for finding in old.findings}
+    new_by_key = {finding.key: finding for finding in new.findings}
+    deltas: list[Delta] = []
+    for key, finding in new_by_key.items():
+        if key not in old_by_key:
+            deltas.append(Delta("appear", new.check, finding))
+    for key, finding in old_by_key.items():
+        if key not in new_by_key:
+            deltas.append(Delta("disappear", new.check, finding))
+    return tuple(deltas)
+
+
+def _sentinel_identity(check: str) -> FindingMaterial:
+    return FindingMaterial(key=f"{check}:__source__")
+
+
 @dataclass(frozen=True)
 class Baseline:
     key: str

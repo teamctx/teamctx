@@ -13,10 +13,12 @@ from teamctx.ambient import (
     Baseline,
     BaselineMaterial,
     CheckMaterial,
+    Delta,
     FindingMaterial,
     ambient_interval_seconds,
     ambient_state_dir,
     compute_baseline_material,
+    compute_deltas,
     compute_key,
     decide,
     finding_key,
@@ -207,6 +209,89 @@ def test_finding_key_is_stable_per_check_identity_field() -> None:
     assert finding_key("criteria", {"issue": "#12"}) == "criteria:#12"
     assert finding_key("docs", {"doc": "spec.md"}) == "docs:spec.md"
     assert finding_key("gate", {"gate": "build"}) == "gate:build"
+
+
+def _pr(number: int, paths: tuple[str, ...] = ("src/app.py",)) -> FindingMaterial:
+    return FindingMaterial(
+        key=f"conflict:{number}", source_display=f"GitHub PR #{number}", paths=paths
+    )
+
+
+def _check(check: str, status: str, *findings: FindingMaterial, note: str | None = None) -> (
+    CheckMaterial
+):
+    return CheckMaterial(check=check, status=status, note=note, findings=findings)
+
+
+def test_no_baseline_yields_no_deltas() -> None:
+    assert compute_deltas(None, BaselineMaterial((_check("conflict", "found", _pr(7)),))) == ()
+
+
+def test_appear_per_check() -> None:
+    conflict = compute_deltas(
+        BaselineMaterial((_check("conflict", "clear"),)),
+        BaselineMaterial((_check("conflict", "found", _pr(7)),)),
+    )
+    assert conflict == (Delta("appear", "conflict", _pr(7)),)
+
+    gate_finding = FindingMaterial(key="gate:build", source_display="CI: build", gate="build")
+    gate = compute_deltas(
+        BaselineMaterial((_check("gate", "clear"),)),
+        BaselineMaterial((_check("gate", "found", gate_finding),)),
+    )
+    assert gate == (Delta("appear", "gate", gate_finding),)
+
+
+def test_disappear_per_check() -> None:
+    result = compute_deltas(
+        BaselineMaterial((_check("conflict", "found", _pr(7)),)),
+        BaselineMaterial((_check("conflict", "clear"),)),
+    )
+    assert result == (Delta("disappear", "conflict", _pr(7)),)
+
+
+def test_transition_when_a_gap_closes() -> None:
+    result = compute_deltas(
+        BaselineMaterial((_check("gate", "unreachable"),)),
+        BaselineMaterial((_check("gate", "clear"),)),
+    )
+    assert result == (Delta("transition", "gate", FindingMaterial(key="gate:__source__")),)
+
+
+def test_coverage_shrank_when_verified_becomes_unreachable() -> None:
+    result = compute_deltas(
+        BaselineMaterial((_check("conflict", "clear"),)),
+        BaselineMaterial((_check("conflict", "unreachable", note="couldn't reach GitHub"),)),
+    )
+    assert result == (
+        Delta(
+            "coverage_shrank",
+            "conflict",
+            FindingMaterial(key="conflict:__source__"),
+            note="couldn't reach GitHub",
+        ),
+    )
+
+
+def test_reopened_pr_re_speaks_as_a_fresh_appearance() -> None:
+    present = BaselineMaterial((_check("conflict", "found", _pr(7)),))
+    absent = BaselineMaterial((_check("conflict", "clear"),))
+
+    assert compute_deltas(present, absent) == (Delta("disappear", "conflict", _pr(7)),)
+    assert compute_deltas(absent, present) == (Delta("appear", "conflict", _pr(7)),)
+
+
+def test_same_finding_across_runs_is_no_delta() -> None:
+    present = BaselineMaterial((_check("conflict", "found", _pr(7)),))
+    assert compute_deltas(present, present) == ()
+
+
+def test_swapped_finding_is_a_disappear_and_an_appear() -> None:
+    result = compute_deltas(
+        BaselineMaterial((_check("conflict", "found", _pr(7)),)),
+        BaselineMaterial((_check("conflict", "found", _pr(8)),)),
+    )
+    assert result == (Delta("appear", "conflict", _pr(8)), Delta("disappear", "conflict", _pr(7)))
 
 
 def test_wrong_shape_or_version_is_none(tmp_path: Path) -> None:
