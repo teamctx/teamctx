@@ -66,12 +66,15 @@ class BrokerAnswer:
     """The broker's complete answer at work-start: the derived selection (cards, certified
     claims, coverage, closure, authority, replay digest) plus one labeled verdict per card
     kind. ``request`` carries the exact request that produced it. ``verdicts`` is ordered to
-    match ``CARD_KINDS``. ``open_targets`` carries every source open target from the composed
-    documents, for use by why/open-source commands."""
+    match ``CARD_KINDS``. ``source_signals`` and ``source_statuses`` carry the composed source
+    facts for ambient content identity. ``open_targets`` carries every source open target from the
+    composed documents, for use by why/open-source commands."""
 
     request: RequestContext
     selection: ContextSelection
     verdicts: tuple[tuple[str, Valuation], ...]
+    source_signals: tuple[SourceSignal, ...] = ()
+    source_statuses: tuple[SourceStatus, ...] = ()
     open_targets: tuple[SourceOpenTarget, ...] = ()
 
 
@@ -87,7 +90,10 @@ def broker_answer(
     universal against the certified claims under the coverage closure, so every consumer
     gets identical cards AND identical verdicts from one code path."""
 
-    selection = select_context(request, signals, statuses, declarations)
+    signal_tuple = tuple(signals)
+    status_tuple = tuple(statuses)
+    declaration_tuple = tuple(declarations)
+    selection = select_context(request, signal_tuple, status_tuple, declaration_tuple)
     verdicts = tuple(
         (
             kind.verdict_label,
@@ -96,7 +102,12 @@ def broker_answer(
         for kind in CARD_KINDS
     )
     return BrokerAnswer(
-        request=request, selection=selection, verdicts=verdicts, open_targets=tuple(open_targets)
+        request=request,
+        selection=selection,
+        verdicts=verdicts,
+        source_signals=signal_tuple,
+        source_statuses=status_tuple,
+        open_targets=tuple(open_targets),
     )
 
 

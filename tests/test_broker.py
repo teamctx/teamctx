@@ -114,14 +114,18 @@ def test_compose_preserves_order() -> None:
 
 
 def test_broker_answer_returns_selection_and_one_verdict_per_kind() -> None:
+    signal = _collision_signal(1)
+    status = _status("github_pr_metadata", "git_hosting")
     request = _request()
     answer = broker_answer(
         request,
-        [_collision_signal(1)],
-        [_status("github_pr_metadata", "git_hosting")],
+        [signal],
+        [status],
     )
     assert isinstance(answer, BrokerAnswer)
     assert answer.request == request
+    assert answer.source_signals == (signal,)
+    assert answer.source_statuses == (status,)
     # one verdict per registered card kind
     assert len(answer.verdicts) == 4
     labels = [label for label, _ in answer.verdicts]

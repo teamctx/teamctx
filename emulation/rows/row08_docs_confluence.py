@@ -98,10 +98,10 @@ def _write_config(repo_root: Path, *, confluence_base_url: str, space_key: str) 
     )
 
 
-def _env(*, github_api_root: str, hook_cache: Path | None = None) -> SubprocessEnv:
+def _env(*, github_api_root: str, ambient_state: Path | None = None) -> SubprocessEnv:
     return SubprocessEnv(
         api_root=github_api_root,
-        hook_cache=hook_cache,
+        ambient_state=ambient_state,
         atlassian_email=_ATLASSIAN_EMAIL,
         atlassian_api_token=_ATLASSIAN_TOKEN,
     )
@@ -229,7 +229,7 @@ def _reflex_sub_row(tmp: Path) -> RowResult:
         hook_context = run_hook(
             pretooluse_event(cwd=repo.root, file_path=_PATH),
             cwd=repo.root,
-            env=_env(github_api_root=gh.api_root, hook_cache=tmp / "hookcache"),
+            env=_env(github_api_root=gh.api_root, ambient_state=tmp / "ambient"),
         )
 
     actual = f"--- profile=reflex work-start ---\n{profile_text}\n--- hook ---\n{hook_context}"

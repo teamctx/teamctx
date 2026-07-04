@@ -4,8 +4,8 @@ Everything here runs against LOCAL tmp git repos and the bundled mock server; no
 touches real GitHub/GitLab/Atlassian. The emulated team is keyed on BRANCH and ORDER-OF-
 OPERATIONS, never author identity (program spec rev 2, P1-1), so one git identity stages every
 role. The synthetic PreToolUse builder emits exactly the fields ``teamctx.hook`` reads, and every
-hook invocation gets a FRESH ``session_id`` plus a fresh hook-cache dir so the once-per-session
-marker never turns a second run into a silent no-op (the spec's hook-driver trap).
+hook invocation gets a FRESH ``session_id`` plus a fresh ambient state dir so a prior row's
+baseline never turns a second run into a silent no-op (the spec's hook-driver trap).
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def _src_root() -> Path:
 
 
 def fresh_session_id() -> str:
-    """A unique session id per hook invocation, so the once-per-session marker never no-ops."""
+    """A unique session id per hook invocation, so baselines never cross row invocations."""
 
     return f"emu-{uuid.uuid4()}"
 
@@ -147,7 +147,7 @@ class SubprocessEnv:
 
     api_root: str | None = None
     token: str = SYNTHETIC_TOKEN
-    hook_cache: Path | None = None
+    ambient_state: Path | None = None
     observed_at: str | None = None
     gitlab_api_root: str | None = None
     gitlab_token: str | None = None
@@ -183,8 +183,9 @@ class SubprocessEnv:
             env["ATLASSIAN_API_TOKEN"] = self.atlassian_api_token
         else:
             env.pop("ATLASSIAN_API_TOKEN", None)
-        if self.hook_cache is not None:
-            env["TEAMCTX_HOOK_CACHE"] = str(self.hook_cache)
+        env.pop("TEAMCTX_HOOK_CACHE", None)
+        if self.ambient_state is not None:
+            env["TEAMCTX_AMBIENT_STATE"] = str(self.ambient_state)
         return env
 
 

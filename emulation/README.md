@@ -79,8 +79,8 @@ a row PASSES when every required block matches and no forbidden literal (for exa
   request branch, criteria keys on timestamps, so ONE token stages every actor role (spec rev 2,
   P1-1).
 - `TEAMCTX_DISABLE_GH_AUTH=1` keeps token resolution deterministic (no `gh` fallback).
-- `TEAMCTX_HOOK_CACHE` is a fresh dir and each hook event carries a fresh `session_id`, so the
-  once-per-session marker never turns a second hook run into a silent no-op.
+- `TEAMCTX_AMBIENT_STATE` is a fresh dir and each hook event carries a fresh `session_id`, so a
+  prior ambient baseline never turns a second hook run into a silent no-op.
 
 ## Live vs offline
 

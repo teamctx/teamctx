@@ -58,7 +58,7 @@ def run_offline() -> RowResult:
     with tempfile.TemporaryDirectory() as raw:
         clone = build_conflict_repo(Path(raw) / "repo").root
         with MockGitHub(conflict_fixtures()) as server:
-            env = SubprocessEnv(api_root=server.api_root, hook_cache=Path(raw) / "hookcache")
+            env = SubprocessEnv(api_root=server.api_root, ambient_state=Path(raw) / "ambient")
             cli = run_cli(["work-start", "--path", CONFLICT_FILE], cwd=clone, env=env)
             mcp_text = _mcp_text(clone, server.api_root)
             event = pretooluse_event(cwd=clone, file_path=CONFLICT_FILE)
