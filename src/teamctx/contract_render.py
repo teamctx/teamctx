@@ -335,20 +335,21 @@ def _couldnt_check_line(assessment: WorkStartAssessment, forge: str) -> str:
     return "  Couldn't check: " + "; ".join(gaps) + "."
 
 
-# The docs family can fail in two very different places; the parenthetical must name the one
-# that actually failed (a Confluence outage must never read "couldn't read the docs folder").
-_DOCS_UNREACHABLE_BY_SOURCE = {
-    "docs_supersession": "couldn't read the local docs folder",
-    "confluence_pages": "couldn't reach Confluence",
+# The docs family can fail in two very different places AND in two very different ways; the
+# parenthetical must name both truthfully: a Confluence budget hit or property-read failure was
+# REACHED but not exhausted ("couldn't fully check"), while an unavailable space was not.
+_DOCS_FAILURE_COPY = {
+    ("docs_supersession", "unavailable"): "couldn't read the local docs folder",
+    ("docs_supersession", "stale"): "couldn't fully check the local docs folder",
+    ("confluence_pages", "unavailable"): "couldn't reach Confluence",
+    ("confluence_pages", "stale"): "couldn't fully check Confluence",
 }
 
 
 def _unreachable_gap_copy(state: CheckState, forge: str) -> str:
-    if state.check == "docs" and state.failing_source_ids:
+    if state.check == "docs" and state.failing_sources:
         reasons = [
-            _DOCS_UNREACHABLE_BY_SOURCE[source_id]
-            for source_id in state.failing_source_ids
-            if source_id in _DOCS_UNREACHABLE_BY_SOURCE
+            _DOCS_FAILURE_COPY[pair] for pair in state.failing_sources if pair in _DOCS_FAILURE_COPY
         ]
         if reasons:
             return "the docs you rely on (" + "; ".join(reasons) + ")"

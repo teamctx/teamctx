@@ -475,8 +475,21 @@ def test_confluence_failure_names_confluence_not_the_local_folder() -> None:
 def test_local_docs_failure_names_the_local_folder() -> None:
     text = render_broker_answer(
         broker_answer(
-            _request(), [], [_fresh("git_hosting"), _docs_status("docs_supersession", "unavailable")]
+            _request(), [],
+            [_fresh("git_hosting"), _docs_status("docs_supersession", "unavailable")],
         )
     )
     assert "couldn't read the local docs folder" in text
+    _no_jargon(text)
+
+
+def test_confluence_budget_hit_reads_couldnt_fully_check_not_couldnt_reach() -> None:
+    # a stale Confluence (budget hit / property failure) was REACHED; the copy must say so
+    text = render_broker_answer(
+        broker_answer(
+            _request(), [], [_fresh("git_hosting"), _docs_status("confluence_pages", "stale")]
+        )
+    )
+    assert "couldn't fully check Confluence" in text
+    assert "couldn't reach Confluence" not in text
     _no_jargon(text)

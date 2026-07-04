@@ -699,6 +699,19 @@ def test_confluence_only_docs_config_emits_no_local_disabled_note(monkeypatch) -
     # disabled entry would poison the family (disabled+fresh -> stale-dep) and read a clean
     # Confluence scan as unreachable.
     _record_calls(monkeypatch)
+
+    def fake_confluence(*, request_context, observed_at, **kwargs):  # type: ignore[no-untyped-def]
+        from teamctx.connectors._contract import source_status
+        doc = _empty_doc(request_context)
+        doc.source_statuses.append(source_status(
+            source_id="confluence_pages", source_family="docs",
+            scope={"repo": request_context.repo}, status="fresh", observed_at=observed_at,
+            safe_user_message="Docs supersession metadata refreshed.", visibility="silent",
+            policy_reason="status only",
+        ))
+        return doc
+
+    monkeypatch.setattr(runner, "run_confluence_docs_probe", fake_confluence)
     inputs = WorkStartInputs(
         repo="teamctx/teamctx", paths=("src/x.py",),
         confluence_base_url="https://x.example", confluence_space_key="TS",
@@ -708,4 +721,5 @@ def test_confluence_only_docs_config_emits_no_local_disabled_note(monkeypatch) -
     docs_statuses = [
         s for d in documents for s in d.source_statuses if s.source_family == "docs"
     ]
+    assert docs_statuses, "the docs family must not be empty when Confluence is configured"
     assert all(s.source_id != "docs_supersession" or s.status != "disabled" for s in docs_statuses)
