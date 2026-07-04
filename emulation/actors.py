@@ -256,6 +256,31 @@ def run_hook(event: Mapping[str, object], *, cwd: Path, env: SubprocessEnv) -> s
     return context if isinstance(context, str) else ""
 
 
+@dataclass(frozen=True)
+class PersistentAmbientActor:
+    """A hook actor whose session id and ambient state survive across invocations."""
+
+    state_dir: Path
+    session_id: str = field(default_factory=fresh_session_id)
+
+    def env(self, **overrides: object) -> SubprocessEnv:
+        return SubprocessEnv(ambient_state=self.state_dir, **overrides)
+
+    def pretooluse_event(
+        self,
+        *,
+        cwd: Path,
+        file_path: str,
+        tool_name: str = "Edit",
+    ) -> dict[str, object]:
+        return pretooluse_event(
+            cwd=cwd,
+            file_path=file_path,
+            session_id=self.session_id,
+            tool_name=tool_name,
+        )
+
+
 @dataclass
 class ClaudeConfig:
     """Placeholder for the agent-driven rows (spec's Actor B with an Opus subagent). The offline

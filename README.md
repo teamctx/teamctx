@@ -190,7 +190,7 @@ touch.
 ## How the claims are proven
 
 Two layers back the behavior above. An offline emulation harness (`emulation/`) drives the real
-CLI, hook, and MCP tool through a twelve-row scenario matrix against bundled mock GitHub, GitLab,
+CLI, hook, and MCP tool through a sixteen-row scenario matrix against bundled mock GitHub, GitLab,
 Jira, and Confluence servers; anyone can run it with `python emulation/runner.py --offline --all`,
 and each expected block quotes the real renderer. On top of that, a live multi-actor run against
 real GitHub, GitLab, Jira, and Confluence is committed as evidence at
