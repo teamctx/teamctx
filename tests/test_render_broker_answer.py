@@ -47,6 +47,29 @@ def _criteria_signal() -> SourceSignal:
     )
 
 
+def _gate_signal(gate_name: str = "build") -> SourceSignal:
+    return SourceSignal(
+        schema_version="teamctx.source_signal.v0",
+        id=f"sig_missed_gate_{gate_name}_0",
+        signal_type="missed_gate",
+        source_family="ci_deploy",
+        scope={
+            "repo": "acme/widgets",
+            "gate": gate_name,
+            "url": "https://github.com/acme/widgets/actions/runs/1",
+        },
+        evidence_summary=f"Check '{gate_name}' is failing on this branch.",
+        source_display=f"CI: {gate_name}",
+        freshness="fresh",
+        confidence="high",
+        visibility="visible",
+        created_at="2026-06-28T00:00:00Z",
+        observed_at="2026-06-28T00:00:00Z",
+        expires_at="next_refresh",
+        policy=metadata_only_policy("ci gate status is evidence"),
+    )
+
+
 def _fresh(family: str) -> SourceStatus:
     return source_status(
         source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
@@ -369,6 +392,19 @@ def test_no_authority_section_without_declarations() -> None:
     assert "Authority" not in text
 
 
+def test_red_gate_with_empty_paths_keeps_gate_finding_copy() -> None:
+    text = render_broker_answer(
+        broker_answer(_request(paths=()), [_gate_signal("build")], [_fresh("ci_deploy")])
+    )
+    assert text.startswith("Before you start, here is what to handle first:")
+    assert (
+        "Check 'build' is failing on this branch: fix it or wait for a green build "
+        "before relying on it"
+    ) in text
+    assert "no failing checks found" not in text
+    _no_jargon(text)
+
+
 def _pending(family: str) -> SourceStatus:
     return source_status(
         source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
@@ -377,10 +413,10 @@ def _pending(family: str) -> SourceStatus:
     )
 
 
-def _not_applicable(family: str) -> SourceStatus:
+def _not_applicable(family: str, message: str = "") -> SourceStatus:
     return source_status(
         source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
-        status="not_applicable", observed_at="2026-06-28T00:00:00Z", safe_user_message="n/a",
+        status="not_applicable", observed_at="2026-06-28T00:00:00Z", safe_user_message=message,
         visibility="silent", policy_reason="status only",
     )
 

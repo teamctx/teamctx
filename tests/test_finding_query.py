@@ -118,7 +118,7 @@ def _criteria_signal(issue: str) -> SourceSignal:
     )
 
 
-def _gate_signal(gate_name: str, files: list[str]) -> SourceSignal:
+def _gate_signal(gate_name: str) -> SourceSignal:
     """A missed-gate signal, as gate_status.py produces."""
     return SourceSignal(
         schema_version="teamctx.source_signal.v0",
@@ -129,7 +129,6 @@ def _gate_signal(gate_name: str, files: list[str]) -> SourceSignal:
             "repo": REPO,
             "gate": gate_name,
             "url": "https://github.com/acme/widgets/actions/runs/1",
-            "files": files,
         },
         evidence_summary=f"Check '{gate_name}' is failing on this branch.",
         source_display=f"CI: {gate_name}",
@@ -315,7 +314,7 @@ def test_match_issue_selector_matches_jira_keys_case_insensitively_without_hash(
 
 
 def test_match_gate_selector() -> None:
-    sig = _gate_signal("unit-tests", ["src/app.py"])
+    sig = _gate_signal("unit-tests")
     answer = broker_answer(
         _request(paths=["src/app.py"]),
         [sig],
@@ -360,11 +359,11 @@ def test_no_finding_match_message_mentions_work_start() -> None:
 def test_path_selector_matching_two_findings_raises_ambiguous() -> None:
     shared_file = "src/app.py"
     sig_pr = _collision_signal(pr_number=7, files=[shared_file])
-    sig_gate = _gate_signal("unit-tests", [shared_file])
+    sig_pr_2 = _collision_signal(pr_number=8, files=[shared_file])
     answer = broker_answer(
         _request(paths=[shared_file]),
-        [sig_pr, sig_gate],
-        [_fresh("git_hosting"), _fresh("ci_deploy")],
+        [sig_pr, sig_pr_2],
+        [_fresh("git_hosting")],
     )
     cards = answer.selection.cards
     with pytest.raises(AmbiguousFinding, match="2 findings"):
@@ -374,18 +373,18 @@ def test_path_selector_matching_two_findings_raises_ambiguous() -> None:
 def test_ambiguous_finding_message_names_specific_selectors() -> None:
     shared_file = "src/app.py"
     sig_pr = _collision_signal(pr_number=7, files=[shared_file])
-    sig_gate = _gate_signal("unit-tests", [shared_file])
+    sig_pr_2 = _collision_signal(pr_number=8, files=[shared_file])
     answer = broker_answer(
         _request(paths=[shared_file]),
-        [sig_pr, sig_gate],
-        [_fresh("git_hosting"), _fresh("ci_deploy")],
+        [sig_pr, sig_pr_2],
+        [_fresh("git_hosting")],
     )
     cards = answer.selection.cards
     with pytest.raises(AmbiguousFinding) as exc_info:
         match_finding(cards, parse_selector(f"path:{shared_file}"))
     msg = str(exc_info.value)
     assert "pr:7" in msg
-    assert "gate:unit-tests" in msg
+    assert "pr:8" in msg
 
 
 # ---------------------------------------------------------------------------

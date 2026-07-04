@@ -81,10 +81,7 @@ def run_github_checks_probe(
             observed_at=observed_at,
             safe_user_message=_checks_error_message(exc),
         )
-    gates = [
-        FailingGate(repo=repo, gate_name=name, url=url, files=tuple(request_context.paths))
-        for name, url in fetch.failing
-    ]
+    gates = [FailingGate(repo=repo, gate_name=name, url=url) for name, url in fetch.failing]
     if not gates and not fetch.truncated and fetch.pending:
         # Precedence: found (failing gates) > truncated (stale) > pending. Only emit pending when
         # there is genuinely nothing worse to report.

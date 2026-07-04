@@ -47,6 +47,12 @@ EXPECTED_LABELS: tuple[tuple[str, str], ...] = (
     ("Docs check", "docs"),
     ("Gate check", "gate"),
 )
+EXPECTED_REFUTES_MATCH: dict[tuple[str, str], str] = {
+    ("pr_conflicts_with_path", "no_pr_conflicts_with_paths"): "subject-overlap",
+    ("issue_criteria_changed", "no_criteria_changed_for_issues"): "subject-overlap",
+    ("doc_superseded", "no_superseded_docs"): "repo-wide",
+    ("gate_failed", "all_gates_pass"): "repo-wide",
+}
 
 
 def test_predicate_registry_matches_pin() -> None:
@@ -77,6 +83,15 @@ def test_verdict_label_check_pairs_match_pin() -> None:
     from teamctx.core.kinds import LABEL_CHECK_PAIRS
 
     assert tuple(LABEL_CHECK_PAIRS) == EXPECTED_LABELS
+
+
+def test_refutes_match_modes_match_pin() -> None:
+    from teamctx.core.kinds import CARD_KINDS
+
+    actual = {
+        (kind.card_predicate, kind.query_predicate): kind.refutes_match for kind in CARD_KINDS
+    }
+    assert actual == EXPECTED_REFUTES_MATCH
 
 
 def test_render_copy_has_one_entry_per_card_kind() -> None:

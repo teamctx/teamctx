@@ -30,13 +30,11 @@ _SOURCE_FAMILY: SourceFamily = "ci_deploy"
 
 @dataclass(frozen=True)
 class FailingGate:
-    """A CI gate that is failing. ``files`` are repo-relative POSIX paths the gate
-    covers (v1: the request paths, since the gate is whole-repo)."""
+    """A CI gate that is failing on the current branch."""
 
     repo: str
     gate_name: str
     url: str
-    files: tuple[str, ...]
 
 
 def normalize_failing_gates(
@@ -52,7 +50,6 @@ def normalize_failing_gates(
     for index, gate in enumerate(gates):
         scope: Scope = {
             "repo": gate.repo,
-            "files": list(gate.files),
             "gate": gate.gate_name,
             "url": gate.url,
         }

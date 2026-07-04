@@ -13,6 +13,9 @@ from teamctx.core.evaluate import Valuation
 from teamctx.runner import WorkStartInputs, build_request_context, run_work_start_connectors
 
 OBSERVED = "2026-06-25T12:00:00Z"
+EMPTY_PATH_CONFLICT_NOTE = (
+    "no files in scope yet; open pull requests can't be compared until there are paths"
+)
 
 
 def _empty_doc(request_context: RequestContext) -> CoreContractDocument:
@@ -88,6 +91,48 @@ def test_branch_enables_gate(monkeypatch) -> None:
     inputs = WorkStartInputs(repo="teamctx/teamctx", paths=("src/x.py",), branch="feature")
     run_work_start_connectors(inputs, observed_at=OBSERVED)
     assert called == ["collision", "gate"]
+
+
+def test_empty_paths_skip_github_collision_probe_and_mark_conflict_not_applicable(
+    monkeypatch,
+) -> None:
+    def fail_collision(**kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"collision probe should not run with empty paths: {kwargs}")
+
+    monkeypatch.setattr(runner, "run_github_pr_probe", fail_collision)
+    inputs = WorkStartInputs(repo="teamctx/teamctx", paths=())
+
+    request_context, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+    status = _status_for_source(documents, "github_pr_metadata")
+    answer = broker_answer_from_documents(request_context, documents)
+
+    assert status.source_family == "git_hosting"
+    assert status.status == "not_applicable"
+    assert status.safe_user_message == EMPTY_PATH_CONFLICT_NOTE
+    assert dict(answer.verdicts)["Conflict check"] == Valuation(
+        "unknown", "not_applicable[out-of-scope]"
+    )
+
+
+def test_empty_paths_skip_gitlab_mr_probe_and_mark_conflict_not_applicable(
+    monkeypatch,
+) -> None:
+    def fail_mrs(**kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"MR probe should not run with empty paths: {kwargs}")
+
+    monkeypatch.setattr(runner, "run_gitlab_mr_probe", fail_mrs)
+    inputs = WorkStartInputs(repo="group/sub/project", forge="gitlab", paths=())
+
+    request_context, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+    status = _status_for_source(documents, "gitlab_mr_metadata")
+    answer = broker_answer_from_documents(request_context, documents)
+
+    assert status.source_family == "git_hosting"
+    assert status.status == "not_applicable"
+    assert status.safe_user_message == EMPTY_PATH_CONFLICT_NOTE
+    assert dict(answer.verdicts)["Conflict check"] == Valuation(
+        "unknown", "not_applicable[out-of-scope]"
+    )
 
 
 def test_issues_require_since(monkeypatch) -> None:

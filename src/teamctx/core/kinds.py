@@ -141,14 +141,12 @@ def _derive_missed_gate_claim(
 ) -> ClaimCard | None:
     if signal.scope.get("repo") != request.repo:
         return None
-    covered = signal.scope.get("files")
-    covered_list = covered if isinstance(covered, list) else []
-    shared = sorted(set(request.paths) & set(covered_list))
-    if not shared:
+    gate = signal.scope.get("gate")
+    if not isinstance(gate, str) or not gate:
         return None
     claim = Prop(
         predicate="gate_failed",
-        subject=SubjectRef(repo=request.repo, paths=tuple(shared)),
+        subject=SubjectRef(repo=request.repo, paths=(gate,)),
         args=(signal.id,),
     )
     return ClaimCard(claim=claim, signal=signal)
@@ -250,12 +248,12 @@ def render_doc_superseded_claim(claim_card: ClaimCard) -> ContextCard:
 def render_missed_gate_claim(claim_card: ClaimCard) -> ContextCard:
     """Render a missed-gate claim into a human-plane ``ContextCard``."""
 
-    overlap = ", ".join(claim_card.claim.subject.paths)
+    gate = claim_card.claim.subject.paths[0]
     return _render_claim_card(
         claim_card,
         section="Needs attention",
-        why_this_matters=f"a check is failing on files you are changing: {overlap}.",
-        reason=f"a check is failing on {overlap}",
+        why_this_matters=f"a check is failing on this branch: {gate}.",
+        reason=f"a check is failing on this branch: {gate}",
         reason_code="gate.failed",
     )
 
@@ -336,7 +334,7 @@ CARD_KINDS: tuple[CardKind, ...] = (
         reason_prefix="gate",
         deps_family="ci_deploy",
         severity_base=0.7,
-        refutes_match="subject-overlap",
+        refutes_match="repo-wide",
         derive=_derive_missed_gate_claim,
         query=all_gates_pass_query,
         render=render_missed_gate_claim,
@@ -364,9 +362,9 @@ PREDICATE_REGISTRY: dict[str, PropShape] = _build_predicate_registry()
 
 # Each pair is (card_predicate, query_predicate) mapped to the structural overlap a refutation
 # requires: a card asserting card_predicate REFUTES the universal query_predicate under that
-# match rule. Collision, criteria, and gate use subject-overlap (shared repo + at least one
-# shared item); docs uses repo-wide (shared repo alone), because reliance is the whole declared
-# docs set, so a superseded doc anywhere in the repo refutes regardless of the request paths.
+# match rule. Collision and criteria use subject-overlap (shared repo + at least one shared
+# item). Docs and gate use repo-wide (shared repo alone): reliance is the whole declared docs
+# set, and gate status is branch-scoped rather than file-scoped.
 _REFUTES_MATCH: dict[tuple[str, str], RefutesMatch] = {
     (kind.card_predicate, kind.query_predicate): kind.refutes_match for kind in CARD_KINDS
 }

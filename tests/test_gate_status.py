@@ -49,10 +49,9 @@ def _request() -> RequestContext:
     )
 
 
-def test_normalize_emits_missed_gate_signal_with_scope() -> None:
+def test_normalize_emits_branch_scoped_missed_gate_signal() -> None:
     gate = FailingGate(
         repo="teamctx/teamctx", gate_name="pytest", url="https://gh/run/1",
-        files=("src/teamctx/core/select.py",),
     )
     doc = normalize_failing_gates(_request(), [gate], observed_at="2026-06-21T00:00:00Z")
     assert len(doc.source_signals) == 1
@@ -60,7 +59,7 @@ def test_normalize_emits_missed_gate_signal_with_scope() -> None:
     assert sig.signal_type == "missed_gate"
     assert sig.source_family == "ci_deploy"
     assert sig.scope["repo"] == "teamctx/teamctx"
-    assert sig.scope["files"] == ["src/teamctx/core/select.py"]
+    assert "files" not in sig.scope
     assert sig.scope["gate"] == "pytest"
     assert sig.scope["url"] == "https://gh/run/1"
     assert sig.id == "sig_missed_gate_pytest_0"
@@ -86,7 +85,7 @@ def test_parse_failing_check_runs_keeps_only_failing() -> None:
     assert failing == [("pytest", "u1")]
 
 
-def test_probe_uses_injected_opener_and_scopes_to_request_paths() -> None:
+def test_probe_uses_injected_opener_and_emits_branch_scoped_gate() -> None:
     import json
 
     class _Resp:
@@ -112,7 +111,8 @@ def test_probe_uses_injected_opener_and_scopes_to_request_paths() -> None:
     assert len(doc.source_signals) == 1
     sig = doc.source_signals[0]
     assert sig.signal_type == "missed_gate"
-    assert sig.scope["files"] == ["src/teamctx/core/select.py"]
+    assert "files" not in sig.scope
+    assert sig.scope["gate"] == "pytest"
 
 
 def test_probe_without_token_is_unavailable() -> None:
