@@ -82,7 +82,10 @@ def test_project_config_loads_forge_jira_and_confluence_blocks(tmp_path: Path) -
                     "repo": "acme/widgets",
                     "forge": "gitlab",
                     "jira": {"base_url": "https://example.atlassian.net/"},
-                    "confluence": {"base_url": "https://example.atlassian.net/wiki/"},
+                    "confluence": {
+                        "base_url": "https://example.atlassian.net/wiki/",
+                        "space_key": "DEV",
+                    },
                 },
             }
         ),
@@ -97,6 +100,7 @@ def test_project_config_loads_forge_jira_and_confluence_blocks(tmp_path: Path) -
     assert config.work_start.jira.base_url == "https://example.atlassian.net"
     assert config.work_start.confluence is not None
     assert config.work_start.confluence.base_url == "https://example.atlassian.net"
+    assert config.work_start.confluence.space_key == "DEV"
 
 
 def test_project_config_allows_confluence_without_jira(tmp_path: Path) -> None:
@@ -107,7 +111,10 @@ def test_project_config_allows_confluence_without_jira(tmp_path: Path) -> None:
                 "schema_version": "teamctx.project_config.v0",
                 "work_start": {
                     "repo": "acme/widgets",
-                    "confluence": {"base_url": "https://example.atlassian.net/wiki"},
+                    "confluence": {
+                        "base_url": "https://example.atlassian.net/wiki",
+                        "space_key": "DEV",
+                    },
                 },
             }
         ),
@@ -120,6 +127,7 @@ def test_project_config_allows_confluence_without_jira(tmp_path: Path) -> None:
     assert config.work_start.jira is None
     assert config.work_start.confluence is not None
     assert config.work_start.confluence.base_url == "https://example.atlassian.net"
+    assert config.work_start.confluence.space_key == "DEV"
 
 
 def test_build_work_start_project_config_includes_forge() -> None:

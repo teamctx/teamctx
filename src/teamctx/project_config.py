@@ -32,6 +32,7 @@ class JiraConfig(StrictConfigModel):
 
 class ConfluenceConfig(StrictConfigModel):
     base_url: str
+    space_key: str
 
     @field_validator("base_url")
     @classmethod

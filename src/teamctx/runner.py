@@ -16,7 +16,9 @@ from pathlib import Path
 from typing import Literal
 
 from teamctx.connectors._contract import unavailable_document
+from teamctx.connectors.confluence import run_confluence_docs_probe
 from teamctx.connectors.docs import run_docs_supersession_probe
+from teamctx.connectors.docs_supersession import unavailable_docs_document
 from teamctx.connectors.github import run_github_pr_probe
 from teamctx.connectors.github_checks import run_github_checks_probe
 from teamctx.connectors.github_issues import run_github_issues_probe
@@ -55,6 +57,14 @@ _JIRA_HALF_CREDENTIAL = (
     "Jira is configured but only half the Atlassian credential is set; both ATLASSIAN_EMAIL "
     "and ATLASSIAN_API_TOKEN are needed."
 )
+_CONFLUENCE_REFLEX_SKIP = (
+    "Confluence docs are skipped in the quick pre-edit check; run teamctx work-start for the "
+    "full scan."
+)
+_CONFLUENCE_HALF_CREDENTIAL = (
+    "Confluence is configured but only half the Atlassian credential is set; both ATLASSIAN_EMAIL "
+    "and ATLASSIAN_API_TOKEN are needed."
+)
 
 
 @dataclass(frozen=True)
@@ -79,6 +89,8 @@ class WorkStartInputs:
     forge: ForgeProvider = "github"
     profile: Literal["full", "reflex"] = "full"
     jira_base_url: str | None = None
+    confluence_base_url: str | None = None
+    confluence_space_key: str | None = None
     atlassian_auth: tuple[str, str] | None = None
     atlassian_auth_missing_half: bool = False
 
@@ -212,7 +224,57 @@ def run_work_start_connectors(
             )
         )
 
+    if inputs.confluence_base_url is not None and inputs.confluence_space_key is not None:
+        documents.append(
+            _run_confluence_document(
+                inputs,
+                request_context,
+                observed_at,
+                base_url=inputs.confluence_base_url,
+                space_key=inputs.confluence_space_key,
+            )
+        )
+
     return request_context, documents
+
+
+def _run_confluence_document(
+    inputs: WorkStartInputs,
+    request_context: RequestContext,
+    observed_at: str,
+    *,
+    base_url: str,
+    space_key: str,
+) -> CoreContractDocument:
+    """Confluence sits beside local docs in the same ``docs`` family. In the quick reflex profile
+    it is skipped (its remote fetch is too slow for a pre-edit check) and reported as a disabled
+    docs source, so the skip is honest and never reads as a clean scan. A half-set Atlassian
+    credential is named before any fetch; the connector itself names a fully-missing credential."""
+
+    if inputs.profile == "reflex":
+        return _disabled_document(
+            request_context,
+            source_id="confluence_pages",
+            source_family="docs",
+            observed_at=observed_at,
+            safe_user_message=_CONFLUENCE_REFLEX_SKIP,
+        )
+    if inputs.atlassian_auth_missing_half:
+        return unavailable_docs_document(
+            request_context,
+            repo=request_context.repo,
+            observed_at=observed_at,
+            source_id="confluence_pages",
+            status="unavailable",
+            safe_user_message=_CONFLUENCE_HALF_CREDENTIAL,
+        )
+    return run_confluence_docs_probe(
+        base_url=base_url,
+        space_key=space_key,
+        auth=inputs.atlassian_auth,
+        request_context=request_context,
+        observed_at=observed_at,
+    )
 
 
 def _disabled_document(
