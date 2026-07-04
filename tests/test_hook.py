@@ -226,6 +226,73 @@ def test_non_git_dir_fails_safe(monkeypatch, capsys, tmp_path) -> None:
     assert out.strip() == "" or "permissionDecision" not in json.loads(out)["hookSpecificOutput"]
 
 
+def _prompt_payload(root: Path, session_id: str = "ups-1") -> str:
+    return json.dumps({
+        "hook_event_name": "UserPromptSubmit",
+        "cwd": str(root),
+        "session_id": session_id,
+    })
+
+
+def test_user_prompt_submit_grounds_clean_tree_and_emits_file_path_free(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    _init_repo(tmp_path)
+    _state(monkeypatch, tmp_path)
+    import teamctx.connectors.github_checks as ghc
+    from teamctx.connectors.github_checks import CheckRunsFetch
+
+    # clean tree: no paths in scope, so conflict is not-applicable; the gate is still branch-real
+    # and checked against the current branch (A-1 empty-path law).
+    monkeypatch.setattr(
+        ghc, "fetch_failing_check_runs",
+        lambda **kw: CheckRunsFetch(failing=[], truncated=False, pending=False),
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+    out = _run(_prompt_payload(tmp_path), monkeypatch, capsys)
+
+    data = json.loads(out)
+    assert data["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
+    ctx = data["hookSpecificOutput"]["additionalContext"]
+    assert ctx == "teamctx: looks clear to start (no failing checks found)."
+    assert "before you edit" not in ctx and str(tmp_path) not in ctx
+
+
+def test_user_prompt_submit_gate_fires_on_a_red_branch_with_no_paths(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    _init_repo(tmp_path)
+    _state(monkeypatch, tmp_path)
+    import teamctx.connectors.github_checks as ghc
+    from teamctx.connectors.github_checks import CheckRunsFetch
+
+    monkeypatch.setattr(
+        ghc, "fetch_failing_check_runs",
+        lambda **kw: CheckRunsFetch(
+            failing=[("build", "https://github.com/acme/widgets/runs/1")],
+            truncated=False, pending=False,
+        ),
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+    out = _run(_prompt_payload(tmp_path), monkeypatch, capsys)
+
+    ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+    assert "before you start, from the team's current work:" in ctx  # file-path-free heads-up lead
+    assert "build" in ctx
+
+
+def test_unknown_event_is_a_noop(monkeypatch, capsys, tmp_path) -> None:
+    _state(monkeypatch, tmp_path)
+    payload = json.dumps({
+        "hook_event_name": "SessionStart",
+        "cwd": str(tmp_path),
+        "session_id": "s9",
+    })
+    assert _run(payload, monkeypatch, capsys).strip() == ""
+
+
 def test_non_edit_tool_is_noop(monkeypatch, capsys, tmp_path) -> None:
     _state(monkeypatch, tmp_path)
     payload = json.dumps({

@@ -21,10 +21,13 @@ from teamctx.contract_render import (
 from teamctx.core.broker import BrokerAnswer
 
 
-def hook_signal(answer: BrokerAnswer, *, file_path: str, token_present: bool) -> str:
+def hook_signal(answer: BrokerAnswer, *, file_path: str | None, token_present: bool) -> str:
     """One glanceable signal for the injection. The delta lane speaks first and once (a mid-session
     change), then the steady signal for the current world. Empty string = nothing worth saying; a
-    lone delta still speaks, because the delta lane is independent of the steady ready-guard."""
+    lone delta still speaks, because the delta lane is independent of the steady ready-guard.
+
+    ``file_path`` is the edit target for the PreToolUse entry point; it is ``None`` for the
+    UserPromptSubmit grounding, whose copy is deliberately file-path-free."""
 
     a = assess(answer)
     forge = answer.request.forge
@@ -36,7 +39,7 @@ def hook_signal(answer: BrokerAnswer, *, file_path: str, token_present: bool) ->
 
 
 def _steady_signal(
-    a: WorkStartAssessment, file_path: str, token_present: bool, forge: str
+    a: WorkStartAssessment, file_path: str | None, token_present: bool, forge: str
 ) -> str:
     if a.kind == "heads_up":
         return _heads_up(a, file_path, forge)
@@ -74,7 +77,7 @@ def _stale_only(state: CheckState) -> bool:
     return bool(state.failing_sources) and all(st == "stale" for _, st in state.failing_sources)
 
 
-def _heads_up(a: WorkStartAssessment, file_path: str, forge: str) -> str:
+def _heads_up(a: WorkStartAssessment, file_path: str | None, forge: str) -> str:
     keys = appear_suppressed_keys(a.deltas)
     recovered = recovered_found_checks(a.deltas)
     bullets = [
@@ -86,7 +89,12 @@ def _heads_up(a: WorkStartAssessment, file_path: str, forge: str) -> str:
     if not bullets and not gap_notes:
         # every finding was already spoken by a delta line; nothing steady to add here.
         return ""
-    lines = [f"teamctx: before you edit {file_path}, from the team's current work:"]
+    lead = (
+        f"teamctx: before you edit {file_path}, from the team's current work:"
+        if file_path is not None
+        else "teamctx: before you start, from the team's current work:"
+    )
+    lines = [lead]
     lines.extend(bullets)
     lines.extend(gap_notes)
     lines.append(
@@ -172,11 +180,13 @@ def _unbounded_note(state: CheckState, forge: str) -> str:
     ).strip()
 
 
-def _ready(checks: tuple[CheckState, ...], file_path: str, forge: str) -> str:
+def _ready(checks: tuple[CheckState, ...], file_path: str | None, forge: str) -> str:
     clear = [check_hook_clear_copy(s.check, forge) for s in checks if s.status == "clear"]
     if not clear:
         return ""
-    return f"teamctx: looks clear to start on {file_path} ({_join(clear)})."
+    if file_path is not None:
+        return f"teamctx: looks clear to start on {file_path} ({_join(clear)})."
+    return f"teamctx: looks clear to start ({_join(clear)})."
 
 
 def _join(items: list[str]) -> str:

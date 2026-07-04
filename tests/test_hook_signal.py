@@ -205,3 +205,25 @@ def test_hook_skipped_pipeline_never_claims_a_connection_problem() -> None:
     assert msg.rstrip(".") in signal
     assert "couldn't reach" not in signal
     assert "transient connection issue" not in signal
+
+
+def test_file_path_free_ready_copy_for_user_prompt_submit() -> None:
+    answer = broker_answer(_request(), [], [_fresh_status("git_hosting")])
+    assert hook_signal(answer, file_path=None, token_present=True) == (
+        "teamctx: looks clear to start (no other open pull requests touch these files)."
+    )
+
+
+def test_file_path_free_heads_up_lead_for_user_prompt_submit() -> None:
+    answer = broker_answer(_request(), [_collision_signal()], [_fresh_status("git_hosting")])
+    signal = hook_signal(answer, file_path=None, token_present=True)
+    assert signal.splitlines()[0] == "teamctx: before you start, from the team's current work:"
+    assert "before you edit" not in signal
+
+
+def test_pre_tool_use_copy_still_names_the_file() -> None:
+    answer = broker_answer(_request(), [], [_fresh_status("git_hosting")])
+    assert hook_signal(answer, file_path="src/app.py", token_present=True) == (
+        "teamctx: looks clear to start on src/app.py "
+        "(no other open pull requests touch these files)."
+    )

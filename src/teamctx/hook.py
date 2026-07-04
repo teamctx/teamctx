@@ -63,12 +63,13 @@ def _run() -> None:
     if not raw.strip():
         return
     event = json.loads(raw)
-    if event.get("hook_event_name") != "PreToolUse" or event.get("tool_name") not in _EDIT_TOOLS:
+    event_name = event.get("hook_event_name")
+    applicable, file_path = _entry_target(event, event_name)
+    if not applicable:
         return
-    file_path = event.get("tool_input", {}).get("file_path")
     cwd = event.get("cwd")
     session_id = event.get("session_id")
-    if not file_path or not cwd or not session_id:
+    if not cwd or not session_id:
         return
     root = resolve_project_root(start=Path(cwd))
     rel_file, inputs, token_present = _prepare_grounding(root, file_path)
@@ -118,7 +119,32 @@ def _run() -> None:
         project_root=root,
     )
     if should_speak and grounding.text:
-        _emit(grounding.text, "PreToolUse")
+        emit_name: Literal["PreToolUse", "UserPromptSubmit"] = (
+            "UserPromptSubmit" if event_name == "UserPromptSubmit" else "PreToolUse"
+        )
+        _emit(grounding.text, emit_name)
+
+
+def _entry_target(event: object, event_name: object) -> tuple[bool, str | None]:
+    """Resolve the grounding target for the two ambient entry points.
+
+    PreToolUse grounds around the edited file (its path). UserPromptSubmit is the session's first
+    grounding moment: it carries no tool or file, so it grounds around the dirty tree with
+    file-path-free copy (``None`` here). Any other event, or a PreToolUse without an edit target,
+    is a no-op. Returns ``(applicable, file_path)``."""
+
+    if not isinstance(event, dict):
+        return False, None
+    if event_name == "PreToolUse":
+        if event.get("tool_name") not in _EDIT_TOOLS:
+            return False, None
+        file_path = event.get("tool_input", {}).get("file_path")
+        if not file_path:
+            return False, None
+        return True, file_path
+    if event_name == "UserPromptSubmit":
+        return True, None
+    return False, None
 
 
 def _emit(text: str, event_name: Literal["PreToolUse", "UserPromptSubmit"]) -> None:
@@ -146,13 +172,19 @@ def _changed_paths(root: Path) -> list[str]:
     return paths
 
 
-def _prepare_grounding(root: Path, file_path: str) -> tuple[str, WorkStartInputs, bool]:
+def _prepare_grounding(
+    root: Path, file_path: str | None
+) -> tuple[str | None, WorkStartInputs, bool]:
     from teamctx.resolve import resolve_work_start_inputs
     from teamctx.tokens import resolve_github_token, resolve_token
 
-    rel_file = repo_relative_path(root, file_path)
+    # UserPromptSubmit carries no edit target, so it grounds around the dirty tree alone (possibly
+    # empty: A-1 makes that honest, with conflict not-applicable and the gate still branch-real).
+    rel_file = repo_relative_path(root, file_path) if file_path is not None else None
     github_token = resolve_github_token()
-    paths = tuple(dict.fromkeys([rel_file, *_changed_paths(root)]))  # dedup, order-preserving
+    changed = _changed_paths(root)
+    ordered = [rel_file, *changed] if rel_file is not None else list(changed)
+    paths = tuple(dict.fromkeys(ordered))  # dedup, order-preserving
     inputs = replace(
         resolve_work_start_inputs(paths=paths, token=github_token, root=root),
         profile="reflex",
@@ -193,7 +225,7 @@ def _now_seconds() -> float:
 
 def _ground(
     root: Path,
-    file_path: str,
+    file_path: str | None,
     inputs: WorkStartInputs,
     token_present: bool,
     baseline: Baseline | None = None,
