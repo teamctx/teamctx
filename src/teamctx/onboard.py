@@ -41,6 +41,18 @@ from teamctx.tokens import resolve_github_token_with_source
 # without hooks. All four checks, with the two conditional ones stating their conditions.
 CLAUDE_MD_SNIPPET = (
     "## Team context (teamctx)\n"
+    "Team context appears in this repo by itself: before the first file edit of a session, and "
+    "again whenever something relevant changes while you work, teamctx surfaces open pull "
+    "requests touching your files, failing checks on your branch, acceptance criteria that "
+    "changed when an issue is linked from your branch or commits, and superseded docs when a "
+    "docs folder is configured. Factor what appears into your plan and tell your human "
+    "collaborator anything relevant in plain terms so they can decide. If this environment does "
+    "not run hooks, get the same context by running `teamctx work-start` before you edit.\n"
+)
+
+# The first-edit-only ambient body (pre delta engine), kept verbatim for managed migration.
+_SNIPPET_BODY_2026_07_04B = (
+    "## Team context (teamctx)\n"
     "Team context appears in this repo by itself: before the first file edit of a session, "
     "teamctx surfaces open pull requests touching your files, failing checks on your branch, "
     "acceptance criteria that changed when an issue is linked from your branch or commits, and "
@@ -407,7 +419,8 @@ _SNIPPET_START = "<!-- teamctx:start -->"
 _SNIPPET_END = "<!-- teamctx:end -->"
 _SNIPPET_HEADING = "## Team context (teamctx)"
 _KNOWN_BODIES = (
-    CLAUDE_MD_SNIPPET, _SNIPPET_BODY_2026_07_04, _SNIPPET_BODY_2026_07, _LEGACY_SNIPPET_BODY
+    CLAUDE_MD_SNIPPET, _SNIPPET_BODY_2026_07_04B, _SNIPPET_BODY_2026_07_04,
+    _SNIPPET_BODY_2026_07, _LEGACY_SNIPPET_BODY,
 )
 SnippetState = Literal[
     "current", "outdated", "edited", "conflicted_markers", "legacy", "edited_heading", "absent"
@@ -870,13 +883,14 @@ def run_onboard(
     elif not auth_found:
         next_step = (
             f"Set a {_provider_display(effective_onboarder.provider)} credential "
-            "(see the auth line above); after that, team context appears by itself before the "
-            "first edit of a Claude Code session."
+            "(see the auth line above); after that, team context appears by itself: before your "
+            "first edit, and again whenever something changes while you work."
         )
     else:
         next_step = (
-            "You're set. Team context now appears by itself before the first edit of a Claude "
-            "Code session (agents get the same over MCP). To see it right now: "
+            "You're set. Team context now appears by itself: before your first edit, and again "
+            "whenever something changes while you work (agents get the same over MCP). To see "
+            "it right now: "
             "`teamctx work-start --path <a file you're about to edit>`."
         )
     return OnboardResult(ok, tuple(steps), next_step)
@@ -962,8 +976,8 @@ def _status_next_step(
     if not auth_found:
         return f"Set a {_provider_display(provider)} credential (see the credential line above)."
     return (
-        "You're set. Team context appears by itself before the first edit of a Claude Code "
-        "session."
+        "You're set. Team context appears by itself: before your first edit, and again "
+        "whenever something changes while you work."
     )
 
 

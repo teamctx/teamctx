@@ -1038,3 +1038,20 @@ def test_failed_hook_never_makes_the_ambient_promise(tmp_path: Path, monkeypatch
     assert any(s.status == "failed" for s in result.steps)
     assert "Fix the FAILED line above" in result.next_step
     assert "appears by itself" not in result.next_step
+
+
+def test_first_edit_only_snippet_migrates_as_outdated(tmp_path: Path) -> None:
+    # The claims refresh: the first-edit-only ambient body upserts to the continuous one.
+    from teamctx.onboard import (
+        _SNIPPET_BODY_2026_07_04B,
+        classify_claude_md,
+        upsert_claude_md_snippet,
+    )
+
+    marked_old = f"<!-- teamctx:start -->\n{_SNIPPET_BODY_2026_07_04B}<!-- teamctx:end -->\n"
+    (tmp_path / "CLAUDE.md").write_text(marked_old, encoding="utf-8")
+    assert classify_claude_md(marked_old) == "outdated"
+    step = upsert_claude_md_snippet(tmp_path, dry_run=False)
+    assert step.status == "wrote"
+    body = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "again whenever something relevant changes while you work" in body

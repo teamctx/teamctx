@@ -215,8 +215,8 @@ def test_run_status_after_onboard_reports_read_only_twin(
     assert (
         report.next_step
         == (
-            "You're set. Team context appears by itself before the first edit of a Claude "
-            "Code session."
+            "You're set. Team context appears by itself: before your first edit, and again "
+            "whenever something changes while you work."
         )
     )
 
