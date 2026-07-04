@@ -9,6 +9,7 @@ may change while the product is hardened.
 
 ### Added
 
+- The ambient behaviors are proven like everything else: pinned zero-network silence and request budgets in the suite, and four delta scenario rows in the emulation matrix (16 rows total).
 - Mid-session changes are spoken as exactly the change ("since you started: ..."), once, and the session's first prompt now grounds the work before any edit.
 - The pre-edit check is now continuous: it quietly re-checks at an interval (default 90s) and speaks again only when the answer actually changed or a known gap needs re-stating; silence now means "checked, nothing new", never "not looking".
 - Confluence support: pages in a configured space that carry the teamctx.superseded_by property fire the docs check with an openable link, beside local docs in one honest coverage picture.

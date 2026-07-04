@@ -52,6 +52,10 @@ Implemented rows report PASS; a FAIL exits non-zero.
 | 10 | Transports agree (CLI == MCP, hook agrees) | runnable |
 | 11 | Replay (identical observed_at, identical digest) | runnable |
 | 12 | Unbounded at scale (fabricated 300+ PRs, never clear) | runnable |
+| 13 | Delta appears (new overlapping PR speaks once; steady bullet suppressed) | runnable |
+| 14 | Lawful silence (silent only after re-check; digest unchanged, timestamp advanced) | runnable |
+| 15 | Gap honesty (new gap speaks; persisting gap re-speaks after the floor) | runnable |
+| 16 | Reopened PR re-speaks (last-value law, not a seen-set) | runnable |
 
 ## Expected blocks
 
@@ -79,8 +83,10 @@ a row PASSES when every required block matches and no forbidden literal (for exa
   request branch, criteria keys on timestamps, so ONE token stages every actor role (spec rev 2,
   P1-1).
 - `TEAMCTX_DISABLE_GH_AUTH=1` keeps token resolution deterministic (no `gh` fallback).
-- `TEAMCTX_AMBIENT_STATE` is a fresh dir and each hook event carries a fresh `session_id`, so a
-  prior ambient baseline never turns a second hook run into a silent no-op.
+- `TEAMCTX_AMBIENT_STATE` is a fresh dir for each row. Ordinary hook rows use a fresh
+  `session_id` per invocation so a prior baseline never turns a second hook run into a silent
+  no-op; delta rows deliberately reuse one `session_id` and persistent state dir to prove the
+  ambient silence and re-speak laws.
 
 ## Live vs offline
 

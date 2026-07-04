@@ -102,8 +102,11 @@ Pinned design instead:
 silence law and carries its "since X". Re-checks cost a real round-trip and are bounded by
 the A3 interval; GitHub GraphQL (the collision path) has NO conditional-request support, so
 ETags are dropped as a latency mechanism; If-None-Match on the REST checks/issues probes is
-a rate-budget and payload saving only, claimed as exactly that. Latency is measured live or
-with injected RTT, never from a localhost mock.
+a rate-budget and payload saving only, claimed as exactly that. Conditional REST requests
+(If-None-Match) are DEFERRED: GraphQL (the dominant call) cannot use them, the benefit is
+rate-budget only, and ambient worst-case (~360 calls/hour/actor at the 30s floor) sits
+comfortably inside limits; building a response cache now is machinery without a bar to clear.
+Latency is measured live or with injected RTT, never from a localhost mock.
 
 ## Workstream D: the copy law on every surface
 As rev 1; the first slice (snippet receives, next-steps promise appearance, README story

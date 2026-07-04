@@ -40,6 +40,10 @@ from emulation.rows import (  # noqa: E402
     row10_transports_agree,
     row11_replay,
     row12_unbounded,
+    row13_delta_appears,
+    row14_lawful_silence,
+    row15_gap_honesty,
+    row16_reopened_respeak,
 )
 
 # The scenario matrix in program order.
@@ -56,6 +60,10 @@ ROW_MODULES = [
     row10_transports_agree,
     row11_replay,
     row12_unbounded,
+    row13_delta_appears,
+    row14_lawful_silence,
+    row15_gap_honesty,
+    row16_reopened_respeak,
 ]
 
 
