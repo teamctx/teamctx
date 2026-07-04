@@ -203,6 +203,9 @@ def run_work_start_connectors(
 
     documents.extend(_run_issue_tracker_documents(inputs, request_context, observed_at))
 
+    confluence_configured = (
+        inputs.confluence_base_url is not None and inputs.confluence_space_key is not None
+    )
     if inputs.docs_root:
         documents.append(
             run_docs_supersession_probe(
@@ -213,7 +216,12 @@ def run_work_start_connectors(
                 base_dir=project_root,
             )
         )
-    else:
+    elif not confluence_configured:
+        # The no-docs-configured note fires only when NO docs source is declared at all. An
+        # unset docs_root beside a configured Confluence space is not a coverage gap (the team
+        # declared Confluence as its docs source); a disabled entry here would poison the
+        # family under the mixed disabled+fresh rule and read a clean Confluence scan as
+        # unreachable.
         documents.append(
             _disabled_document(
                 request_context,

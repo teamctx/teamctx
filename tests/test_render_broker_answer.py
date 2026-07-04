@@ -450,3 +450,33 @@ def test_nothing_checked_never_reads_clear() -> None:
     assert text.startswith("Nothing checked yet; here's why:")
     assert "Not checked:" in text
     _no_jargon(text)
+
+
+def _docs_status(source_id: str, status: str) -> SourceStatus:
+    return source_status(
+        source_id=source_id, source_family="docs", scope={"repo": "acme/widgets"},
+        status=status, observed_at="2026-06-28T00:00:00Z", safe_user_message="m",
+        visibility="silent", policy_reason="status only",
+    )
+
+
+def test_confluence_failure_names_confluence_not_the_local_folder() -> None:
+    # a failed Confluence scan must never read "couldn't read the docs folder"
+    text = render_broker_answer(
+        broker_answer(
+            _request(), [], [_fresh("git_hosting"), _docs_status("confluence_pages", "unavailable")]
+        )
+    )
+    assert "couldn't reach Confluence" in text
+    assert "couldn't read the docs folder" not in text
+    _no_jargon(text)
+
+
+def test_local_docs_failure_names_the_local_folder() -> None:
+    text = render_broker_answer(
+        broker_answer(
+            _request(), [], [_fresh("git_hosting"), _docs_status("docs_supersession", "unavailable")]
+        )
+    )
+    assert "couldn't read the local docs folder" in text
+    _no_jargon(text)

@@ -325,7 +325,7 @@ def _couldnt_check_line(assessment: WorkStartAssessment, forge: str) -> str:
     # surfaced here too. Honest-UNKNOWN is never silently dropped.
     in_bullets = assessment.kind == "cant_verify"
     gaps = [
-        check_unreachable_copy(s.check, forge)
+        _unreachable_gap_copy(s, forge)
         for s in assessment.checks
         if s.status == "unreachable"
         and not (in_bullets and s.check in IMPORTANT_CHECKS)
@@ -333,6 +333,26 @@ def _couldnt_check_line(assessment: WorkStartAssessment, forge: str) -> str:
     if not gaps:
         return ""
     return "  Couldn't check: " + "; ".join(gaps) + "."
+
+
+# The docs family can fail in two very different places; the parenthetical must name the one
+# that actually failed (a Confluence outage must never read "couldn't read the docs folder").
+_DOCS_UNREACHABLE_BY_SOURCE = {
+    "docs_supersession": "couldn't read the local docs folder",
+    "confluence_pages": "couldn't reach Confluence",
+}
+
+
+def _unreachable_gap_copy(state: CheckState, forge: str) -> str:
+    if state.check == "docs" and state.failing_source_ids:
+        reasons = [
+            _DOCS_UNREACHABLE_BY_SOURCE[source_id]
+            for source_id in state.failing_source_ids
+            if source_id in _DOCS_UNREACHABLE_BY_SOURCE
+        ]
+        if reasons:
+            return "the docs you rely on (" + "; ".join(reasons) + ")"
+    return check_unreachable_copy(state.check, forge)
 
 
 def _partially_checked_line(assessment: WorkStartAssessment) -> str:

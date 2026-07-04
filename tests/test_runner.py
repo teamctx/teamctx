@@ -546,8 +546,9 @@ def test_confluence_configured_full_profile_runs_probe(monkeypatch) -> None:
     assert captured["base_url"] == "https://example.atlassian.net"
     assert captured["space_key"] == "DEV"
     assert captured["auth"] == ("person@example.com", "atlassian-token")
-    # collision + gate-disabled + criteria-disabled + docs-disabled + confluence = 5
-    assert len(documents) == 5
+    # collision + gate-disabled + criteria-disabled + confluence = 4 (NO local-docs disabled
+    # entry when Confluence is the configured docs source; it would poison the family)
+    assert len(documents) == 4
 
 
 def test_confluence_reflex_profile_skips_with_verbatim_note(monkeypatch) -> None:
@@ -691,3 +692,20 @@ def test_local_fresh_confluence_fresh_docs_family_complete() -> None:
     # A superseded Confluence page fires the docs card, so the universal is refuted (false), but
     # the family is complete: both docs sources scanned to the end.
     assert dict(answer.verdicts)["Docs check"] == Valuation("false")
+
+
+def test_confluence_only_docs_config_emits_no_local_disabled_note(monkeypatch) -> None:
+    # An unset docs_root beside a configured Confluence space is NOT a coverage gap: the
+    # disabled entry would poison the family (disabled+fresh -> stale-dep) and read a clean
+    # Confluence scan as unreachable.
+    _record_calls(monkeypatch)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx", paths=("src/x.py",),
+        confluence_base_url="https://x.example", confluence_space_key="TS",
+        atlassian_auth=("e@x", "t"),
+    )
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+    docs_statuses = [
+        s for d in documents for s in d.source_statuses if s.source_family == "docs"
+    ]
+    assert all(s.source_id != "docs_supersession" or s.status != "disabled" for s in docs_statuses)
