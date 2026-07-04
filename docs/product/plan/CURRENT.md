@@ -48,7 +48,7 @@ The CPO set the product frame 2026-07-04: users NEVER run commands; team context
 and appears like magic, or nobody will use it. The committed plan translating that frame into
 workstreams (moments, actors, feel, copy, evidence) is
 **`docs/product/plan/2026-07-04-ambient-magic-plan.md`**: read it FIRST next session; it
-supersedes "what's next" below. Reviewed adversarially (rev 2 pins all 12 findings; the committed-hook idea is formally rejected) and **APPROVED BY EDGAR 2026-07-04 ('approved, keep going')**. In flight: B1 (local-settings hook, codex building) and the Workstream A delta-engine spec (`docs/superpowers/specs/2026-07-04-ambient-delta-engine.md`, in review).
+supersedes "what's next" below. Reviewed adversarially (rev 2 pins all 12 findings; the committed-hook idea is formally rejected) and **APPROVED BY EDGAR 2026-07-04 ('approved, keep going')**. B1 DONE (merged: the reflex installs to settings.local.json, migration surgical and behaviorally verified). In flight: the Workstream A delta-engine spec (`docs/superpowers/specs/2026-07-04-ambient-delta-engine.md`, in review).
 The ambient copy law is also in auto-memory (feedback_teamctx_ambient_never_commands).
 Landing page + README + validation evidence all shipped 2026-07-04 (see below); main clean
 at `93f450b`+.
