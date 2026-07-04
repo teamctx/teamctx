@@ -14,6 +14,7 @@ from typing import Any, cast
 import pytest
 
 from teamctx.core.authority import AuthorityDecl
+from teamctx.core.broker import broker_answer
 from teamctx.core.contracts import (
     CoreContractDocument,
     PolicyDecision,
@@ -523,26 +524,39 @@ def test_doc_superseded_ignores_a_doc_in_another_repo() -> None:
     assert derive_claims(document.request_context, [signal]) == []
 
 
-def test_missed_gate_derives_for_a_failing_gate_on_a_touched_file() -> None:
+def test_missed_gate_derives_for_a_failing_gate_on_unrelated_request_paths() -> None:
     document = load_document()
-    request = document.request_context
+    request = document.request_context.model_copy(update={"paths": ["src/other/unrelated.py"]})
     signal = _typed_signal(
         "missed_gate", "ci_deploy",
-        {"repo": "auth-service", "files": ["src/auth/token.py"]}, "sig_gate_1",
+        {"repo": "auth-service", "gate": "pytest"}, "sig_gate_1",
     )
     claim_cards = derive_claims(request, [signal])
     assert len(claim_cards) == 1
     assert claim_cards[0].claim.predicate == "gate_failed"
+    assert claim_cards[0].claim.subject.paths == ("pytest",)
     assert witnesses(claim_cards[0].claim, all_gates_pass_query(request)) == "refutes"
 
 
-def test_missed_gate_ignores_a_gate_on_other_files() -> None:
+def test_missed_gate_with_empty_request_paths_refutes_gate_check_at_broker_level() -> None:
+    document = load_document()
+    request = document.request_context.model_copy(update={"paths": []})
+    signal = _typed_signal(
+        "missed_gate", "ci_deploy",
+        {"repo": "auth-service", "gate": "pytest"}, "sig_gate_2",
+    )
+    answer = broker_answer(request, [signal], [])
+
+    assert dict(answer.verdicts)["Gate check"] == Valuation("false")
+
+
+def test_missed_gate_ignores_a_gate_in_another_repo() -> None:
     document = load_document()
     signal = _typed_signal(
         "missed_gate",
         "ci_deploy",
-        {"repo": "auth-service", "files": ["src/other/x.py"]},
-        "sig_gate_2",
+        {"repo": "other-service", "gate": "pytest"},
+        "sig_gate_3",
     )
     assert derive_claims(document.request_context, [signal]) == []
 

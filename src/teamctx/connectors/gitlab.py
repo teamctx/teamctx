@@ -206,7 +206,6 @@ def run_gitlab_pipeline_probe(
                         repo=repo,
                         gate_name=name,
                         url=url,
-                        files=tuple(request_context.paths),
                     )
                     for name, url in gates
                 ],
