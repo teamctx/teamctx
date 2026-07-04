@@ -33,11 +33,14 @@ _SOURCE_FAMILY: SourceFamily = "docs"
 class SupersededDoc:
     """A doc that declares it has been superseded, with the doc that replaces it.
 
-    All paths are repo-root-relative POSIX strings."""
+    Local docs use repo-root-relative POSIX strings for ``doc`` and carry no ``url``. A remote
+    docs source (Confluence) sets ``doc`` to the page title and ``url`` to the openable page
+    link, so the render edge can print where to open it."""
 
     repo: str
     doc: str
     superseded_by: str
+    url: str | None = None
 
 
 def normalize_superseded_docs(
@@ -58,6 +61,8 @@ def normalize_superseded_docs(
             "doc": entry.doc,
             "superseded_by": entry.superseded_by,
         }
+        if entry.url:
+            scope["url"] = entry.url
         source_signals.append(
             SourceSignal(
                 schema_version="teamctx.source_signal.v0",

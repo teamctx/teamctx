@@ -482,8 +482,11 @@ def render_open_source(card: ContextCard, open_targets: tuple[SourceOpenTarget, 
         if isinstance(url, str):
             lines.append(f"  open {url}")
     elif card.reason_code.startswith("doc"):
+        url = card.scope.get("url")
         doc = card.scope.get("doc")
-        if isinstance(doc, str):
+        if isinstance(url, str) and url:
+            lines.append(f"  open {url}")
+        elif isinstance(doc, str):
             lines.append(f"  open {doc}")
 
     availability = open_target.body_availability if open_target is not None else card.source_body
