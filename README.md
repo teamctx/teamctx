@@ -36,8 +36,8 @@ Run it before you start editing. From the systems of record your team already us
 Live today, across four sources: GitHub and GitLab forges (open pull requests and merge requests,
 plus check runs and pipelines), GitHub issues and Jira for acceptance criteria, and local docs
 folders and Confluence spaces for superseded docs. This four-source behavior was exercised by a
-live multi-actor emulation, several people and agents working the same repositories through real
-GitHub, GitLab, Jira, and Confluence, with the run and its evidence committed at
+live multi-actor emulation: one operator driving several actor roles, human-style and agent-style,
+through real GitHub, GitLab, Jira, and Confluence, with the run and its evidence committed at
 [docs/validation/team-emulation-2026-07-04/SUMMARY.md](docs/validation/team-emulation-2026-07-04/SUMMARY.md).
 teamctx reads metadata only (it does not read pull request bodies, comments, or patches), speaks
 only to the structured slice it can actually verify, and does no broad search or summaries. A source
@@ -93,8 +93,8 @@ sources on:
     "repo": "acme/widgets",
     "forge": "github",
     "docs_root": "docs",
-    "jira": { "base_url": "https://jira.example.com" },
-    "confluence": { "base_url": "https://wiki.example.com", "space_key": "ENG" }
+    "jira": { "base_url": "https://your-site.atlassian.net" },
+    "confluence": { "base_url": "https://your-site.atlassian.net", "space_key": "ENG" }
   }
 }
 ```
