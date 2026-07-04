@@ -12,17 +12,23 @@ import json
 import os
 import subprocess
 import tempfile
-from collections.abc import Iterable
-from dataclasses import asdict, dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from teamctx import __version__
+
+if TYPE_CHECKING:  # keep the module import-light on the no-op path (P2-2): lazy at runtime
+    from teamctx.core.broker import BrokerAnswer
+    from teamctx.core.contracts import ContextCard
 
 AnswerClass = Literal["GOOD", "GAP-KNOWN", "NONE"]
 Decision = Literal["speak_full", "silent", "recheck_due"]
 
-_STATE_SCHEMA_VERSION = "teamctx.ambient_state.v0"
+# Bumped from v0: a baseline now carries the per-check delta material beside the digest, so any
+# v0 file is a different shape and is read as no-baseline (the corrupt-is-NONE path covers it).
+_STATE_SCHEMA_VERSION = "teamctx.ambient_state.v1"
 _DEFAULT_INTERVAL_SECONDS = 90
 _MIN_INTERVAL_SECONDS = 30
 _RESTATEMENT_FLOOR_SECONDS = 900
@@ -34,12 +40,45 @@ _AMBIENT_IGNORE_STANZA = (
 
 
 @dataclass(frozen=True)
+class FindingMaterial:
+    """One finding's stable identity, captured so a later run can say EXACTLY what appeared or
+    left ("PR #7 appeared, touching src/app.py"). Only source_display and the check-specific
+    identity fields; never evidence prose beyond what a delta line needs."""
+
+    key: str
+    source_display: str = ""
+    paths: tuple[str, ...] = ()
+    gate: str = ""
+    detail: str = ""
+    doc: str = ""
+    superseded_by: str = ""
+
+
+@dataclass(frozen=True)
+class CheckMaterial:
+    """One check's delta material: its current status plus the identities of its findings."""
+
+    check: str
+    status: str
+    note: str | None = None
+    findings: tuple[FindingMaterial, ...] = ()
+
+
+@dataclass(frozen=True)
+class BaselineMaterial:
+    """The delta material for a whole answer: one entry per check, in check order."""
+
+    checks: tuple[CheckMaterial, ...] = ()
+
+
+@dataclass(frozen=True)
 class Baseline:
     key: str
     content_digest: str
     class_of_answer: AnswerClass
     last_network_check_at: float
     last_spoken_at: float
+    material: BaselineMaterial = field(default_factory=BaselineMaterial)
 
 
 def ambient_state_dir(project_root: Path) -> Path:
@@ -155,6 +194,95 @@ def decide(
     return "silent"
 
 
+# The scope field that carries each check's finding identity, so one PR/issue/doc/gate is the
+# SAME finding across runs (a re-appearing PR keeps its identity; last-value dedup rides on this).
+_FINDING_KEY_FIELD: dict[str, str] = {
+    "conflict": "pr_number",
+    "criteria": "issue",
+    "docs": "doc",
+    "gate": "gate",
+}
+
+
+def finding_key(check: str, scope: Mapping[str, Any]) -> str:
+    """The stable identity key for a finding of ``check``, from the same scope field a signal and
+    its card both carry, so the extractor and the bullet suppression agree by construction."""
+
+    key_field = _FINDING_KEY_FIELD.get(check)
+    value = scope.get(key_field) if key_field is not None else None
+    return f"{check}:{value}"
+
+
+def compute_baseline_material(answer: BrokerAnswer) -> BaselineMaterial:
+    """Distill a broker answer into per-check delta material: each check's status and the
+    identities of its current findings. Delta (``changed_since_start``) signals never enter this:
+    it is derived from the assessment, whose kind is the current world (P1-1 keeps silence
+    reachable)."""
+
+    from teamctx.assessment import assess  # lazy: the no-op path must not import the core
+
+    assessment = assess(answer)
+    checks = tuple(
+        CheckMaterial(
+            check=state.check,
+            status=state.status,
+            note=state.note,
+            findings=tuple(_finding_material(state.check, card) for card in state.cards),
+        )
+        for state in assessment.checks
+    )
+    return BaselineMaterial(checks=checks)
+
+
+def _finding_material(check: str, card: ContextCard) -> FindingMaterial:
+    scope = card.scope
+    files = scope.get("files")
+    paths = tuple(str(path) for path in files) if check == "conflict" and isinstance(files, list) \
+        else ()
+    return FindingMaterial(
+        key=finding_key(check, scope),
+        source_display=card.source_display,
+        paths=paths,
+        gate=str(scope.get("gate", "")) if check == "gate" else "",
+        detail=card.text if check == "criteria" else "",
+        doc=str(scope.get("doc", "")) if check == "docs" else "",
+        superseded_by=str(scope.get("superseded_by", "")) if check == "docs" else "",
+    )
+
+
+def _material_from_json(data: Any) -> BaselineMaterial:
+    if not isinstance(data, dict):
+        return BaselineMaterial()
+    checks_raw = data.get("checks")
+    if not isinstance(checks_raw, list):
+        raise ValueError("baseline material: checks must be a list")
+    checks: list[CheckMaterial] = []
+    for check_data in checks_raw:
+        if not isinstance(check_data, dict):
+            raise ValueError("baseline material: each check must be an object")
+        findings = tuple(
+            FindingMaterial(
+                key=str(finding["key"]),
+                source_display=str(finding.get("source_display", "")),
+                paths=tuple(str(path) for path in (finding.get("paths") or ())),
+                gate=str(finding.get("gate", "")),
+                detail=str(finding.get("detail", "")),
+                doc=str(finding.get("doc", "")),
+                superseded_by=str(finding.get("superseded_by", "")),
+            )
+            for finding in check_data.get("findings", [])
+        )
+        checks.append(
+            CheckMaterial(
+                check=str(check_data["check"]),
+                status=str(check_data["status"]),
+                note=check_data.get("note"),
+                findings=findings,
+            )
+        )
+    return BaselineMaterial(checks=tuple(checks))
+
+
 def _read_state(path: Path) -> dict[str, dict[str, Any]] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -182,6 +310,7 @@ def _baseline_from_json(key: str, data: dict[str, Any]) -> Baseline | None:
             class_of_answer=data["class_of_answer"],
             last_network_check_at=float(data["last_network_check_at"]),
             last_spoken_at=float(data["last_spoken_at"]),
+            material=_material_from_json(data.get("material")),
         )
     except (KeyError, TypeError, ValueError):
         return None

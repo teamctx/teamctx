@@ -11,13 +11,21 @@ import pytest
 
 from teamctx.ambient import (
     Baseline,
+    BaselineMaterial,
+    CheckMaterial,
+    FindingMaterial,
     ambient_interval_seconds,
     ambient_state_dir,
+    compute_baseline_material,
     compute_key,
     decide,
+    finding_key,
     load_baseline,
     store_baseline,
 )
+from teamctx.connectors._contract import metadata_only_policy, source_status
+from teamctx.core.broker import broker_answer
+from teamctx.core.contracts import RequestContext, SourceSignal
 
 
 def _baseline(
@@ -27,6 +35,7 @@ def _baseline(
     class_of_answer: str = "GOOD",
     last_network_check_at: float = 1000.0,
     last_spoken_at: float = 1000.0,
+    material: BaselineMaterial | None = None,
 ) -> Baseline:
     return Baseline(
         key=key,
@@ -34,6 +43,7 @@ def _baseline(
         class_of_answer=class_of_answer,
         last_network_check_at=last_network_check_at,
         last_spoken_at=last_spoken_at,
+        material=material if material is not None else BaselineMaterial(),
     )
 
 
@@ -72,6 +82,131 @@ def test_corrupt_state_file_is_none_and_next_store_overwrites(tmp_path: Path) ->
     baseline = _baseline()
     store_baseline(state_dir, "sess-1", baseline, now=1000.0)
     assert load_baseline(state_dir, "sess-1", "key-1") == baseline
+
+
+def test_v0_state_file_reads_as_no_baseline_after_the_schema_bump(tmp_path: Path) -> None:
+    # A well-formed v0 file (the A-2a shape, before delta material) is a different schema and must
+    # read as no-baseline; the next write overwrites it with a v1 file.
+    state_dir = tmp_path / ".teamctx" / "ambient"
+    state_dir.mkdir(parents=True)
+    (state_dir / "sess-1.json").write_text(
+        json.dumps({
+            "schema_version": "teamctx.ambient_state.v0",
+            "session_id": "sess-1",
+            "baselines": {
+                "key-1": {
+                    "key": "key-1",
+                    "content_digest": "digest-1",
+                    "class_of_answer": "GOOD",
+                    "last_network_check_at": 1000.0,
+                    "last_spoken_at": 1000.0,
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    assert load_baseline(state_dir, "sess-1", "key-1") is None
+
+
+def test_material_round_trips_through_store_and_load(tmp_path: Path) -> None:
+    state_dir = tmp_path / ".teamctx" / "ambient"
+    material = BaselineMaterial(
+        checks=(
+            CheckMaterial(
+                check="conflict",
+                status="found",
+                note=None,
+                findings=(
+                    FindingMaterial(
+                        key="conflict:7",
+                        source_display="GitHub PR #7",
+                        paths=("src/app.py",),
+                    ),
+                ),
+            ),
+            CheckMaterial(check="gate", status="unreachable", note="couldn't reach GitHub"),
+        )
+    )
+    baseline = _baseline(material=material)
+
+    store_baseline(state_dir, "sess-1", baseline, now=1000.0, project_root=tmp_path)
+
+    assert load_baseline(state_dir, "sess-1", "key-1") == baseline
+
+
+def test_corrupt_material_shape_is_read_as_no_baseline(tmp_path: Path) -> None:
+    state_dir = tmp_path / ".teamctx" / "ambient"
+    state_dir.mkdir(parents=True)
+    (state_dir / "sess-1.json").write_text(
+        json.dumps({
+            "schema_version": "teamctx.ambient_state.v1",
+            "session_id": "sess-1",
+            "baselines": {
+                "key-1": {
+                    "key": "key-1",
+                    "content_digest": "digest-1",
+                    "class_of_answer": "GOOD",
+                    "last_network_check_at": 1000.0,
+                    "last_spoken_at": 1000.0,
+                    "material": {"checks": "not-a-list"},
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    assert load_baseline(state_dir, "sess-1", "key-1") is None
+
+
+def _request(paths: tuple[str, ...] = ("src/app.py",)) -> RequestContext:
+    return RequestContext(
+        schema_version="teamctx.request_context.v0", request_id="t", repo="acme/widgets",
+        branch="feature", task="work", paths=list(paths), linked_issues=[],
+        requested_at="2026-07-04T00:00:00Z", requesting_principal=None,
+    )
+
+
+def _collision_signal() -> SourceSignal:
+    return SourceSignal(
+        schema_version="teamctx.source_signal.v0", id="sig_pr_7", signal_type="collision",
+        source_family="git_hosting",
+        scope={"provider": "github", "repo": "acme/widgets", "pr_number": 7,
+               "files": ["src/app.py"]},
+        evidence_summary="Open PR #7 changed src/app.py.", source_display="GitHub PR #7",
+        freshness="fresh", confidence="high", visibility="visible",
+        created_at="2026-07-04T00:00:00Z", observed_at="2026-07-04T00:00:00Z",
+        expires_at="next_refresh", policy=metadata_only_policy("pr metadata is evidence"),
+    )
+
+
+def _fresh(family: str) -> object:
+    return source_status(
+        source_id=f"{family}-probe", source_family=family, scope={"repo": "acme/widgets"},
+        status="fresh", observed_at="2026-07-04T00:00:00Z", safe_user_message="checked",
+        visibility="silent", policy_reason="status only",
+    )
+
+
+def test_compute_baseline_material_captures_status_and_finding_identity() -> None:
+    answer = broker_answer(_request(), [_collision_signal()], [_fresh("git_hosting")])
+
+    material = compute_baseline_material(answer)
+
+    by_check = {c.check: c for c in material.checks}
+    assert by_check["conflict"].status == "found"
+    assert by_check["conflict"].findings == (
+        FindingMaterial(key="conflict:7", source_display="GitHub PR #7", paths=("src/app.py",)),
+    )
+    assert by_check["gate"].status == "not_configured"
+    assert by_check["gate"].findings == ()
+
+
+def test_finding_key_is_stable_per_check_identity_field() -> None:
+    assert finding_key("conflict", {"pr_number": 7}) == "conflict:7"
+    assert finding_key("criteria", {"issue": "#12"}) == "criteria:#12"
+    assert finding_key("docs", {"doc": "spec.md"}) == "docs:spec.md"
+    assert finding_key("gate", {"gate": "build"}) == "gate:build"
 
 
 def test_wrong_shape_or_version_is_none(tmp_path: Path) -> None:
