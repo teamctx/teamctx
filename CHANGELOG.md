@@ -9,6 +9,7 @@ may change while the product is hardened.
 
 ### Added
 
+- The pre-edit check is now continuous: it quietly re-checks at an interval (default 90s) and speaks again only when the answer actually changed or a known gap needs re-stating; silence now means "checked, nothing new", never "not looking".
 - Confluence support: pages in a configured space that carry the teamctx.superseded_by property fire the docs check with an openable link, beside local docs in one honest coverage picture.
 - Emulation harness: the Confluence docs row now runs offline against a bundled Confluence v2 mock
   through the normal `work_start.confluence.base_url` config seam, including superseded-page,
