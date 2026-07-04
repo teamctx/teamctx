@@ -68,6 +68,7 @@ may change while the product is hardened.
 
 ### Fixed
 
+- The Claude Code reflex hook now installs to .claude/settings.local.json (personal, gitignored) instead of the committed settings file, and onboard migrates existing installs out; a committed hook would auto-run on teammates' machines.
 - A skipped check now says exactly which input is missing and how to provide it, and issue-change time comparisons are chronological, never lexical.
 - A malformed .teamctx/authority.json now fails closed with a plain message naming the file and the fix, instead of a traceback (CLI and MCP).
 - teamctx-mcp without the optional mcp dependency now prints an install hint instead of a raw ImportError.
