@@ -262,7 +262,7 @@
   <div class="wrap">
     <div class="kicker">At work-start</div>
     <h2>What you see before the first edit.</h2>
-    <p class="lead-p">After a one-time <code>teamctx onboard</code>, this check runs by itself: it grounds the session before the first edit, keeps watch while you work, and speaks again only when something actually changed. Agents get the same answer over MCP. Nobody types a command before an edit. The output is rendered straight from the record; the samples below are real output from the pipeline.</p>
+    <p class="lead-p">After a one-time <code>teamctx onboard</code>, this check runs by itself: it grounds the session before the first edit, keeps watch while you work, and speaks again when something actually changed; a gap it cannot verify is re-stated rather than forgotten. Agents get the same answer over MCP. Nobody types a command before an edit. The output is rendered straight from the record; the samples below are real output from the pipeline.</p>
 
     <div class="run">
       <div class="cap">
@@ -398,7 +398,7 @@
 <span class="cmt"># appears by itself: at the start of a session, and again the moment</span>
 <span class="cmt"># something relevant changes while you work.</span></pre>
     </div>
-    <p class="more"><b>It runs by itself, and keeps watching.</b> The hook <code>teamctx onboard</code> installs is opt-in. It grounds the session before its first edit, then quietly re-checks at an interval and speaks again only when the answer actually changed, so silence means checked and unchanged. It never blocks an edit. When the world moves mid-session, what appears is exactly the change:</p>
+    <p class="more"><b>It runs by itself, and keeps watching.</b> The hook <code>teamctx onboard</code> installs is opt-in. It grounds the session before its first edit, then quietly re-checks at an interval and speaks again when the answer actually changed, re-stating any standing gap rather than forgetting it, so silence means checked and unchanged within the interval. It never blocks an edit. When the world moves mid-session, what appears is exactly the change:</p>
     <div class="term" role="img" aria-label="teamctx speaking a mid-session change: a pull request appeared touching the same file">
       <div class="bar"><i></i><i></i><i></i><span>teamctx, while you work</span></div>
 <pre>since you started: GitHub PR #7 appeared, touching src/auth/token.py</pre>

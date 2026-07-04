@@ -883,13 +883,14 @@ def run_onboard(
     elif not auth_found:
         next_step = (
             f"Set a {_provider_display(effective_onboarder.provider)} credential "
-            "(see the auth line above); after that, team context appears by itself before the "
-            "first edit of a Claude Code session."
+            "(see the auth line above); after that, team context appears by itself: before your "
+            "first edit, and again whenever something changes while you work."
         )
     else:
         next_step = (
-            "You're set. Team context now appears by itself before the first edit of a Claude "
-            "Code session (agents get the same over MCP). To see it right now: "
+            "You're set. Team context now appears by itself: before your first edit, and again "
+            "whenever something changes while you work (agents get the same over MCP). To see "
+            "it right now: "
             "`teamctx work-start --path <a file you're about to edit>`."
         )
     return OnboardResult(ok, tuple(steps), next_step)
@@ -975,8 +976,8 @@ def _status_next_step(
     if not auth_found:
         return f"Set a {_provider_display(provider)} credential (see the credential line above)."
     return (
-        "You're set. Team context appears by itself before the first edit of a Claude Code "
-        "session."
+        "You're set. Team context appears by itself: before your first edit, and again "
+        "whenever something changes while you work."
     )
 
 

@@ -164,9 +164,10 @@ Selectors are the handles you see in the output: `pr:N`, `issue:#N`, `path:X`, `
 
 Team context is ambient by design: after onboard, nobody runs a command in daily use. The opt-in
 Claude Code hook that onboard installs grounds the session before its first edit and then keeps
-watch: it quietly re-checks at an interval and speaks again only when something actually changed
-("since you started: GitHub PR #7 appeared, touching src/auth/token.py"), so silence means
-checked-and-unchanged, never not-looking. The CLAUDE.md instruction onboard writes tells any
+watch: it quietly re-checks at an interval and speaks again when something actually changed
+("since you started: GitHub PR #7 appeared, touching src/auth/token.py"); a standing gap it
+cannot verify is re-stated every so often rather than forgotten. Silence means checked and
+unchanged within the interval. The CLAUDE.md instruction onboard writes tells any
 agent how to receive and use what appears (with a fallback for environments that do not run
 hooks). If you only want the hook without the rest of onboard:
 
