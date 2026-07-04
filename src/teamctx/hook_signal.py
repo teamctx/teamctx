@@ -36,11 +36,20 @@ def _important_gap_notes(a: WorkStartAssessment, forge: str) -> list[str]:
         elif s.status == "unbounded":
             notes.append(_unbounded_note(s, forge))
         elif s.status == "unreachable":
-            notes.append(
-                f"teamctx couldn't reach {_source_name(forge)} to check "
-                f"{check_hook_gap_copy(s.check, forge) or s.check}, so it's unconfirmed."
-            )
+            if _stale_only(s) and s.note:
+                # reached but not confirmable (a skipped pipeline, an incomplete scan): the
+                # connector's precise message, never a connection claim
+                notes.append(f"{s.note.rstrip('.')}, so it's unconfirmed.")
+            else:
+                notes.append(
+                    f"teamctx couldn't reach {_source_name(forge)} to check "
+                    f"{check_hook_gap_copy(s.check, forge) or s.check}, so it's unconfirmed."
+                )
     return notes
+
+
+def _stale_only(state: CheckState) -> bool:
+    return bool(state.failing_sources) and all(st == "stale" for _, st in state.failing_sources)
 
 
 def _heads_up(a: WorkStartAssessment, file_path: str, forge: str) -> str:
@@ -56,7 +65,14 @@ def _heads_up(a: WorkStartAssessment, file_path: str, forge: str) -> str:
 
 def _cant_verify(a: WorkStartAssessment, token_present: bool, forge: str) -> str:
     unreachable = [
-        s.check for s in a.checks if s.status == "unreachable" and s.check in IMPORTANT_CHECKS
+        s.check
+        for s in a.checks
+        if s.status == "unreachable" and s.check in IMPORTANT_CHECKS and not _stale_only(s)
+    ]
+    stale_checks = [
+        s
+        for s in a.checks
+        if s.status == "unreachable" and s.check in IMPORTANT_CHECKS and _stale_only(s) and s.note
     ]
     unbounded = [s for s in a.checks if s.status == "unbounded" and s.check in IMPORTANT_CHECKS]
     pending = [s.check for s in a.checks if s.status == "pending" and s.check in IMPORTANT_CHECKS]
@@ -80,6 +96,13 @@ def _cant_verify(a: WorkStartAssessment, token_present: bool, forge: str) -> str
                 f"get those warnings this session, so glance at {_source_name(forge)} yourself "
                 "if this file is sensitive."
             )
+    for state in stale_checks:
+        parts.append(
+            f"{state.note} If a green build matters for this edit, check the run yourself."
+            if state.check == "gate"
+            else f"{state.note} Glance at {_source_name(forge)} yourself if this file is "
+            "sensitive."
+        )
     for state in unbounded:
         parts.append(_unbounded_note(state, forge))
     if pending:
