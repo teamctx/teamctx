@@ -20,7 +20,7 @@ def _request() -> RequestContext:
     return RequestContext(
         schema_version="teamctx.request_context.v0",
         request_id="t",
-        repo="tempo-64/model-citizens",
+        repo="acme/widgets",
         branch=None,
         task="work",
         paths=["docs/superpowers/specs/old.md"],
@@ -46,7 +46,7 @@ def test_parse_frontmatter_ignores_non_kv_and_stops_at_close() -> None:
 
 def test_normalize_emits_doc_superseded_signal_with_scope() -> None:
     doc = SupersededDoc(
-        repo="tempo-64/model-citizens",
+        repo="acme/widgets",
         doc="docs/superpowers/specs/old.md",
         superseded_by="docs/superpowers/research/new.md",
     )
@@ -57,7 +57,7 @@ def test_normalize_emits_doc_superseded_signal_with_scope() -> None:
     signal = document.source_signals[0]
     assert signal.signal_type == "doc_superseded"
     assert signal.source_family == "docs"
-    assert signal.scope["repo"] == "tempo-64/model-citizens"
+    assert signal.scope["repo"] == "acme/widgets"
     assert signal.scope["doc"] == "docs/superpowers/specs/old.md"
     assert signal.scope["superseded_by"] == "docs/superpowers/research/new.md"
     assert any(s.source_family == "docs" and s.status == "fresh" for s in document.source_statuses)
@@ -65,7 +65,7 @@ def test_normalize_emits_doc_superseded_signal_with_scope() -> None:
 
 def test_normalize_threads_url_into_scope_when_present() -> None:
     doc = SupersededDoc(
-        repo="tempo-64/model-citizens",
+        repo="acme/widgets",
         doc="Rounding Policy",
         superseded_by="docs/new.md",
         url="https://example.atlassian.net/wiki/spaces/DEV/pages/12345/Rounding+Policy",
@@ -82,7 +82,7 @@ def test_normalize_threads_url_into_scope_when_present() -> None:
 def test_normalize_omits_url_from_scope_when_absent() -> None:
     # Local docs carry no url; the scope must not gain a url key (open-source falls back to path).
     doc = SupersededDoc(
-        repo="tempo-64/model-citizens",
+        repo="acme/widgets",
         doc="docs/superpowers/specs/old.md",
         superseded_by="docs/superpowers/research/new.md",
     )
@@ -95,7 +95,7 @@ def test_normalize_omits_url_from_scope_when_absent() -> None:
 def test_unavailable_docs_document_reports_status_only() -> None:
     document = unavailable_docs_document(
         _request(),
-        repo="tempo-64/model-citizens",
+        repo="acme/widgets",
         observed_at="2026-06-20T00:00:00Z",
         safe_user_message="Docs are unavailable at the configured root.",
     )
@@ -111,7 +111,7 @@ def test_parse_superseded_docs_keeps_only_declared() -> None:
         ),
         ("docs/superpowers/specs/current.md", "# No frontmatter\n"),
     ]
-    docs = parse_superseded_docs(repo="tempo-64/model-citizens", files=files)
+    docs = parse_superseded_docs(repo="acme/widgets", files=files)
     assert len(docs) == 1
     assert docs[0].doc == "docs/superpowers/specs/old.md"
     assert docs[0].superseded_by == "docs/superpowers/research/new.md"
@@ -128,7 +128,7 @@ def test_probe_uses_injected_reader_and_emits_signal() -> None:
         ]
 
     document = run_docs_supersession_probe(
-        repo="tempo-64/model-citizens",
+        repo="acme/widgets",
         root="docs/superpowers",
         request_context=_request(),
         observed_at="2026-06-20T00:00:00Z",
@@ -165,7 +165,7 @@ def test_missing_docs_dir_is_unavailable_not_clear(tmp_path) -> None:
 def _request_with_paths(paths: list[str]) -> RequestContext:
     return RequestContext(
         schema_version="teamctx.request_context.v0", request_id="t",
-        repo="tempo-64/model-citizens", branch=None, task="work", paths=paths,
+        repo="acme/widgets", branch=None, task="work", paths=paths,
         linked_issues=[], requested_at="2026-06-20T00:00:00Z", requesting_principal=None,
     )
 
@@ -203,7 +203,7 @@ def test_probe_clean_scan_with_a_doc_in_scope_is_fresh() -> None:
 def test_superseded_doc_out_of_request_paths_fires_end_to_end() -> None:
     # A superseded doc that is NOT among the request paths still fires a Verify-before-relying
     # card end to end (probe -> broker -> render): reliance is the whole declared docs set.
-    req = _request_with_paths(["src/app.py"])  # repo tempo-64/model-citizens
+    req = _request_with_paths(["src/app.py"])  # repo acme/widgets
     reader = lambda root: [  # noqa: E731
         ("docs/old.md", "---\nsuperseded_by: docs/new.md\n---\n# Old\n"),
     ]

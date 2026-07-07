@@ -21,6 +21,7 @@ def test_missing_mcp_dependency_gets_plain_message(monkeypatch, capsys) -> None:
 
 
 def test_present_dependency_delegates_to_server(monkeypatch) -> None:
+    pytest.importorskip("mcp", reason="the delegation test needs the optional mcp extra")
     import teamctx.mcp_entry as entry
     import teamctx.mcp_server as server
 

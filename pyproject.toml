@@ -2,9 +2,39 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# The published artifact ships the package and its proof, never internal working notes:
+# the repo carries plans, session logs, and validation evidence that do not belong in a
+# release (and must not: the audit that added this list found internal references there).
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/teamctx",
+  "tests",
+  "README.md",
+  "CHANGELOG.md",
+  "LICENSE",
+  "pyproject.toml",
+]
+# hatchling auto-includes README-named files and .gitignore even outside the include list;
+# the excludes keep internal directories out of the artifact no matter what.
+exclude = [
+  "docs",
+  "emulation",
+  "site",
+  ".github",
+  ".remember",
+  "AGENTS.md",
+  "tests/test_emulation_*.py",
+]
+# Known exception, accepted and verified: hatchling special-cases .gitignore and ships it
+# despite any exclude. Its contents are generic ignore rules (reviewed; nothing sensitive),
+# so the artifact carries this one file beyond the list above.
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/teamctx"]
+
 [project]
 name = "teamctx"
-version = "0.0.0"
+version = "0.1.0"
 description = "Deterministic ambient context for software teams"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -13,7 +43,7 @@ authors = [
     { name = "teamctx contributors" },
 ]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",

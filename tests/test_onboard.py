@@ -45,6 +45,9 @@ def _opener_returning(payload: object):  # type: ignore[no-untyped-def]
     return lambda request: _Resp(json.dumps(payload).encode())
 
 
+@pytest.mark.skipif(
+    not (ROOT / ".git").exists(), reason="repo-only guard; the artifact is not a git tree"
+)
 def test_repo_gitignore_allows_tracking_teamctx_config() -> None:
     # .teamctx/config.json must be trackable in teamctx's own repo (for the dogfood fixture and so
     # onboard's own pattern matches). git check-ignore exits 1 when a path is NOT ignored.

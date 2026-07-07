@@ -14,7 +14,7 @@ def test_docs_probe_surfaces_superseded_card_and_verdict(tmp_path, monkeypatch) 
         main,
         [
             "dev", "docs-probe",
-            "--repo", "tempo-64/model-citizens",
+            "--repo", "acme/widgets",
             "--root", "docs/superpowers",
             "--path", "docs/superpowers/specs/old.md",
         ],
@@ -50,7 +50,7 @@ def test_docs_probe_normalizes_dot_slash_path(tmp_path, monkeypatch) -> None:
         main,
         [
             "dev", "docs-probe",
-            "--repo", "tempo-64/model-citizens",
+            "--repo", "acme/widgets",
             "--root", "docs/superpowers",
             "--path", "./docs/superpowers/specs/old.md",
         ],

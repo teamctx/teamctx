@@ -38,7 +38,7 @@ plus check runs and pipelines), GitHub issues and Jira for acceptance criteria, 
 folders and Confluence spaces for superseded docs. This four-source behavior was exercised by a
 live multi-actor emulation: one operator driving several actor roles, human-style and agent-style,
 through real GitHub, GitLab, Jira, and Confluence, with the run and its evidence committed at
-[docs/validation/team-emulation-2026-07-04/SUMMARY.md](docs/validation/team-emulation-2026-07-04/SUMMARY.md).
+`docs/validation/team-emulation-2026-07-04/SUMMARY.md` (in the repository).
 teamctx reads metadata only (it does not read pull request bodies, comments, or patches), speaks
 only to the structured slice it can actually verify, and does no broad search or summaries. A source
 becomes supported only after it proves the same honest-coverage behavior.
@@ -194,7 +194,7 @@ CLI, hook, and MCP tool through a sixteen-row scenario matrix against bundled mo
 Jira, and Confluence servers; anyone can run it with `python emulation/runner.py --offline --all`,
 and each expected block quotes the real renderer. On top of that, a live multi-actor run against
 real GitHub, GitLab, Jira, and Confluence is committed as evidence at
-[docs/validation/team-emulation-2026-07-04/SUMMARY.md](docs/validation/team-emulation-2026-07-04/SUMMARY.md),
+`docs/validation/team-emulation-2026-07-04/SUMMARY.md` (in the repository),
 including the two residuals it left open.
 
 ## What it is not
@@ -217,4 +217,4 @@ hook signal all derive from one broker answer and one shared classification; the
 purpose, but nothing it says can disagree with the full report. Replay the same inputs and you get
 the same verdict every time.
 
-Positioning and design: [design and positioning](docs/product/vision/reality-grounding-strategy-2026-06.md).
+Positioning and design: `docs/product/vision/reality-grounding-strategy-2026-06.md` (in the repository).
