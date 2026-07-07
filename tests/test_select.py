@@ -8,14 +8,18 @@ whose changed files structurally overlap the paths the requester is about to tou
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
+from teamctx.contract_render import render_broker_answer
 from teamctx.core.authority import AuthorityDecl
-from teamctx.core.broker import broker_answer
+from teamctx.core.broker import BrokerAnswer, broker_answer
+from teamctx.core.content_digest import content_digest
 from teamctx.core.contracts import (
+    ClosureProjection,
     CoreContractDocument,
     PolicyDecision,
     RequestContext,
@@ -281,6 +285,77 @@ def test_select_context_carries_the_collision_query_closure() -> None:
     assert entry.proposition == "no_pr_conflicts_with_paths"
     # the fixture observes no git_hosting source -> the collision query is policy-gapped.
     assert entry.status == "incomplete[policy-gap]"
+
+
+def test_select_context_closure_entries_are_rich_catalog_records() -> None:
+    document = load_document()
+
+    selection = select_context(
+        document.request_context, document.source_signals, [_git_hosting_status("fresh")]
+    )
+
+    entry = next(e for e in selection.closure if e.check_id == "conflict")
+    assert entry.proposition == "no_pr_conflicts_with_paths"
+    assert entry.consumed_document_ids == ()
+    assert entry.closure_status == "complete"
+    assert entry.status == "complete"
+    assert entry.reason == "check conflict requires source families: git_hosting"
+
+
+def _projected_answer(answer: BrokerAnswer) -> BrokerAnswer:
+    projected_closure = tuple(
+        ClosureProjection(proposition=entry.proposition, status=entry.status)
+        for entry in answer.selection.closure
+    )
+    selection = replace(answer.selection, closure=projected_closure)
+    verdicts = tuple(
+        (
+            kind.verdict_label,
+            evaluate(kind.query(answer.request), selection.claim_cards, projected_closure),
+        )
+        for kind in CARD_KINDS
+    )
+    return replace(answer, selection=selection, verdicts=verdicts)
+
+
+@pytest.mark.parametrize(
+    "status_values",
+    [
+        (),
+        ("fresh",),
+        ("stale",),
+        ("pending",),
+        ("not_applicable",),
+        ("unbounded",),
+        ("fresh", "disabled"),
+    ],
+)
+def test_closure_projection_equivalence_for_existing_consumers(
+    status_values: tuple[str, ...],
+) -> None:
+    document = load_document()
+    statuses = (
+        tuple(_git_hosting_status(status) for status in status_values)
+        if status_values
+        else tuple(document.source_statuses)
+    )
+
+    rich_answer = broker_answer(document.request_context, document.source_signals, statuses)
+    projected_answer = _projected_answer(rich_answer)
+
+    assert projected_answer.verdicts == rich_answer.verdicts
+    assert render_broker_answer(projected_answer) == render_broker_answer(rich_answer)
+    assert content_digest(
+        rich_answer.source_signals,
+        rich_answer.source_statuses,
+        rich_answer.selection.closure,
+        rich_answer.selection.authority,
+    ) == content_digest(
+        projected_answer.source_signals,
+        projected_answer.source_statuses,
+        projected_answer.selection.closure,
+        projected_answer.selection.authority,
+    )
 
 
 def test_coverage_reports_each_checked_source_status() -> None:

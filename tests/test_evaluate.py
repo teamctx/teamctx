@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from teamctx.connectors.forge_review import ForgeReviewPullRequest, normalize_forge_review_prs
-from teamctx.core.contracts import RequestContext
+from teamctx.core.contracts import ClosureProjection, RequestContext
 from teamctx.core.evaluate import Valuation, evaluate
 from teamctx.core.kinds import ClaimCard, no_conflict_query
-from teamctx.core.select import ClosureEntry, derive_claims
+from teamctx.core.select import derive_claims
 
 
 def _request(paths: tuple[str, ...]) -> RequestContext:
@@ -37,8 +37,8 @@ def _collision_claim_card(path: str) -> ClaimCard:
     return derive_claims(request, document.source_signals)[0]
 
 
-def _closure(status: str) -> tuple[ClosureEntry, ...]:
-    return (ClosureEntry(proposition="no_pr_conflicts_with_paths", status=status),)
+def _closure(status: str) -> tuple[ClosureProjection, ...]:
+    return (ClosureProjection(proposition="no_pr_conflicts_with_paths", status=status),)
 
 
 def test_universal_is_false_by_counterexample_even_if_coverage_incomplete() -> None:

@@ -6,6 +6,7 @@ network, subprocess, randomness, or ambient-time dependency.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -62,6 +63,16 @@ SourceStatusValue = Literal[
 SourceStatusVisibility = Literal["silent", "warning_when_relevant", "always"]
 GuidanceStatus = Literal["draft", "active", "retired"]
 AgentInstruction = Literal["evidence_only", "verify_before_relying", "apply_when_in_scope"]
+ClosureStatus = Literal[
+    "complete",
+    "incomplete[dangling]",
+    "incomplete[stale-dep]",
+    "incomplete[pending]",
+    "incomplete[policy-gap]",
+    "incomplete[unbounded]",
+    "incomplete[unmodeled-ref]",
+    "not_applicable[out-of-scope]",
+]
 SectionName = Literal[
     "Needs attention",
     "Project guidance",
@@ -71,6 +82,50 @@ SectionName = Literal[
 ]
 ScopeValue = str | int | float | bool | None | list[str]
 Scope = dict[str, ScopeValue]
+
+
+@dataclass(frozen=True)
+class ClosureProjection:
+    """The content-identity view of one closure entry."""
+
+    proposition: str
+    status: ClosureStatus
+
+
+@dataclass(frozen=True)
+class ClosureEntry:
+    """The catalog-spine closure record.
+
+    Consumers that only need the old identity surface must call ``project`` so document ids and
+    reasons never enter content identity.
+    """
+
+    check_id: str
+    proposition: str
+    consumed_document_ids: tuple[str, ...]
+    closure_status: ClosureStatus
+    reason: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "consumed_document_ids", tuple(sorted(self.consumed_document_ids))
+        )
+
+    @property
+    def status(self) -> ClosureStatus:
+        return self.closure_status
+
+    def project(self) -> ClosureProjection:
+        return ClosureProjection(proposition=self.proposition, status=self.closure_status)
+
+
+ClosureLike = ClosureEntry | ClosureProjection
+
+
+def closure_projection(entry: ClosureLike) -> ClosureProjection:
+    if isinstance(entry, ClosureProjection):
+        return entry
+    return entry.project()
 
 
 class ContractModel(BaseModel):

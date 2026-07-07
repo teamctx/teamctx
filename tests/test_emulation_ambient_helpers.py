@@ -29,7 +29,7 @@ def test_backdate_baseline_rewrites_times_without_changing_digest_or_material(
     state_file = ambient_state_file(state_dir, "delta/session!*")
     state_file.write_text(
         json.dumps({
-            "schema_version": "teamctx.ambient_state.v1",
+            "schema_version": "teamctx.ambient_state.v2",
             "session_id": "delta/session!*",
             "baselines": {
                 "key-1": {

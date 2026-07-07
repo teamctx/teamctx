@@ -32,9 +32,9 @@ if TYPE_CHECKING:  # keep the module import-light on the no-op path (P2-2): lazy
 AnswerClass = Literal["GOOD", "GAP-KNOWN", "NONE"]
 Decision = Literal["speak_full", "silent", "recheck_due"]
 
-# Bumped from v0: a baseline now carries the per-check delta material beside the digest, so any
-# v0 file is a different shape and is read as no-baseline (the corrupt-is-NONE path covers it).
-_STATE_SCHEMA_VERSION = "teamctx.ambient_state.v1"
+# Bumped from v1: closure content identity now flows through an explicit projection seam, so
+# older baselines are re-grounded once under the new schema.
+_STATE_SCHEMA_VERSION = "teamctx.ambient_state.v2"
 _DEFAULT_INTERVAL_SECONDS = 90
 _MIN_INTERVAL_SECONDS = 30
 _RESTATEMENT_FLOOR_SECONDS = 900
