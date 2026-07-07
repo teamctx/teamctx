@@ -1,10 +1,12 @@
 # Design: the check catalog spine (issue #10)
 
 ## Status
-Revision 2, after codex adversarial round 1 (verdict REVISE: 3 P0, 6 P1, 3 P2, ALL twelve
-accepted with pins; disposition at the bottom). Two CPO laws locked 2026-07-07 govern
-everything below. Further rounds continue until rock solid; no implementation plan before
-that.
+Revision 3, after codex rounds 1 and 2 (both REVISE; all findings accepted; dispositions at
+the bottom). Round 2 confirmed the architecture (laws, N:M model, contract shape) and moved
+the findings into fix wording and migration seams; it also drove two scope decisions: the
+conformance cache is CUT and URL declared sources are DEFERRED to v1.1 (fully designed here,
+built after file sources prove the contract). Two CPO laws locked 2026-07-07. Next: an Opus
+fresh-eyes pass before the verdict.
 
 ## The two laws (locked, not revisitable in review)
 1. **Trust by design.** Secure, private, content-safe by construction: vulnerability
@@ -38,6 +40,10 @@ A check is one frozen declaration:
   started voice, today hardcoded in ambient/render, becomes per-check declaration).
 - `identity`: the fields that name a finding across runs (PR number + paths, gate name,
   issue ref, doc name): the delta engine's material extraction, declared per check.
+  **Conformance proves the wiring (round-2 P1-7):** every check runs through
+  compute_baseline_material and a delta round-trip; declared identity fields must exist in
+  rendered card scope and produce stable keys, so a declaration/name mismatch cannot break
+  delta silence while CLI output looks fine.
 - `profile`: reflex or full (what the ambient hook may run vs the full work-start).
 - `lane`: important or FYI (default; team config may override). The silence law's
   important-set is derived from the enabled important-lane checks.
@@ -55,13 +61,20 @@ document set needed by the ENABLED checks for the current profile, fetches each 
 once, then derives. Profile handling: a document needed only by full-profile checks is not
 fetched in reflex; those checks close as profile_skipped.
 
-**Ownership, pinned (round-1 P1-6):** fetch status belongs to the SOURCE/document; verified-
-ness belongs to each CHECK. Documents gain identities and types; closure entries become
-(check_id, proposition, consumed_document_ids, closure_status, reason). One failed Jira
-fetch closes BOTH criteria and issue-lifecycle as couldn't-check, each with its own copy,
-off one status. This is the concrete contract change the current 1:1 family-grouped model
-(select.py completeness, SourceStatus without document identity) must grow; it is the
-largest single piece of the build.
+**Ownership, pinned (round-1 P1-6, sharpened round-2 P1-6):** fetch status belongs to the
+SOURCE/document; verifiedness belongs to each CHECK. Documents gain STABLE ids (uniqueness
+validated, consumed ids sorted); closure entries become (check_id, proposition,
+consumed_document_ids, closure_status, reason). One failed Jira fetch closes BOTH criteria
+and issue-lifecycle as couldn't-check, each with its own copy, off one status. The replay
+digest changes shape with this: that is an EXPLICIT versioned change (digest version bump,
+tested), while rendered bytes for unchanged worlds stay identical: the oracle checks bytes,
+not digests. This is the largest single piece of the build (build risk #1).
+
+**Advisory ownership (round-2 P2-9, better factoring):** advisory/FYI notes are born from
+source statuses, so the SOURCE/document contract owns advisory note keys and payloads;
+checks declare only whether and where those advisories surface. The check copy table
+correspondingly holds finding copy, provenance hooks, and delta templates; advisory strings
+live with the source contract.
 
 ## 3. Team-level selection (law 2 applied)
 `.teamctx/config.json` gains:
@@ -86,8 +99,11 @@ largest single piece of the build.
   issue, and since are REQUEST CONTEXT (vary per invocation by nature). Repo, docs roots,
   declared sources, enabled checks, lanes, and options are TEAM SEMANTICS: committed config
   only on all normal surfaces. The CLI's --github-repo/--docs-root style flags are
-  reclassified as diagnostic overrides (kept for probe commands, documented as such, never
-  consulted by the hook or MCP surfaces). TEAMCTX_AMBIENT_INTERVAL_SECONDS and
+  reclassified as diagnostic overrides. **The migration, named exactly (round-2 P1-5):**
+  the MCP tool schema DROPS repo/docs_root parameters (breaking change, pre-1.0,
+  CHANGELOG'd); normal work-start keeps the flags but documents them as diagnostic; probe
+  commands keep them as-is; the emulation rows and tests that pass overrides migrate to
+  committed-config fixtures so the oracle exercises the real path. TEAMCTX_AMBIENT_INTERVAL_SECONDS and
   TEAMCTX_AMBIENT_STATE are DELIVERY-SURFACE knobs (when to speak, where state lives): they
   can never change what is verified or how it is judged.
 
@@ -106,20 +122,40 @@ No code-loading path exists. Two config-declared, schema-validated objects:
   any non-TEAMCTX_SRC name are structurally refused at config validation (kills credential
   redirection). No env var on this machine, no socket, ever: the source closes as "not
   enabled on this machine" with the env name to set.
-- **SSRF policy, pinned (round-1 P0-2):** `https` scheme only; no userinfo in the URL; port
-  443 only; the resolved address must not be loopback, private, link-local, or a cloud
-  metadata range (checked AFTER DNS resolution); redirects are NOT followed (a redirect
-  closes couldn't-check with the reason). `file://` and every other scheme are refused at
+- **URL sources are DEFERRED to v1.1 (round-2 scope decision):** v1 ships file sources
+  only; the extensibility contract gets proven with the smaller security surface, and org
+  registries reach v1 by committing an exported record file to the repo. The SSRF policy
+  below is the pinned v1.1 design, not v1 build scope.
+- **SSRF policy, pinned (round-1 P0-2 + round-2 P0-1):** `https` scheme only; no userinfo;
+  port 443 only; every resolved A/AAAA address must be outside loopback, private,
+  link-local, and cloud-metadata ranges, and the connection is made TO THE CHECKED IP
+  (hostname preserved for SNI, Host, and certificate verification), closing the DNS
+  rebinding window between check and connect; redirects are NOT followed (a redirect closes
+  couldn't-check with the reason). `file://` and every other scheme are refused at
   validation.
+- **consent_env semantics, exact (round-2 P1-3):** key PRESENCE is consent; when the
+  endpoint needs a credential, a NON-EMPTY value is required and an empty value closes as
+  not-enabled with the reason; the value is never rendered, stored, or digested: only the
+  env var NAME ever appears in output or state.
 - **File-source safety, pinned (round-1 P0-3):** `file` paths must be relative, resolve
   inside the project root with symlink escapes rejected (the docs connector's existing
   hardening pattern), not under `.git`, regular files, size-capped, and TRACKED BY GIT
   (tracked means the content went through the team's review: law 2 applied to data).
+- **The config itself obeys law 2 (round-2 P1-4):** the `checks` block and every declared
+  object are honored ONLY from a tracked, clean `.teamctx/config.json` on normal surfaces
+  (hook, MCP, work-start). Untracked or dirty config: the default four checks still run,
+  and the declared/checks blocks are refused with a loud line ("the team's check
+  configuration is not committed; commit .teamctx/config.json to activate it"). Probe
+  commands may accept a dirty config for iteration, behind an explicit banner. (Found via
+  our own dogfood: a live repo with an untracked config.)
 - An unreachable/oversized/malformed/redirecting declared source closes as couldn't-check
   with the reason. Never a clear.
-- **Id namespace (round-1 P2-11):** declared check and source ids MUST match
+- **Id namespace (round-1 P2-11 + round-2 P1-8):** declared check and source ids MUST match
   `x_[a-z0-9_]+` after casefold normalization; built-in ids are reserved; collisions after
-  normalization are validation failures.
+  normalization are validation failures. Shadowing is also closed: built-in display names,
+  proposition texts, and canonical clear/finding phrases are reserved (a declared check may
+  not present as a built-in), and a disabled built-in remains VISIBLY disabled in the
+  coverage summary even when an x_ check resembles it.
 
 **Declared check** (data, not code):
 - `claim` text, `match`: a bounded rule over declared-source fields (equality, presence,
@@ -192,3 +228,17 @@ largest build piece); P1-7 profile_skipped first-class with strings preserved; P
 four-part copy table + identity fields making byte-identical honest; P1-9 time operands;
 P2-10 duplicate-key rejection; P2-11 id namespacing; P2-12 conformance cache keyed by
 version+config-hash, fail-closed.
+
+## Round-2 disposition (codex, 2026-07-07)
+All accepted: P0-1 connect-to-checked-IP (DNS rebinding closed); P0-2 config/conformance
+failures become loud couldn't-check signals, never fail-safe-eaten exceptions; P1-3
+consent_env presence/value semantics exact; P1-4 tracked-and-clean config required for
+team-semantic blocks (our own dogfood violated this); P1-5 override migration named
+exactly incl. MCP schema change and row migration; P1-6 stable document ids + explicit
+versioned digest change, bytes-identical oracle; P1-7 identity/ambient round-trip in
+conformance; P1-8 shadowing closed via reserved names/phrases; P2-9 advisory ownership
+moved to source contracts. Scope decisions: conformance cache CUT; URL sources DEFERRED to
+v1.1 (designed, pinned, not v1 build scope); repo-shape onboard suggestions DEFERRED.
+Build risks, in order (drive the plan): 1. N:M closure migration without false clears;
+2. ambient identity/content-digest drift (unlawful silence or re-speak); 3. declared-file
+security + loud config failure across all surfaces.
