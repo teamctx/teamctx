@@ -1,9 +1,10 @@
 # Design: the check catalog spine (issue #10)
 
 ## Status
-Revision 1, CTO-drafted from the design session with Edgar 2026-07-07. Two CPO laws locked
-in that session govern everything below. Under adversarial review (codex, multiple rounds)
-before any implementation plan. The build does not start until this is rock solid.
+Revision 2, after codex adversarial round 1 (verdict REVISE: 3 P0, 6 P1, 3 P2, ALL twelve
+accepted with pins; disposition at the bottom). Two CPO laws locked 2026-07-07 govern
+everything below. Further rounds continue until rock solid; no implementation plan before
+that.
 
 ## The two laws (locked, not revisitable in review)
 1. **Trust by design.** Secure, private, content-safe by construction: vulnerability
@@ -25,9 +26,18 @@ A check is one frozen declaration:
 - `closure`: the propositions this check answers, declared up front, so
   checked / not-checked / couldn't-check / not-applicable / profile-skipped is defined at
   declaration time and the honesty closure is derivable without running anything.
-- `copy`: the complete string table this check can ever speak, including coverage-note
-  strings keyed by (source_id, status) (the render's current keying; migration task zero
-  inventories every existing string so nothing is lost in the move).
+  `profile_skipped` becomes FIRST-CLASS contract vocabulary (today's Confluence reflex skip
+  is encoded as disabled; it recodes to profile_skipped while PRESERVING today's rendered
+  strings: vocabulary changes, bytes do not).
+- `copy`: the complete string table this check can ever speak. Round 1 proved check copy
+  alone cannot express today's output, so the table has four parts (migration task zero
+  inventories every existing string into them): finding copy (incl. coverage-note strings
+  keyed by (source_id, status)), ADVISORY copy (FYI-lane strings born from source statuses,
+  e.g. the own-PR note), PROVENANCE hooks (strings interpolating request derivation, e.g.
+  "issue #42 from your branch name"), and DELTA templates per direction (the since-you-
+  started voice, today hardcoded in ambient/render, becomes per-check declaration).
+- `identity`: the fields that name a finding across runs (PR number + paths, gate name,
+  issue ref, doc name): the delta engine's material extraction, declared per check.
 - `profile`: reflex or full (what the ambient hook may run vs the full work-start).
 - `lane`: important or FYI (default; team config may override). The silence law's
   important-set is derived from the enabled important-lane checks.
@@ -42,10 +52,16 @@ check, ours or declared.
 Connectors produce typed documents; they are the ONLY credentialed, I/O-capable layer;
 they remain in-core and reviewed. Checks consume documents. The runner resolves the
 document set needed by the ENABLED checks for the current profile, fetches each document
-once, then derives. The Jira changelog document feeds both criteria and (later)
-issue-lifecycle without a second fetch. Profile handling: a document needed only by
-full-profile checks is not fetched in reflex; those checks close as profile-skipped (an
-honest, distinct closure state, generalizing today's Confluence-skip note).
+once, then derives. Profile handling: a document needed only by full-profile checks is not
+fetched in reflex; those checks close as profile_skipped.
+
+**Ownership, pinned (round-1 P1-6):** fetch status belongs to the SOURCE/document; verified-
+ness belongs to each CHECK. Documents gain identities and types; closure entries become
+(check_id, proposition, consumed_document_ids, closure_status, reason). One failed Jira
+fetch closes BOTH criteria and issue-lifecycle as couldn't-check, each with its own copy,
+off one status. This is the concrete contract change the current 1:1 family-grouped model
+(select.py completeness, SourceStatus without document identity) must grow; it is the
+largest single piece of the build.
 
 ## 3. Team-level selection (law 2 applied)
 `.teamctx/config.json` gains:
@@ -61,11 +77,19 @@ honest, distinct closure state, generalizing today's Confluence-skip note).
   four; new checks earn it. Everything needing declaration is opt-in by nature.
 - Onboard detects repo shape (CODEOWNERS, package.json, a flags SDK) and SUGGESTS relevant
   opt-ins in its output; it never enables them itself.
-- **Version skew rule**: a config that enables a check this teamctx version does not have
-  produces a LOUD not-checked line ("the team config expects check X; this teamctx does
-  not provide it; upgrade") in every answer and a status failure. Never silence: silence
-  here would mean two teammates on different versions silently live different realities,
-  which breaks law 2.
+- **Version skew rules (round-1 P1-4, generalized):** unknown ANYTHING in the checks block
+  (check id, option, lane value, declared-source field) is a LOUD, plain-language config
+  failure; older clients never run with partial or defaulted semantics. Config may declare
+  `requires_teamctx` (minimum version, checked with the same loud failure). The existing
+  strict-validation posture (unknown fields rejected) is retained and extended.
+- **Request context vs team semantics, classified (round-1 P1-5):** paths, branch, linked
+  issue, and since are REQUEST CONTEXT (vary per invocation by nature). Repo, docs roots,
+  declared sources, enabled checks, lanes, and options are TEAM SEMANTICS: committed config
+  only on all normal surfaces. The CLI's --github-repo/--docs-root style flags are
+  reclassified as diagnostic overrides (kept for probe commands, documented as such, never
+  consulted by the hook or MCP surfaces). TEAMCTX_AMBIENT_INTERVAL_SECONDS and
+  TEAMCTX_AMBIENT_STATE are DELIVERY-SURFACE knobs (when to speak, where state lives): they
+  can never change what is verified or how it is judged.
 
 ## 4. Declared sources and declared checks (extensibility as data)
 No code-loading path exists. Two config-declared, schema-validated objects:
@@ -74,25 +98,40 @@ No code-loading path exists. Two config-declared, schema-validated objects:
 - `kind`: `file` (in-repo path) or `url`.
 - `schema_map`: named fields plucked from the record (JSON pointer per field). ONLY mapped
   fields cross the boundary; everything else is dropped unread. Per-field length caps;
-  control characters stripped; parse depth and response size capped (structurally bounded
-  untrusted input).
-- `credential_env`: optional; MUST match `TEAMCTX_SRC_[A-Z0-9_]+`. First-party credential
-  names (GITHUB_TOKEN, GITLAB_TOKEN, ATLASSIAN_*, and any non-TEAMCTX_SRC name) are
-  structurally refused at config validation. This kills credential redirection: a config
-  cannot point an existing token at a new host.
-- **Consent-by-credential**: a `url` source fetches ONLY if its named env var exists in
-  the person's environment. A committed config alone can never make anyone's machine
-  contact a host. No env var, no fetch: the source closes as "not enabled on this
-  machine" (visible, honest, with the env name to set). `file` sources (in-repo, no
-  network) need no consent gate.
-- An unreachable/oversized/malformed declared source closes as couldn't-check with the
-  reason. Never a clear.
+  control characters stripped; parse depth and response size capped; duplicate object keys
+  REJECTED in both config and fetched records (one canonical strict parser; round-1 P2-10).
+- `consent_env`: REQUIRED for every `url` source, no exceptions, public URLs included
+  (round-1 P0-1). MUST match `TEAMCTX_SRC_[A-Z0-9_]+`; serves as the credential when the
+  endpoint needs one and as pure consent when it does not. First-party credential names and
+  any non-TEAMCTX_SRC name are structurally refused at config validation (kills credential
+  redirection). No env var on this machine, no socket, ever: the source closes as "not
+  enabled on this machine" with the env name to set.
+- **SSRF policy, pinned (round-1 P0-2):** `https` scheme only; no userinfo in the URL; port
+  443 only; the resolved address must not be loopback, private, link-local, or a cloud
+  metadata range (checked AFTER DNS resolution); redirects are NOT followed (a redirect
+  closes couldn't-check with the reason). `file://` and every other scheme are refused at
+  validation.
+- **File-source safety, pinned (round-1 P0-3):** `file` paths must be relative, resolve
+  inside the project root with symlink escapes rejected (the docs connector's existing
+  hardening pattern), not under `.git`, regular files, size-capped, and TRACKED BY GIT
+  (tracked means the content went through the team's review: law 2 applied to data).
+- An unreachable/oversized/malformed/redirecting declared source closes as couldn't-check
+  with the reason. Never a clear.
+- **Id namespace (round-1 P2-11):** declared check and source ids MUST match
+  `x_[a-z0-9_]+` after casefold normalization; built-in ids are reserved; collisions after
+  normalization are validation failures.
 
 **Declared check** (data, not code):
 - `claim` text, `match`: a bounded rule over declared-source fields (equality, presence,
   prefix, and threshold comparators; total function). **Missing-field semantics pinned:**
   a match rule referencing a field absent from a record closes couldn't-fully-check,
   never clear, never silently skipped.
+- **Time semantics (round-1 P1-9):** match operands may reference mapped fields plus
+  EXACTLY two explicit time inputs: `request.requested_at` and the document's
+  `observed_at` (both already flow in at the impure edge, so derive stays pure). ISO-8601
+  parsing with UTC normalization; a malformed time in a record closes couldn't-fully-check.
+  Times reach the replay digest through the documents they ride in, as today. This is
+  sufficient for freeze windows (window bounds are record fields; now is requested_at).
 - `copy`: the strings it speaks. Rendered fields are quoted data with length caps applied
   at the source boundary (content-safety: a hostile record cannot speak in teamctx's
   voice beyond its capped, quoted field slots; this is the prompt-injection surface and
@@ -115,9 +154,13 @@ ambient baselines via the config-hash in the key (verified behavior today), so e
 check re-grounds every session correctly for free.
 
 ## 6. Migration and compatibility
-- The four checks re-declare onto the contract with byte-identical output: the 16-row
-  emulation matrix and the full test suite run unchanged as the regression oracle. Any
-  expectation change in the matrix is a defect in the spine, not a row to update.
+- The four checks re-declare onto the contract with byte-identical output on every
+  surface: the 16-row emulation matrix and the full test suite run unchanged as the
+  regression oracle. Any expectation change in the matrix is a defect in the spine, not a
+  row to update. (Round-1 P1-8 made this claim honest: the contract's advisory copy,
+  provenance hooks, identity fields, and delta templates exist precisely so the FYI own-PR
+  note, the criteria derivation note, and the since-you-started voice are expressible;
+  internal recodings like profile_skipped preserve today's strings.)
 - CLI, MCP, hook, render surfaces: unchanged.
 - kinds.py evolves into the contract module; the pin-the-registry tests move with it.
 - Config without a `checks` block behaves exactly as today (the default set).
@@ -138,3 +181,14 @@ any new check beyond re-declaring the existing four (those are their own roadmap
 6. Declared-match missing fields -> couldn't-fully-check, never clear.
 7. Hostile record content (size, depth, control chars, injection into agent context) ->
    caps + stripping + quoted-slot rendering at the boundary.
+
+## Round-1 disposition (codex, 2026-07-07)
+All twelve findings accepted and pinned above: P0-1 consent_env required for every url
+(no undefined no-credential case); P0-2 full SSRF policy; P0-3 file-source path safety
+incl. git-tracked requirement; P1-4 schema evolution rules + requires_teamctx; P1-5
+request-context vs team-semantics classification incl. diagnostic-override reclass and
+delivery-surface knobs; P1-6 document identity + check-owned closure entries (named the
+largest build piece); P1-7 profile_skipped first-class with strings preserved; P1-8 the
+four-part copy table + identity fields making byte-identical honest; P1-9 time operands;
+P2-10 duplicate-key rejection; P2-11 id namespacing; P2-12 conformance cache keyed by
+version+config-hash, fail-closed.
