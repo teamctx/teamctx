@@ -50,7 +50,14 @@ workstreams (moments, actors, feel, copy, evidence) is
 **`docs/product/plan/2026-07-04-ambient-magic-plan.md`**: read it FIRST next session; it
 supersedes "what's next" below. Reviewed adversarially (rev 2 pins all 12 findings; the committed-hook idea is formally rejected) and **APPROVED BY EDGAR 2026-07-04 ('approved, keep going')**. B1 DONE (merged: the reflex installs to settings.local.json, migration surgical and behaviorally verified). A-1 DONE (branch-scoped gate; empty paths never clear). A-2a DONE (merged: continuous grounding under the silence law; content digest + per-session baselines; the marker is gone; 863+ tests). A-2b DONE (merged: the delta voice, 900+ tests; the arbiter's live smoke caught a class-taxonomy hole that would have re-spoken on every edit in branchless repos, fixed + spec corrected). WORKSTREAM A COMPLETE: onboard once, context appears, reappears exactly when reality changes, silence is lawful. C+E DONE (merged: zero-network silence and request budgets pinned in the suite; the four delta rows land the matrix at 16 of 16). Claims refreshed on every surface, precision-reviewed. **THE AMBIENT ARC IS COMPLETE: built, proven, and described exactly.**
 
-**LAUNCH-READY STATE (2026-07-04, per Edgar: staged, NOT flipped).** The landing page wears
+**PYPI FLIPPED 2026-07-07 (Edgar's call): `pip install teamctx` is LIVE**
+(https://pypi.org/project/teamctx/0.1.0/, verified by a fresh-venv install from PyPI +
+onboard smoke). Still parked, Edgar's separate switches: repo public, site deploy, DNS.
+Token hygiene owed: replace the account-wide PyPI token with one scoped to teamctx.
+The five-minute user guide (docs/user-guide.md, claims-reviewed) is ready to hand out;
+issue #7 tracks the first-prompt install gap for 0.1.1.
+
+**Prior staging record (2026-07-04):** The landing page wears
 the engineering-record design (print-inspired, zero JS, verbatim samples; merged). The 0.1.0
 release sits COMPLETE and adversarially reviewed on branch `release/0.1.0` (pushed): version
 + Alpha classifier, artifact audited to zero name/instance/credential hits, shipped suite
