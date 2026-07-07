@@ -1,0 +1,7 @@
+{
+  "schema_version": "teamctx.project_config.v0",
+  "work_start": {
+    "repo": "teamctx/teamctx",
+    "docs_root": "docs"
+  }
+}
