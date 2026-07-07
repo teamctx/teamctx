@@ -1,12 +1,11 @@
 # Design: the check catalog spine (issue #10)
 
 ## Status
-Revision 4, after codex rounds 1-2 and an Opus fresh-eyes round 3 (all REVISE; all findings
-accepted; dispositions at the bottom). Round 3 caught what convergence hid: pins that were
-individually right and jointly inconsistent at the hook/config/ambient seams. Its findings
-replaced the tracked-and-clean refusal rule with a cleaner mechanism (committed-blob reads)
-and made build risk #1 testable in v1. Two CPO laws locked 2026-07-07. One short targeted
-verification round on the new mechanism, then the verdict.
+**Revision 5: ROCK-SOLID (CTO verdict, 2026-07-08).** Four adversarial rounds (codex 1, 2,
+4; Opus fresh-eyes 3), every finding accepted and pinned, dispositions below. Round 4 found
+no P0 and no architectural challenge: one classification gap (authority.json, folded) and
+wording. The architecture has been unchallenged since round 2. Awaiting Edgar's sign-off,
+then writing-plans. Two CPO laws locked 2026-07-07.
 
 ## The two laws (locked, not revisitable in review)
 1. **Trust by design.** Secure, private, content-safe by construction: vulnerability
@@ -229,7 +228,8 @@ check re-grounds every session correctly for free.
   provenance hooks, identity fields, and delta templates exist precisely so the FYI own-PR
   note, the criteria derivation note, and the since-you-started voice are expressible;
   internal recodings like profile_skipped preserve today's strings.)
-- CLI, MCP, hook, render surfaces: unchanged.
+- Existing rendered bytes: unchanged except the named new loud lines. MCP/CLI surface
+  changes are exactly the ones named in section 3's migration (round-4 P2 wording fix).
 - kinds.py evolves into the contract module; the pin-the-registry tests move with it.
 - Config without a `checks` block behaves exactly as today (the default set).
 
@@ -288,3 +288,18 @@ for the closure reshape; five new oracle rows in v1 scope incl. one declared sou
 TWO declared checks (N:M tested, not speculative). P2-2 folded into the declared-check row;
 P2-3 example fixed. Next: one short codex verification round on the committed-blob
 mechanism's corners, then the verdict.
+
+## Round-4 disposition (codex, targeted, 2026-07-08)
+Verdict REVISE with no P0: the convergence tail. P1: authority.json classified as team
+semantics and given the committed-blob rule (accepted; the alternative exemption was
+weaker: authority changes what agents see). P2: shared config-failure formatter pinned;
+the "surfaces unchanged" contradiction reworded. Mechanism pins folded: git show HEAD:
+form; the five key states; the exact dirty-note wording; budget confirmed within the
+reflex pins. The committed-blob mechanism verified sound across detached HEAD, linked
+worktrees, rebase/bisect, zero-commit, and deleted-working-tree cases.
+
+## CTO verdict
+ROCK-SOLID. Four rounds, two independent reviewers, twenty-nine accepted findings, zero
+open. The design is as good as review can make it; what remains is what only building
+proves. Next: Edgar's spec sign-off, then the implementation plan (slice one: the
+projection seam; the oracle green after every slice).
