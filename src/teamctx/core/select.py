@@ -17,6 +17,8 @@ from typing import Literal
 
 from teamctx.core.authority import AuthorityDecl, AuthorityEntry, assess_authority
 from teamctx.core.contracts import (
+    ClosureEntry,
+    ClosureStatus,
     ContextCard,
     RequestContext,
     SourceSignal,
@@ -112,16 +114,7 @@ class Coverage:
     delta: Delta = "none"
 
 
-Completeness = Literal[
-    "complete",
-    "incomplete[dangling]",
-    "incomplete[stale-dep]",
-    "incomplete[pending]",
-    "incomplete[policy-gap]",
-    "incomplete[unbounded]",
-    "incomplete[unmodeled-ref]",
-    "not_applicable[out-of-scope]",
-]
+Completeness = ClosureStatus
 
 
 def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
@@ -168,14 +161,6 @@ def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
     if any(status == "not_applicable" for status in statuses):
         return "not_applicable[out-of-scope]"
     return "complete"
-
-
-@dataclass(frozen=True)
-class ClosureEntry:
-    """A per-proposition completeness status for the coverage certificate (kappa.closure)."""
-
-    proposition: str
-    status: Completeness
 
 
 def build_coverage(statuses: Iterable[SourceStatus], delta: Delta = "none") -> Coverage:
@@ -229,8 +214,11 @@ def select_context(
     cards = tuple(render_claim(claim_card) for claim_card in claim_cards)
     closure = tuple(
         ClosureEntry(
+            check_id=kind.check_id,
             proposition=kind.query(request).predicate,
-            status=assess_completeness(kind.query(request), coverage),
+            consumed_document_ids=(),
+            closure_status=assess_completeness(kind.query(request), coverage),
+            reason=_closure_reason(kind, request),
         )
         for kind in CARD_KINDS
     )
@@ -251,3 +239,11 @@ def select_context(
         authority=authority,
         snapshot_digest=digest,
     )
+
+
+def _closure_reason(kind: CardKind, request: RequestContext) -> str:
+    query = kind.query(request)
+    deps = ", ".join(sorted(deps_for(query)))
+    if deps:
+        return f"check {kind.check_id} requires source families: {deps}"
+    return f"check {kind.check_id} has no source-family dependencies"

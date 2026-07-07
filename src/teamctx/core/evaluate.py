@@ -15,9 +15,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from teamctx.core.contracts import ClosureLike, ClosureStatus, closure_projection
 from teamctx.core.kinds import ClaimCard, shape_of, witnesses
 from teamctx.core.prop import Prop
-from teamctx.core.select import ClosureEntry, Completeness
 
 
 @dataclass(frozen=True)
@@ -28,10 +28,11 @@ class Valuation:
     reason: str = ""
 
 
-def _closure_status(query: Prop, closure: tuple[ClosureEntry, ...]) -> Completeness:
+def _closure_status(query: Prop, closure: tuple[ClosureLike, ...]) -> ClosureStatus:
     for entry in closure:
-        if entry.proposition == query.predicate:
-            return entry.status
+        projection = closure_projection(entry)
+        if projection.proposition == query.predicate:
+            return projection.status
     # No closure assessed for this query -> conservatively treat as not complete.
     return "incomplete[policy-gap]"
 
@@ -39,7 +40,7 @@ def _closure_status(query: Prop, closure: tuple[ClosureEntry, ...]) -> Completen
 def evaluate(
     query: Prop,
     claim_cards: tuple[ClaimCard, ...],
-    closure: tuple[ClosureEntry, ...],
+    closure: tuple[ClosureLike, ...],
 ) -> Valuation:
     """Soundly under-approximate the truth of ``query`` from the broker's answer."""
 

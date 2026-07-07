@@ -6,8 +6,14 @@ import pytest
 
 from teamctx.core.authority import AuthorityEntry
 from teamctx.core.content_digest import content_digest
-from teamctx.core.contracts import PolicyDecision, SourceSignal, SourceStatus
-from teamctx.core.select import ClosureEntry
+from teamctx.core.contracts import (
+    ClosureEntry,
+    ClosureLike,
+    ClosureProjection,
+    PolicyDecision,
+    SourceSignal,
+    SourceStatus,
+)
 
 OBSERVED = "2026-07-04T12:00:00Z"
 
@@ -72,8 +78,8 @@ def _digest(
     *,
     signals: tuple[SourceSignal, ...] = (_signal(),),
     statuses: tuple[SourceStatus, ...] = (_status(),),
-    closure: tuple[ClosureEntry, ...] = (
-        ClosureEntry(proposition="no_pr_conflicts_with_paths", status="complete"),
+    closure: tuple[ClosureLike, ...] = (
+        ClosureProjection(proposition="no_pr_conflicts_with_paths", status="complete"),
     ),
     authority: tuple[AuthorityEntry, ...] = (
         AuthorityEntry(subject="rounding-cap", state="resolved", value="5"),
@@ -146,17 +152,37 @@ def test_status_excluded_fields_do_not_change_digest(field: str, value: object) 
 @pytest.mark.parametrize(
     "mutate",
     [
-        lambda entry: ClosureEntry(proposition="all_gates_pass", status=entry.status),
-        lambda entry: ClosureEntry(
+        lambda entry: ClosureProjection(proposition="all_gates_pass", status=entry.status),
+        lambda entry: ClosureProjection(
             proposition=entry.proposition, status="incomplete[stale-dep]"
         ),
     ],
 )
 def test_closure_included_fields_change_digest(
-    mutate: Callable[[ClosureEntry], ClosureEntry],
+    mutate: Callable[[ClosureProjection], ClosureProjection],
 ) -> None:
-    entry = ClosureEntry(proposition="no_pr_conflicts_with_paths", status="complete")
+    entry = ClosureProjection(proposition="no_pr_conflicts_with_paths", status="complete")
     assert _digest(closure=(entry,)) != _digest(closure=(mutate(entry),))
+
+
+def test_closure_rich_fields_do_not_change_digest() -> None:
+    entry = ClosureEntry(
+        check_id="conflict",
+        proposition="no_pr_conflicts_with_paths",
+        consumed_document_ids=("doc-b", "doc-a"),
+        closure_status="complete",
+        reason="git hosting source was fresh",
+    )
+    changed = ClosureEntry(
+        check_id="different-check",
+        proposition=entry.proposition,
+        consumed_document_ids=("doc-z",),
+        closure_status=entry.status,
+        reason="different reason",
+    )
+
+    assert entry.consumed_document_ids == ("doc-a", "doc-b")
+    assert _digest(closure=(entry,)) == _digest(closure=(changed,))
 
 
 @pytest.mark.parametrize(
@@ -178,8 +204,8 @@ def test_item_order_does_not_change_digest() -> None:
     signals = (_signal(id="b", source_display="GitHub PR #2"), _signal(id="a"))
     statuses = (_status(source_id="b"), _status(source_id="a"))
     closure = (
-        ClosureEntry(proposition="all_gates_pass", status="complete"),
-        ClosureEntry(proposition="no_pr_conflicts_with_paths", status="complete"),
+        ClosureProjection(proposition="all_gates_pass", status="complete"),
+        ClosureProjection(proposition="no_pr_conflicts_with_paths", status="complete"),
     )
     authority = (
         AuthorityEntry(subject="b", state="missing", value=None),

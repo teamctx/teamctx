@@ -13,14 +13,13 @@ from collections.abc import Iterable
 from typing import Any
 
 from teamctx.core.authority import AuthorityEntry
-from teamctx.core.contracts import SourceSignal, SourceStatus
-from teamctx.core.select import ClosureEntry
+from teamctx.core.contracts import ClosureLike, SourceSignal, SourceStatus, closure_projection
 
 
 def content_digest(
     signals: Iterable[SourceSignal],
     statuses: Iterable[SourceStatus],
-    closure: Iterable[ClosureEntry],
+    closure: Iterable[ClosureLike],
     authority: Iterable[AuthorityEntry],
 ) -> str:
     """Return a sha256 hex digest for the current pre-delta answer's decision-bearing content."""
@@ -59,8 +58,9 @@ def _status_item(status: SourceStatus) -> dict[str, Any]:
     }
 
 
-def _closure_item(entry: ClosureEntry) -> dict[str, str]:
-    return {"proposition": entry.proposition, "status": entry.status}
+def _closure_item(entry: ClosureLike) -> dict[str, str]:
+    projection = closure_projection(entry)
+    return {"proposition": projection.proposition, "status": projection.status}
 
 
 def _authority_item(entry: AuthorityEntry) -> dict[str, str | None]:

@@ -113,6 +113,41 @@ def test_v0_state_file_reads_as_no_baseline_after_the_schema_bump(tmp_path: Path
     assert load_baseline(state_dir, "sess-1", "key-1") is None
 
 
+def test_v1_state_file_reads_as_no_baseline_after_the_closure_schema_bump(
+    tmp_path: Path,
+) -> None:
+    state_dir = tmp_path / ".teamctx" / "ambient"
+    state_dir.mkdir(parents=True)
+    (state_dir / "sess-1.json").write_text(
+        json.dumps({
+            "schema_version": "teamctx.ambient_state.v1",
+            "session_id": "sess-1",
+            "baselines": {
+                "key-1": {
+                    "key": "key-1",
+                    "content_digest": "digest-1",
+                    "class_of_answer": "GOOD",
+                    "last_network_check_at": 1000.0,
+                    "last_spoken_at": 1000.0,
+                    "material": {
+                        "checks": [
+                            {
+                                "check": "conflict",
+                                "status": "clear",
+                                "note": None,
+                                "findings": [],
+                            }
+                        ]
+                    },
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    assert load_baseline(state_dir, "sess-1", "key-1") is None
+
+
 def test_material_round_trips_through_store_and_load(tmp_path: Path) -> None:
     state_dir = tmp_path / ".teamctx" / "ambient"
     material = BaselineMaterial(
@@ -144,7 +179,7 @@ def test_corrupt_material_shape_is_read_as_no_baseline(tmp_path: Path) -> None:
     state_dir.mkdir(parents=True)
     (state_dir / "sess-1.json").write_text(
         json.dumps({
-            "schema_version": "teamctx.ambient_state.v1",
+            "schema_version": "teamctx.ambient_state.v2",
             "session_id": "sess-1",
             "baselines": {
                 "key-1": {
