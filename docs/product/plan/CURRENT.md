@@ -54,7 +54,14 @@ supersedes "what's next" below. Reviewed adversarially (rev 2 pins all 12 findin
 (https://pypi.org/project/teamctx/0.1.0/, verified by a fresh-venv install from PyPI +
 onboard smoke). Still parked, Edgar's separate switches: repo public, site deploy, DNS.
 Token hygiene owed: replace the account-wide PyPI token with one scoped to teamctx.
-The five-minute user guide (docs/user-guide.md, claims-reviewed) is ready to hand out;
+DOGFOOD LIVE 2026-07-07 on four real repos (teamctx itself, netballast-v3,
+ritornello-v2, work/ta): onboarded from the PyPI package, live work-start verified in each;
+FIRST REAL CATCH: a failing 'lint' check on ta's main, surfaced within a minute. Friction ->
+issues #8 (gh multi-account: the active-account global mutates under concurrent sessions;
+name the account, add per-repo credential pin) and #9 (bare hook command + PATH miss = silent
+dead hook that status calls healthy). ta's config left UNCOMMITTED (org repo, Edgar's call);
+rit's committed on its feature branch unpushed (live mid-work session owns the push).
+The user guide (docs/user-guide.md, 43 lines, claims-reviewed) is ready to hand out;
 issue #7 tracks the first-prompt install gap for 0.1.1.
 
 **Prior staging record (2026-07-04):** The landing page wears
