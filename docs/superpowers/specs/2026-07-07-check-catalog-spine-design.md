@@ -1,12 +1,12 @@
 # Design: the check catalog spine (issue #10)
 
 ## Status
-Revision 3, after codex rounds 1 and 2 (both REVISE; all findings accepted; dispositions at
-the bottom). Round 2 confirmed the architecture (laws, N:M model, contract shape) and moved
-the findings into fix wording and migration seams; it also drove two scope decisions: the
-conformance cache is CUT and URL declared sources are DEFERRED to v1.1 (fully designed here,
-built after file sources prove the contract). Two CPO laws locked 2026-07-07. Next: an Opus
-fresh-eyes pass before the verdict.
+Revision 4, after codex rounds 1-2 and an Opus fresh-eyes round 3 (all REVISE; all findings
+accepted; dispositions at the bottom). Round 3 caught what convergence hid: pins that were
+individually right and jointly inconsistent at the hook/config/ambient seams. Its findings
+replaced the tracked-and-clean refusal rule with a cleaner mechanism (committed-blob reads)
+and made build risk #1 testable in v1. Two CPO laws locked 2026-07-07. One short targeted
+verification round on the new mechanism, then the verdict.
 
 ## The two laws (locked, not revisitable in review)
 1. **Trust by design.** Secure, private, content-safe by construction: vulnerability
@@ -49,6 +49,12 @@ A check is one frozen declaration:
   important-set is derived from the enabled important-lane checks.
 - `config_schema`: the options the check accepts, schema-validated with plain errors.
 
+**The declared check carries the SAME contract (round-3 P1-2):** a declared check states
+`consumes` (a declared-source id), `identity` (which mapped fields name a finding),
+`lane`, and `profile` explicitly; there are no invented defaults. A data-only declaration
+satisfies the identity round-trip because its identity fields are mapped record fields,
+which appear in rendered card scope by construction; conformance proves it like any check.
+
 Adding a check touches ONE declaration site. A conformance suite (purity, closure
 completeness, copy law incl. the em-dash grep, determinism, one mutation test per claim
 input) must pass before a check can register. The suite runs in CI over every registered
@@ -80,21 +86,28 @@ live with the source contract.
 `.teamctx/config.json` gains:
 ```json
 "checks": {
-  "collision": {"enabled": true},
-  "stale_base": {"enabled": true},
-  "deprecations": {"enabled": true, "lane": "important", "options": {...}}
+  "conflict": {"enabled": true},
+  "docs": {"enabled": false},
+  "x_deprecations": {"enabled": true, "lane": "important", "consumes": "x_registry"}
 }
 ```
-- Absent block = the default set (backward compatible).
+- Absent block = the default set (backward compatible). (The example uses v1-real ids:
+  a spec example must not be a config its own skew rule rejects; round-3 P2-3.)
 - Default-on requires: zero configuration AND field-proven. Today that grandfathers the
   four; new checks earn it. Everything needing declaration is opt-in by nature.
 - Onboard detects repo shape (CODEOWNERS, package.json, a flags SDK) and SUGGESTS relevant
   opt-ins in its output; it never enables them itself.
-- **Version skew rules (round-1 P1-4, generalized):** unknown ANYTHING in the checks block
-  (check id, option, lane value, declared-source field) is a LOUD, plain-language config
-  failure; older clients never run with partial or defaulted semantics. Config may declare
-  `requires_teamctx` (minimum version, checked with the same loud failure). The existing
-  strict-validation posture (unknown fields rejected) is retained and extended.
+- **Version skew rules (round-1 P1-4, generalized; hook mechanism pinned by round-3
+  P0-1):** unknown ANYTHING in the checks block (check id, option, lane value,
+  declared-source field) is a LOUD, plain-language config failure; older clients never run
+  with partial or defaulted semantics. Config may declare `requires_teamctx` (minimum
+  version, same loud failure). On the HOOK this cannot rely on exceptions: today the whole
+  run sits inside a fail-safe that eats everything, so a config error would silence the
+  flagship surface exactly when the team's config outgrew the local binary. Pin: the hook
+  catches config-validation failure EXPLICITLY, inside the fail-safe, and emits the loud
+  line as context ("your teamctx is behind this repo's team config; upgrade to run the
+  team's checks"); an emulation row proves the hook SPEAKS on unknown-check rather than
+  going silent. The fail-safe continues to eat only UNEXPECTED errors.
 - **Request context vs team semantics, classified (round-1 P1-5):** paths, branch, linked
   issue, and since are REQUEST CONTEXT (vary per invocation by nature). Repo, docs roots,
   declared sources, enabled checks, lanes, and options are TEAM SEMANTICS: committed config
@@ -141,13 +154,21 @@ No code-loading path exists. Two config-declared, schema-validated objects:
   inside the project root with symlink escapes rejected (the docs connector's existing
   hardening pattern), not under `.git`, regular files, size-capped, and TRACKED BY GIT
   (tracked means the content went through the team's review: law 2 applied to data).
-- **The config itself obeys law 2 (round-2 P1-4):** the `checks` block and every declared
-  object are honored ONLY from a tracked, clean `.teamctx/config.json` on normal surfaces
-  (hook, MCP, work-start). Untracked or dirty config: the default four checks still run,
-  and the declared/checks blocks are refused with a loud line ("the team's check
-  configuration is not committed; commit .teamctx/config.json to activate it"). Probe
-  commands may accept a dirty config for iteration, behind an explicit banner. (Found via
-  our own dogfood: a live repo with an untracked config.)
+- **The config itself obeys law 2, via COMMITTED-BLOB READS (round-2 P1-4, mechanism
+  replaced by round-3 P0-2):** on normal surfaces (hook, MCP, work-start), ALL team
+  semantics (work_start block, checks block, declared objects) are read from the COMMITTED
+  version of `.teamctx/config.json` (the HEAD blob), not the working tree. A dirty working
+  tree changes nothing until committed, and the output says so once ("config changes in
+  your working tree take effect when committed"). This yields exactly one reality (the
+  reviewed one), preserves team disables (nothing falls back to defaults), and closes the
+  whole-file-cleanliness gap (round-3 P2-1) with one rule. Never-committed config: the
+  file as written is the ONLY version, and since no team semantics were ever reviewed,
+  the default four run with a loud line ("commit .teamctx/config.json to activate the
+  team's configuration"). NO-GIT trees (exports, build contexts, sandboxes): tracking is
+  unverifiable, so same as never-committed: default four plus the loud reason (round-3
+  P0-2). Iteration surface (round-3 P1-3): `work-start --allow-dirty`, which runs the FULL
+  selection over the working-tree config behind an explicit banner; the connector probes
+  are not the iteration surface.
 - An unreachable/oversized/malformed/redirecting declared source closes as couldn't-check
   with the reason. Never a clear.
 - **Id namespace (round-1 P2-11 + round-2 P1-8):** declared check and source ids MUST match
@@ -192,7 +213,18 @@ check re-grounds every session correctly for free.
 ## 6. Migration and compatibility
 - The four checks re-declare onto the contract with byte-identical output on every
   surface: the 16-row emulation matrix and the full test suite run unchanged as the
-  regression oracle. Any expectation change in the matrix is a defect in the spine, not a
+  regression oracle. The closure reshape lands via a PROJECTION SEAM (round-3): the richer
+  ClosureEntry ships with a (proposition, status) projection so evaluate, content_digest,
+  and render stay byte-identical while consumers migrate one slice at a time; the oracle
+  stays green after every slice.
+- **The oracle grows WITH the feature (round-3 buildability):** new rows are part of v1
+  scope, not an afterthought: a committed-checks-block-honored row; a disabled-check row
+  (the disable visible in the coverage summary); an untracked-config row (default four
+  plus the loud line); the hook-speaks-on-unknown-check row (round-3 P0-1); and the
+  extensibility proof row: ONE declared file source consumed by TWO declared checks, which
+  makes the N:M closure machinery (build risk #1) tested rather than speculative, and
+  exercises the declared-check contract, the tracked-file rule, and the not-enabled
+  summary line in one place. Any expectation change in the matrix is a defect in the spine, not a
   row to update. (Round-1 P1-8 made this claim honest: the contract's advisory copy,
   provenance hooks, identity fields, and delta templates exist precisely so the FYI own-PR
   note, the criteria derivation note, and the since-you-started voice are expressible;
@@ -242,3 +274,17 @@ v1.1 (designed, pinned, not v1 build scope); repo-shape onboard suggestions DEFE
 Build risks, in order (drive the plan): 1. N:M closure migration without false clears;
 2. ambient identity/content-digest drift (unlawful silence or re-speak); 3. declared-file
 security + loud config failure across all surfaces.
+
+## Round-3 disposition (Opus fresh eyes, 2026-07-07)
+All accepted. P0-1: the hook now catches config-validation failure explicitly and SPEAKS
+(row added); the fail-safe eats only unexpected errors. P0-2 + P2-1: tracked-and-clean
+REPLACED by committed-blob reads (one reality, disables preserved, whole-file gap closed);
+never-committed and no-git trees pinned (default four + loud reason). P1-1: the ambient key
+hashes the effective semantics source, so commit-to-activate re-grounds. P1-2: declared
+checks carry consumes/identity/lane/profile explicitly. P1-3: work-start --allow-dirty is
+the iteration surface. P1-4: content identity takes closure (proposition, status) only;
+ambient schema bump named; replay digest correction recorded. Buildability: projection seam
+for the closure reshape; five new oracle rows in v1 scope incl. one declared source feeding
+TWO declared checks (N:M tested, not speculative). P2-2 folded into the declared-check row;
+P2-3 example fixed. Next: one short codex verification round on the committed-blob
+mechanism's corners, then the verdict.
