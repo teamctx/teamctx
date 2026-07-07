@@ -1,5 +1,13 @@
 # CURRENT: teamctx rolling plan
 
+**THE ROADMAP IS NOW GITHUB ISSUES: https://github.com/teamctx/teamctx/issues/30** (the
+tracking issue; priority-ordered; 2026-07-07, Edgar's direction). The catalog vision: the
+four checks become an open catalog on a public check contract (#10 spine, #11 noise/honesty
+at scale), then checks by tier (stale-base #12, issue lifecycle #13, doc-changed #14 first).
+Mode = build as we go: Edgar + work peers use teamctx on real projects (dogfood live on 4
+repos); field evidence re-prioritizes; eventual OSS release = #29, gated on Edgar's explicit
+go. This file remains the session steering doc; the issue tracker owns the backlog.
+
 **The one current plan. Read this first every session and re-orient before acting.**
 
 ## Product framing (decided 2026-06-27)
