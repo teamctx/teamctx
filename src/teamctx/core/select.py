@@ -25,6 +25,12 @@ from teamctx.core.contracts import (
     SourceSignal,
     SourceStatus,
 )
+from teamctx.core.declared import (
+    DeclaredCheckDefinition,
+    DeclaredCheckEvaluation,
+    disabled_declared_closure,
+    evaluate_declared_checks,
+)
 from teamctx.core.kinds import (
     CARD_KINDS,
     CardKind,
@@ -248,6 +254,8 @@ class ContextSelection:
     closure: tuple[ClosureEntry, ...]
     authority: tuple[AuthorityEntry, ...]
     snapshot_digest: str
+    declared_evaluations: tuple[DeclaredCheckEvaluation, ...] = ()
+    disabled_declared_checks: tuple[DeclaredCheckDefinition, ...] = ()
 
 
 def select_context(
@@ -258,6 +266,8 @@ def select_context(
     *,
     source_documents: Iterable[SourceDocument] = (),
     enabled_checks: Iterable[CheckId] | None = None,
+    declared_checks: Iterable[DeclaredCheckDefinition] = (),
+    disabled_declared_checks: Iterable[DeclaredCheckDefinition] = (),
 ) -> ContextSelection:
     """Broker entry point: derive typed claims, render cards, report coverage + closure,
     resolve authority, and bind the inputs with a verifiable-replay digest."""
@@ -266,16 +276,31 @@ def select_context(
     status_list = list(statuses)
     declaration_list = list(declarations)
     source_document_list = list(source_documents)
+    declared_check_tuple = tuple(declared_checks)
+    disabled_declared_tuple = tuple(disabled_declared_checks)
     check_selection = resolve_check_selection(enabled_checks)
     enabled = set(check_selection.enabled_checks)
     coverage = build_coverage(status_list, source_documents=source_document_list)
     claim_cards = tuple(
         derive_claims(request, signal_list, enabled_checks=check_selection.enabled_checks)
     )
-    cards = tuple(render_claim(claim_card) for claim_card in claim_cards)
-    closure = tuple(
-        _closure_entry(kind, request, coverage, enabled=kind.check_id in enabled)
-        for kind in CARD_KINDS
+    declared_evaluations = evaluate_declared_checks(
+        request,
+        declared_check_tuple,
+        signals=tuple(signal_list),
+        statuses=tuple(status_list),
+        source_documents=tuple(source_document_list),
+    )
+    cards = tuple(render_claim(claim_card) for claim_card in claim_cards) + tuple(
+        card for evaluation in declared_evaluations for card in evaluation.cards
+    )
+    closure = (
+        tuple(
+            _closure_entry(kind, request, coverage, enabled=kind.check_id in enabled)
+            for kind in CARD_KINDS
+        )
+        + tuple(evaluation.closure for evaluation in declared_evaluations)
+        + tuple(disabled_declared_closure(check) for check in disabled_declared_tuple)
     )
     subjects = sorted({decl.subject for decl in declaration_list})
     authority = tuple(assess_authority(subject, declaration_list) for subject in subjects)
@@ -293,6 +318,8 @@ def select_context(
         closure=closure,
         authority=authority,
         snapshot_digest=digest,
+        declared_evaluations=declared_evaluations,
+        disabled_declared_checks=disabled_declared_tuple,
     )
 
 

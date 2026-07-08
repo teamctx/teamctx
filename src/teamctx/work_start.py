@@ -73,6 +73,8 @@ def work_start_answer(
         enabled_checks=inputs.enabled_checks,
         important_checks=inputs.important_checks,
         disabled_checks=inputs.disabled_checks,
+        declared_checks=inputs.declared_checks,
+        disabled_declared_checks=inputs.disabled_declared_checks,
     )
 
 

@@ -49,6 +49,7 @@ from emulation.rows import (  # noqa: E402
     row19_dirty_authority,
     row20_checks_block_honored,
     row21_disabled_check_visible,
+    row22_declared_file_checks,
 )
 
 # The scenario matrix in program order.
@@ -74,6 +75,7 @@ ROW_MODULES = [
     row19_dirty_authority,
     row20_checks_block_honored,
     row21_disabled_check_visible,
+    row22_declared_file_checks,
 ]
 
 

@@ -26,6 +26,8 @@ from teamctx.project_config import (
     ProjectConfig,
     WorkStartConfig,
     check_selection_for_project_config,
+    declared_checks_for_project_config,
+    declared_file_sources_for_project_config,
     maybe_load_project_config,
 )
 from teamctx.runner import WorkStartInputs
@@ -164,6 +166,9 @@ def resolve_work_start_inputs(
         enabled_checks=check_selection.enabled_checks,
         important_checks=check_selection.important_checks,
         disabled_checks=check_selection.disabled_checks,
+        declared_sources=declared_file_sources_for_project_config(project_config),
+        declared_checks=declared_checks_for_project_config(project_config, enabled=True),
+        disabled_declared_checks=declared_checks_for_project_config(project_config, enabled=False),
     )
 
 

@@ -13,6 +13,7 @@ from typing import Literal
 from teamctx.ambient import Delta, deltas_from_signals, finding_key
 from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import ContextCard
+from teamctx.core.declared import DECLARED_CHECK_SCOPE_KEY, DeclaredCheckCopy
 from teamctx.core.evaluate import Valuation
 from teamctx.core.kinds import (
     CARD_KINDS,
@@ -47,6 +48,7 @@ class CheckState:
     cards: tuple[ContextCard, ...]
     note: str | None = None
     failing_sources: tuple[tuple[str, str], ...] = ()  # when unreachable: (source_id, status)
+    declared_copy: DeclaredCheckCopy | None = None
 
 
 @dataclass(frozen=True)
@@ -100,6 +102,9 @@ def _status_for(valuation: Valuation) -> CheckStatus:
 
 
 def _check_of_card(card: ContextCard) -> CheckId | None:
+    declared = card.scope.get(DECLARED_CHECK_SCOPE_KEY)
+    if isinstance(declared, str) and declared:
+        return declared
     return REASON_PREFIX.get(card.reason_code.split(".", 1)[0])
 
 
@@ -131,7 +136,7 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     for card in answer.selection.cards:
         check = _check_of_card(card)
         if check is not None and check in enabled:
-            cards_by_check[check].append(card)
+            cards_by_check.setdefault(check, []).append(card)
             findings.append(card)
 
     states: list[CheckState] = []
@@ -150,6 +155,24 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
                     failing_by_family.get(CHECK_DEPS_FAMILY[check], ())
                     if status == "unreachable"
                     else ()
+                ),
+            )
+        )
+    for evaluation in answer.selection.declared_evaluations:
+        states.append(
+            CheckState(
+                check=evaluation.check_id,
+                status=evaluation.status,
+                cards=evaluation.cards,
+                note=evaluation.note,
+                failing_sources=evaluation.failing_sources,
+                declared_copy=next(
+                    (
+                        check.copy
+                        for check in answer.declared_checks
+                        if check.id == evaluation.check_id
+                    ),
+                    None,
                 ),
             )
         )
