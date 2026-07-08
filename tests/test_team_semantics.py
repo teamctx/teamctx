@@ -39,6 +39,14 @@ def _write_config(root: Path, **work_start: object) -> None:
     )
 
 
+def _write_config_body(root: Path, body: object) -> None:
+    (root / ".teamctx").mkdir(parents=True, exist_ok=True)
+    (root / ".teamctx" / "config.json").write_text(
+        json.dumps(body),
+        encoding="utf-8",
+    )
+
+
 def _write_authority(root: Path, priority: int) -> None:
     (root / ".teamctx").mkdir(parents=True, exist_ok=True)
     (root / ".teamctx" / "authority.json").write_text(
@@ -145,6 +153,30 @@ def test_allow_dirty_reads_working_tree_config_with_banner(tmp_path: Path) -> No
     assert loaded.config.work_start.docs_root == "drafts"
     assert inputs.docs_root == "drafts"
     assert inputs.semantics_notices[0].startswith("using working-tree team config")
+
+
+def test_resolve_inputs_carries_committed_checks_selection(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    _write_config_body(
+        tmp_path,
+        {
+            "schema_version": "teamctx.project_config.v0",
+            "work_start": {"repo": "acme/widgets"},
+            "checks": {
+                "conflict": {"enabled": True},
+                "gate": {"enabled": True, "lane": "fyi"},
+                "docs": {"enabled": False},
+            },
+        },
+    )
+    _git(tmp_path, "add", ".teamctx/config.json")
+    _git(tmp_path, "commit", "-qm", "config")
+
+    inputs = resolve_work_start_inputs(paths=("src/app.py",), root=tmp_path)
+
+    assert inputs.enabled_checks == ("conflict", "gate")
+    assert inputs.disabled_checks == ("criteria", "docs")
+    assert inputs.important_checks == ("conflict",)
 
 
 def test_dirty_authority_reads_head_blob_and_reports_the_dirty_note(tmp_path: Path) -> None:

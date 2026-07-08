@@ -169,6 +169,24 @@ def test_checks_are_ordered_conflict_criteria_docs_gate() -> None:
     assert [c.check for c in a.checks] == ["conflict", "criteria", "docs", "gate"]
 
 
+def test_disabled_important_gate_leaves_the_silence_law_important_set() -> None:
+    # Gate is normally important, but a team-disabled gate is not in the ambient important set.
+    # A clear conflict check can therefore legally class as GOOD even though no gate document ran.
+    a = assess(
+        broker_answer(
+            _request(),
+            [],
+            [_fresh_status("git_hosting")],
+            enabled_checks=("conflict",),
+            important_checks=("conflict",),
+            disabled_checks=("criteria", "docs", "gate"),
+        )
+    )
+
+    assert [state.check for state in a.checks] == ["conflict"]
+    assert class_of_answer(a) == "GOOD"
+
+
 def test_conflicting_evidence_is_a_finding() -> None:
     from teamctx.assessment import _status_for
     from teamctx.core.evaluate import Valuation

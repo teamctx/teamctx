@@ -27,6 +27,7 @@ from teamctx.connectors.gitlab import run_gitlab_mr_probe, run_gitlab_pipeline_p
 from teamctx.connectors.issue_criteria import unavailable_issues_document
 from teamctx.connectors.jira import run_jira_issues_probe
 from teamctx.core.contracts import CoreContractDocument, RequestContext, SourceFamily
+from teamctx.core.kinds import DEFAULT_CHECK_IDS, DEFAULT_IMPORTANT_CHECKS, CheckId
 from teamctx.git_context import ForgeProvider, parse_github_repo, parse_gitlab_repo
 from teamctx.team_semantics import SemanticsState
 from teamctx.tokens import resolve_token
@@ -102,6 +103,9 @@ class WorkStartInputs:
     semantics_allow_dirty: bool = False
     config_state: SemanticsState = "committed_clean"
     config_key_bytes: bytes = b""
+    enabled_checks: tuple[CheckId, ...] = DEFAULT_CHECK_IDS
+    important_checks: tuple[CheckId, ...] = DEFAULT_IMPORTANT_CHECKS
+    disabled_checks: tuple[CheckId, ...] = ()
 
     def __post_init__(self) -> None:
         normalized = _parse_repo_for_forge(self.repo, self.forge)
@@ -144,135 +148,145 @@ def run_work_start_connectors(
     documents: list[CoreContractDocument] = []
     if inputs.forge == "gitlab":
         gitlab_token = resolve_token("GITLAB_TOKEN")
-        if inputs.paths:
-            documents.append(
-                run_gitlab_mr_probe(
-                    repo=inputs.repo,
-                    token=gitlab_token,
-                    request_context=request_context,
-                    observed_at=observed_at,
-                    max_pages=max_pages,
-                    diff_limit=gitlab_diff_limit,
+        if _check_enabled(inputs, "conflict"):
+            if inputs.paths:
+                documents.append(
+                    run_gitlab_mr_probe(
+                        repo=inputs.repo,
+                        token=gitlab_token,
+                        request_context=request_context,
+                        observed_at=observed_at,
+                        max_pages=max_pages,
+                        diff_limit=gitlab_diff_limit,
+                    )
                 )
-            )
-        else:
-            documents.append(
-                _empty_path_forge_review_document(
-                    request_context,
-                    provider="gitlab",
-                    source_id="gitlab_mr_metadata",
-                    observed_at=observed_at,
+            else:
+                documents.append(
+                    _empty_path_forge_review_document(
+                        request_context,
+                        provider="gitlab",
+                        source_id="gitlab_mr_metadata",
+                        observed_at=observed_at,
+                    )
                 )
-            )
 
-        gate_ref = inputs.ref or inputs.branch
-        if gate_ref:
-            documents.append(
-                run_gitlab_pipeline_probe(
-                    repo=inputs.repo,
-                    ref=gate_ref,
-                    token=gitlab_token,
-                    request_context=request_context,
-                    observed_at=observed_at,
+        if _check_enabled(inputs, "gate"):
+            gate_ref = inputs.ref or inputs.branch
+            if gate_ref:
+                documents.append(
+                    run_gitlab_pipeline_probe(
+                        repo=inputs.repo,
+                        ref=gate_ref,
+                        token=gitlab_token,
+                        request_context=request_context,
+                        observed_at=observed_at,
+                    )
                 )
-            )
-        else:
-            documents.append(
-                _disabled_document(
-                    request_context,
-                    source_id="gitlab_pipeline_state",
-                    source_family="ci_deploy",
-                    observed_at=observed_at,
-                    safe_user_message=_GITLAB_GATE_DISABLED,
+            else:
+                documents.append(
+                    _disabled_document(
+                        request_context,
+                        source_id="gitlab_pipeline_state",
+                        source_family="ci_deploy",
+                        observed_at=observed_at,
+                        safe_user_message=_GITLAB_GATE_DISABLED,
+                    )
                 )
-            )
     else:
-        if inputs.paths:
-            documents.append(
-                run_github_pr_probe(
-                    repo=inputs.repo,
-                    token=inputs.token,
-                    request_context=request_context,
-                    observed_at=observed_at,
-                    include_titles=inputs.include_titles,
-                    max_pages=max_pages,
+        if _check_enabled(inputs, "conflict"):
+            if inputs.paths:
+                documents.append(
+                    run_github_pr_probe(
+                        repo=inputs.repo,
+                        token=inputs.token,
+                        request_context=request_context,
+                        observed_at=observed_at,
+                        include_titles=inputs.include_titles,
+                        max_pages=max_pages,
+                    )
                 )
-            )
-        else:
-            documents.append(
-                _empty_path_forge_review_document(
-                    request_context,
-                    provider="github",
-                    source_id="github_pr_metadata",
-                    observed_at=observed_at,
+            else:
+                documents.append(
+                    _empty_path_forge_review_document(
+                        request_context,
+                        provider="github",
+                        source_id="github_pr_metadata",
+                        observed_at=observed_at,
+                    )
                 )
-            )
 
-        gate_ref = inputs.ref or inputs.branch
-        if gate_ref:
-            documents.append(
-                run_github_checks_probe(
-                    repo=inputs.repo,
-                    ref=gate_ref,
-                    token=inputs.token,
-                    request_context=request_context,
-                    observed_at=observed_at,
+        if _check_enabled(inputs, "gate"):
+            gate_ref = inputs.ref or inputs.branch
+            if gate_ref:
+                documents.append(
+                    run_github_checks_probe(
+                        repo=inputs.repo,
+                        ref=gate_ref,
+                        token=inputs.token,
+                        request_context=request_context,
+                        observed_at=observed_at,
+                    )
                 )
-            )
-        else:
-            documents.append(
-                _disabled_document(
-                    request_context,
-                    source_id="github_check_runs",
-                    source_family="ci_deploy",
-                    observed_at=observed_at,
-                    safe_user_message=_GATE_DISABLED,
+            else:
+                documents.append(
+                    _disabled_document(
+                        request_context,
+                        source_id="github_check_runs",
+                        source_family="ci_deploy",
+                        observed_at=observed_at,
+                        safe_user_message=_GATE_DISABLED,
+                    )
                 )
-            )
 
-    documents.extend(_run_issue_tracker_documents(inputs, request_context, observed_at))
+    if _check_enabled(inputs, "criteria"):
+        documents.extend(_run_issue_tracker_documents(inputs, request_context, observed_at))
 
     confluence_configured = (
         inputs.confluence_base_url is not None and inputs.confluence_space_key is not None
     )
-    if inputs.docs_root:
-        documents.append(
-            run_docs_supersession_probe(
-                repo=inputs.repo,
-                root=inputs.docs_root,
-                request_context=request_context,
-                observed_at=observed_at,
-                base_dir=project_root,
+    if _check_enabled(inputs, "docs"):
+        if inputs.docs_root:
+            documents.append(
+                run_docs_supersession_probe(
+                    repo=inputs.repo,
+                    root=inputs.docs_root,
+                    request_context=request_context,
+                    observed_at=observed_at,
+                    base_dir=project_root,
+                )
             )
-        )
-    elif not confluence_configured:
-        # The no-docs-configured note fires only when NO docs source is declared at all. An
-        # unset docs_root beside a configured Confluence space is not a coverage gap (the team
-        # declared Confluence as its docs source); a disabled entry here would poison the
-        # family under the mixed disabled+fresh rule and read a clean Confluence scan as
-        # unreachable.
-        documents.append(
-            _disabled_document(
-                request_context,
-                source_id="docs_supersession",
-                source_family="docs",
-                observed_at=observed_at,
-                safe_user_message=_DOCS_DISABLED,
+        elif not confluence_configured:
+            # The no-docs-configured note fires only when NO docs source is declared at all. An
+            # unset docs_root beside a configured Confluence space is not a coverage gap (the team
+            # declared Confluence as its docs source); a disabled entry here would poison the
+            # family under the mixed disabled+fresh rule and read a clean Confluence scan as
+            # unreachable.
+            documents.append(
+                _disabled_document(
+                    request_context,
+                    source_id="docs_supersession",
+                    source_family="docs",
+                    observed_at=observed_at,
+                    safe_user_message=_DOCS_DISABLED,
+                )
             )
-        )
 
-    if inputs.confluence_base_url is not None and inputs.confluence_space_key is not None:
-        documents.append(
-            _run_confluence_document(
-                inputs,
-                request_context,
-                observed_at,
-                base_url=inputs.confluence_base_url,
-                space_key=inputs.confluence_space_key,
+        if inputs.confluence_base_url is not None and inputs.confluence_space_key is not None:
+            documents.append(
+                _run_confluence_document(
+                    inputs,
+                    request_context,
+                    observed_at,
+                    base_url=inputs.confluence_base_url,
+                    space_key=inputs.confluence_space_key,
+                )
             )
-        )
 
     return request_context, documents
+
+
+def _check_enabled(inputs: WorkStartInputs, check: CheckId) -> bool:
+    return check in inputs.enabled_checks
 
 
 def _empty_path_forge_review_document(

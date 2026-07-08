@@ -159,6 +159,27 @@ def test_ready_headline_names_clear_checks_and_lists_gaps() -> None:
     _no_jargon(text)
 
 
+def test_render_summary_line_for_checks_not_enabled_by_team() -> None:
+    text = render_broker_answer(
+        broker_answer(
+            _request(),
+            [],
+            [_fresh("git_hosting"), _fresh("ci_deploy")],
+            enabled_checks=("conflict", "gate"),
+            important_checks=("conflict", "gate"),
+            disabled_checks=("criteria", "docs"),
+        )
+    )
+
+    assert "  Checked: no other open PRs touch your files; no failing checks found." in text
+    assert (
+        "  Not enabled by the team: spec changes, docs "
+        "(enable in .teamctx/config.json)."
+    ) in text
+    assert "Not checked:" not in text
+    _no_jargon(text)
+
+
 def test_not_checked_line_uses_disabled_note_verbatim() -> None:
     note = (
         "spec changes (no issue could be derived from your branch or commits; name one "

@@ -6,12 +6,15 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
 
+from teamctx import __version__
 from teamctx.config_failure import TEAM_CONFIG_UPGRADE_LINE
+from teamctx.core.kinds import CheckId, CheckLane, CheckSelection, resolve_check_selection
 from teamctx.git_context import ForgeProvider
 
 DEFAULT_CONFIG_PATH = Path(".teamctx/config.json")
+TEAMCTX_VERSION = __version__
 
 
 class ProjectConfigError(ValueError):
@@ -55,9 +58,24 @@ class WorkStartConfig(StrictConfigModel):
     confluence: ConfluenceConfig | None = None
 
 
+class CheckConfig(StrictConfigModel):
+    enabled: bool
+    lane: CheckLane | None = None
+
+
 class ProjectConfig(StrictConfigModel):
     schema_version: Literal["teamctx.project_config.v0"]
+    requires_teamctx: str | None = None
     work_start: WorkStartConfig | None = None
+    checks: dict[CheckId, CheckConfig] | None = None
+
+    @model_validator(mode="after")
+    def require_supported_teamctx(self) -> ProjectConfig:
+        if self.requires_teamctx is not None and _version_lt(
+            TEAMCTX_VERSION, self.requires_teamctx
+        ):
+            raise ValueError(TEAM_CONFIG_UPGRADE_LINE)
+        return self
 
 
 def build_work_start_project_config(
@@ -67,6 +85,20 @@ def build_work_start_project_config(
         schema_version="teamctx.project_config.v0",
         work_start=WorkStartConfig(repo=repo, forge=forge, docs_root=docs_root),
     )
+
+
+def check_selection_for_project_config(config: ProjectConfig | None) -> CheckSelection:
+    if config is None or config.checks is None:
+        return resolve_check_selection()
+    enabled: list[CheckId] = []
+    lanes: dict[CheckId, CheckLane] = {}
+    for check_id, check_config in config.checks.items():
+        if not check_config.enabled:
+            continue
+        enabled.append(check_id)
+        if check_config.lane is not None:
+            lanes[check_id] = check_config.lane
+    return resolve_check_selection(enabled, lane_overrides=lanes)
 
 
 def load_project_config(path: Path) -> ProjectConfig:
@@ -106,6 +138,22 @@ def _looks_like_future_team_config(data: object) -> bool:
         return False
     future_team_semantics = {"checks", "requires_teamctx", "declared_sources", "sources"}
     return any(key in data for key in future_team_semantics)
+
+
+def _version_lt(current: str, required: str) -> bool:
+    return _version_tuple(current) < _version_tuple(required)
+
+
+def _version_tuple(value: str) -> tuple[int, ...]:
+    parts = value.split(".")
+    if not parts:
+        raise ValueError(f"invalid version: {value!r}")
+    parsed: list[int] = []
+    for part in parts:
+        if not part.isdigit():
+            raise ValueError(f"invalid version: {value!r}")
+        parsed.append(int(part))
+    return tuple(parsed)
 
 
 def maybe_load_project_config(path: Path) -> ProjectConfig | None:

@@ -5,13 +5,7 @@ from __future__ import annotations
 from typing import cast
 
 from teamctx.ambient import Delta, FindingMaterial
-from teamctx.assessment import (
-    IMPORTANT_CHECKS,
-    CheckState,
-    WorkStartAssessment,
-    assess,
-    card_finding_key,
-)
+from teamctx.assessment import CheckState, WorkStartAssessment, assess, card_finding_key
 from teamctx.core.authority import AuthorityEntry
 from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import (
@@ -34,6 +28,12 @@ _HEADLINE = {
     "cant_verify": "Heads up: I can't confirm the important things yet:",
 }
 RENDER_COPY = CHECK_COPY
+_NOT_ENABLED_PHRASE: dict[CheckId, str] = {
+    "conflict": "open PRs",
+    "criteria": "spec changes",
+    "docs": "docs",
+    "gate": "failing checks",
+}
 
 if set(RENDER_COPY) != {kind.check_id for kind in CARD_KINDS}:
     raise RuntimeError(
@@ -223,6 +223,9 @@ def render_broker_answer(answer: BrokerAnswer) -> str:
     coverage = _coverage_line(answer, assessment)
     if coverage:
         lines.append(coverage)
+    not_enabled = _not_enabled_line(answer)
+    if not_enabled:
+        lines.append(not_enabled)
     lines.extend(_fyi_lines(answer.selection))
     couldnt = _couldnt_check_line(assessment, forge)
     if couldnt:
@@ -344,14 +347,14 @@ def _cant_verify_bullets(assessment: WorkStartAssessment, forge: str) -> list[st
             f"{_red_gate_phrase(forge)} on your files."
         )
     for state in assessment.checks:
-        if state.status == "unbounded" and state.check in IMPORTANT_CHECKS:
+        if state.status == "unbounded" and state.check in assessment.important_checks:
             label = _conflict_label(forge) if state.check == "conflict" else _gate_label(forge)
             note = state.note or check_unreachable_copy(state.check, forge)
             bullets.append(
                 f"  • {label}: {note} Glance at {_source_name(forge)} if this file is sensitive."
             )
     for state in assessment.checks:
-        if state.status == "pending" and state.check in IMPORTANT_CHECKS:
+        if state.status == "pending" and state.check in assessment.important_checks:
             bullets.append(_pending_bullet(state.check))
     return bullets
 
@@ -362,6 +365,21 @@ def _coverage_line(answer: BrokerAnswer, assessment: WorkStartAssessment) -> str
         return ""
     label = "Checked: " if assessment.kind == "ready" else "Also checked: "
     return "  " + label + "; ".join(clear) + "."
+
+
+def _not_enabled_line(answer: BrokerAnswer) -> str:
+    phrases = [
+        _NOT_ENABLED_PHRASE[check]
+        for check in answer.disabled_checks
+        if check in _NOT_ENABLED_PHRASE
+    ]
+    if not phrases:
+        return ""
+    return (
+        "  Not enabled by the team: "
+        + ", ".join(phrases)
+        + " (enable in .teamctx/config.json)."
+    )
 
 
 def _clear_phrase(answer: BrokerAnswer, state: CheckState) -> str:
@@ -421,7 +439,7 @@ def _couldnt_check_line(assessment: WorkStartAssessment, forge: str) -> str:
         for s in assessment.checks
         if s.status == "unreachable"
         and s.check not in shrank  # a coverage-shrank delta already speaks this check
-        and not (in_bullets and s.check in IMPORTANT_CHECKS)
+        and not (in_bullets and s.check in assessment.important_checks)
     ]
     if not gaps:
         return ""
@@ -460,7 +478,7 @@ def _partially_checked_line(assessment: WorkStartAssessment) -> str:
         s.note or RENDER_COPY[s.check].unreachable
         for s in assessment.checks
         if s.status == "unbounded"
-        and not (in_bullets and s.check in IMPORTANT_CHECKS)
+        and not (in_bullets and s.check in assessment.important_checks)
     ]
     if not gaps:
         return ""
@@ -485,7 +503,7 @@ def _still_running_line(assessment: WorkStartAssessment) -> str:
     gaps = [
         _pending_phrase(s.check)
         for s in assessment.checks
-        if s.status == "pending" and not (in_bullets and s.check in IMPORTANT_CHECKS)
+        if s.status == "pending" and not (in_bullets and s.check in assessment.important_checks)
     ]
     if not gaps:
         return ""

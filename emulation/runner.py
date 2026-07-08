@@ -47,6 +47,8 @@ from emulation.rows import (  # noqa: E402
     row17_untracked_config,
     row18_hook_speaks_on_unknown_check,
     row19_dirty_authority,
+    row20_checks_block_honored,
+    row21_disabled_check_visible,
 )
 
 # The scenario matrix in program order.
@@ -70,6 +72,8 @@ ROW_MODULES = [
     row17_untracked_config,
     row18_hook_speaks_on_unknown_check,
     row19_dirty_authority,
+    row20_checks_block_honored,
+    row21_disabled_check_visible,
 ]
 
 

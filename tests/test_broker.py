@@ -166,6 +166,31 @@ def test_broker_answer_returns_selection_and_one_verdict_per_kind() -> None:
     assert labels == ["Conflict check", "Criteria check", "Docs check", "Gate check"]
 
 
+def test_broker_answer_filters_disabled_checks_and_marks_closure_disabled_by_team() -> None:
+    signal = _collision_signal(1)
+    status = _status("github_pr_metadata", "git_hosting")
+    request = _request()
+
+    answer = broker_answer(
+        request,
+        [signal],
+        [status],
+        enabled_checks=("conflict",),
+        important_checks=("conflict",),
+        disabled_checks=("criteria", "docs", "gate"),
+    )
+
+    assert [label for label, _ in answer.verdicts] == ["Conflict check"]
+    assert [card.reason_code for card in answer.selection.cards] == ["collision.same_path"]
+    closure = {entry.check_id: entry.closure_status for entry in answer.selection.closure}
+    assert closure == {
+        "conflict": "complete",
+        "criteria": "disabled-by-team",
+        "docs": "disabled-by-team",
+        "gate": "disabled-by-team",
+    }
+
+
 def test_broker_answer_conflict_is_false_when_collision_present() -> None:
     answer = broker_answer(
         _request(),

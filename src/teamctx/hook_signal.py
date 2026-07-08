@@ -52,9 +52,10 @@ def _important_gap_notes(a: WorkStartAssessment, forge: str) -> list[str]:
     # Brief, honest notes for important checks that are unconfirmed (unreachable or pending), so a
     # finding-driven heads_up never hides that the gate or PR check could not be confirmed.
     shrank = shrank_checks(a.deltas)  # a coverage-shrank delta already speaks these; don't repeat
+    important_checks = _important_checks(a)
     notes: list[str] = []
     for s in a.checks:
-        if s.check not in IMPORTANT_CHECKS or s.check in shrank:
+        if s.check not in important_checks or s.check in shrank:
             continue
         if s.status == "pending":
             notes.append("CI checks are still running, so the gate isn't confirmed green yet.")
@@ -106,11 +107,12 @@ def _heads_up(a: WorkStartAssessment, file_path: str | None, forge: str) -> str:
 
 def _cant_verify(a: WorkStartAssessment, token_present: bool, forge: str) -> str:
     shrank = shrank_checks(a.deltas)  # a coverage-shrank delta already speaks these; don't repeat
+    important_checks = _important_checks(a)
     unreachable = [
         s.check
         for s in a.checks
         if s.status == "unreachable"
-        and s.check in IMPORTANT_CHECKS
+        and s.check in important_checks
         and not _stale_only(s)
         and s.check not in shrank
     ]
@@ -118,13 +120,17 @@ def _cant_verify(a: WorkStartAssessment, token_present: bool, forge: str) -> str
         s
         for s in a.checks
         if s.status == "unreachable"
-        and s.check in IMPORTANT_CHECKS
+        and s.check in important_checks
         and _stale_only(s)
         and s.note
         and s.check not in shrank
     ]
-    unbounded = [s for s in a.checks if s.status == "unbounded" and s.check in IMPORTANT_CHECKS]
-    pending = [s.check for s in a.checks if s.status == "pending" and s.check in IMPORTANT_CHECKS]
+    unbounded = [
+        s for s in a.checks if s.status == "unbounded" and s.check in important_checks
+    ]
+    pending = [
+        s.check for s in a.checks if s.status == "pending" and s.check in important_checks
+    ]
     parts: list[str] = []
     if unreachable:
         # name only the checks that are actually unreachable, so a pending gate is never
@@ -178,6 +184,15 @@ def _unbounded_note(state: CheckState, forge: str) -> str:
         f"teamctx partially checked {check_hook_gap_copy(state.check, forge) or state.check}. "
         f"{note} Glance at {_source_name(forge)} if this file is sensitive."
     ).strip()
+
+
+def _important_checks(a: WorkStartAssessment) -> frozenset[str]:
+    value: object = getattr(a, "important_checks", IMPORTANT_CHECKS)
+    if isinstance(value, frozenset):
+        return value
+    if isinstance(value, (list, set, tuple)):
+        return frozenset(str(item) for item in value)
+    return frozenset(IMPORTANT_CHECKS)
 
 
 def _ready(checks: tuple[CheckState, ...], file_path: str | None, forge: str) -> str:

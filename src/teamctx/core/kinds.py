@@ -17,7 +17,7 @@ Pure: dataclasses, typing, and internal core imports only (the core purity test 
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -700,6 +700,61 @@ CARD_KINDS: tuple[CardKind, ...] = (
 
 
 # --- derived lookups: one definition site (CARD_KINDS); everything else reads these ---
+
+
+@dataclass(frozen=True)
+class CheckSelection:
+    """Resolved team-level check selection in registry order."""
+
+    enabled_checks: tuple[CheckId, ...]
+    important_checks: tuple[CheckId, ...]
+    disabled_checks: tuple[CheckId, ...]
+
+
+DEFAULT_CHECK_IDS: tuple[CheckId, ...] = tuple(kind.check_id for kind in CARD_KINDS)
+DEFAULT_IMPORTANT_CHECKS: tuple[CheckId, ...] = tuple(
+    kind.check_id for kind in CARD_KINDS if kind.lane == "important"
+)
+
+
+def default_check_selection() -> CheckSelection:
+    return CheckSelection(
+        enabled_checks=DEFAULT_CHECK_IDS,
+        important_checks=DEFAULT_IMPORTANT_CHECKS,
+        disabled_checks=(),
+    )
+
+
+def resolve_check_selection(
+    enabled: Iterable[CheckId] | None = None,
+    *,
+    lane_overrides: Mapping[CheckId, CheckLane] | None = None,
+) -> CheckSelection:
+    """Normalize enabled checks and lane overrides to registry order.
+
+    ``enabled is None`` is the backward-compatible default four. A present checks block passes
+    the explicit enabled set; any built-in not in that set is not enabled by the team.
+    """
+
+    if enabled is None:
+        return default_check_selection()
+    enabled_set = set(enabled)
+    overrides = lane_overrides or {}
+    enabled_checks = tuple(kind.check_id for kind in CARD_KINDS if kind.check_id in enabled_set)
+    important_checks = tuple(
+        kind.check_id
+        for kind in CARD_KINDS
+        if kind.check_id in enabled_set
+        and overrides.get(kind.check_id, kind.lane) == "important"
+    )
+    disabled_checks = tuple(
+        kind.check_id for kind in CARD_KINDS if kind.check_id not in enabled_set
+    )
+    return CheckSelection(
+        enabled_checks=enabled_checks,
+        important_checks=important_checks,
+        disabled_checks=disabled_checks,
+    )
 
 
 def _build_predicate_registry() -> dict[str, PropShape]:

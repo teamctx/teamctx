@@ -250,14 +250,28 @@ def _ground(
         socket.setdefaulttimeout(old_timeout)
     authority = load_team_authority(root, allow_dirty=inputs.semantics_allow_dirty)
     declarations = authority.declarations
-    base_answer = broker_answer_from_documents(request, documents, declarations)
+    base_answer = broker_answer_from_documents(
+        request,
+        documents,
+        declarations,
+        enabled_checks=inputs.enabled_checks,
+        important_checks=inputs.important_checks,
+        disabled_checks=inputs.disabled_checks,
+    )
 
     material = compute_baseline_material(base_answer)
     deltas = compute_deltas(baseline.material if baseline is not None else None, material)
     if deltas:
         # Compose the SAME documents again with an edge-minted delta document: no second network.
         delta_document = build_delta_document(request, deltas, observed_at=observed_at)
-        answer = broker_answer_from_documents(request, [*documents, delta_document], declarations)
+        answer = broker_answer_from_documents(
+            request,
+            [*documents, delta_document],
+            declarations,
+            enabled_checks=inputs.enabled_checks,
+            important_checks=inputs.important_checks,
+            disabled_checks=inputs.disabled_checks,
+        )
     else:
         answer = base_answer
 
