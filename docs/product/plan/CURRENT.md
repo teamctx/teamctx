@@ -4,7 +4,7 @@
 docs/superpowers/plans/2026-07-08-catalog-spine.md).** Slice 1 MERGED (rich ClosureEntry +
 projection; identity ignores transient reasons). Slice 2 MERGED (document identity;
 fetch status belongs to sources, verifiedness to checks; snapshot digest untouched,
-tested). PAUSED HERE by Edgar 2026-07-08 before slice 3 (the check contract: kinds.py
+tested). COMPLETE 2026-07-08: ALL SEVEN SLICES MERGED, issue #10 CLOSED (oracle 16->22 rows, 981 tests; two builder-stops caught real defects; the arbiter's adversarial probes verified every security refusal with plain-language reasons). Superseded note: paused before slice 3 (the check contract: kinds.py
 becomes declarations; migration task zero = string inventory). Slices 4-7 in the plan.
 A builder STOPPED on a spec self-contradiction (my rev-4 unasserted replace silently
 no-opped): fixed; lesson = assert every scripted edit.
