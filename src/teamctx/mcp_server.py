@@ -31,35 +31,31 @@ _WORK_START_DESCRIPTION = (
     "acceptance criteria on linked issues, and superseded docs you rely on. Returns cards + "
     "an honest coverage report + one verdict per check (clear / NOT CLEAR / UNKNOWN). It "
     "informs; it does not block. Read it and factor it into your plan. A source the inputs "
-    "cannot reach is reported UNKNOWN, never a false all-clear. Repo, branch, and docs root "
-    "are auto-detected from the working tree and .teamctx/config.json; pass them only to override."
+    "cannot reach is reported UNKNOWN, never a false all-clear. Repo and docs root are read "
+    "from the working tree and committed .teamctx/config.json; branch is request context."
 )
 
 
 @mcp.tool(name="work_start", description=_WORK_START_DESCRIPTION)
 def work_start(
     paths: list[str],
-    repo: str | None = None,
     branch: str | None = None,
     task: str = "Start work.",
     issues: list[str] | None = None,
     since: str | None = None,
-    docs_root: str | None = None,
     ref: str | None = None,
 ) -> str:
     """Run the unified work-start broker and return its answer as text.
 
-    paths: files the work will touch (required). repo/branch/docs_root are auto-detected from
-    the server's working tree and ``.teamctx/config.json``; pass them only to override.
+    paths: files the work will touch (required). Team semantics come from the server's
+    working tree and committed ``.teamctx/config.json``.
     """
 
     root = _resolution_root()
     try:
         inputs = resolve_work_start_inputs(
             paths=tuple(paths),
-            repo=repo,
             branch=branch,
-            docs_root=docs_root,
             task=task,
             issues=tuple(issues or ()),
             since=since,

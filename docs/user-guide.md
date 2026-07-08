@@ -29,6 +29,10 @@ since you started: GitHub PR #7 appeared, touching src/auth/token.py
 Silence means checked and unchanged. Want it on demand?
 `teamctx work-start --path <file>`.
 
+## Team checks
+
+Your team decides what runs. The committed `.teamctx/config.json` can enable or disable checks for everyone at once, and can declare simple record files (a deprecation list, a freeze calendar) that teamctx will surface like any other check. Nothing takes effect until the config is committed, and the output always names anything your team turned off.
+
 ## Two habits that make it sharper
 
 - Put the issue ref in your branch name (`42-fix-login`, `PROJ-123-rollout`) or in a

@@ -6,14 +6,14 @@ seam: the tool is registered, callable, returns the broker's text, and degrades 
 
 from __future__ import annotations
 
+import asyncio
 import subprocess
+from inspect import signature
 from pathlib import Path
 
 import pytest
 
 pytest.importorskip("mcp", reason="the optional mcp extra is not installed")
-
-import asyncio
 
 from teamctx.mcp_server import mcp, work_start
 
@@ -25,6 +25,10 @@ def _init_repo(root: Path) -> None:
     (root / "f.txt").write_text("x", encoding="utf-8")
     subprocess.run(["git", "-C", str(root), "add", "."], check=True)
     subprocess.run(["git", "-C", str(root), "commit", "-qm", "i"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "remote", "add", "origin", "git@github.com:acme/widgets.git"],
+        check=True,
+    )
 
 
 def _commit_paths(root: Path, *paths: str) -> None:
@@ -48,19 +52,23 @@ def _content_text(result: object) -> str:
 def test_work_start_tool_is_directly_callable_and_degrades_without_token(
     monkeypatch, tmp_path
 ) -> None:
+    _init_repo(tmp_path)
     monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-    output = work_start(repo="acme/widgets", paths=["src/app/core.py"])
+    output = work_start(paths=["src/app/core.py"])
     # no token => conflict unreachable => cant_verify; never a false clear
     assert "Heads up: I can't confirm the important things yet:" in output
     assert "couldn't reach GitHub" in output
 
 
 def test_work_start_tool_surfaces_a_collision(monkeypatch, tmp_path) -> None:
+    _init_repo(tmp_path)
     monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
     import teamctx.connectors.github as gh
+    import teamctx.connectors.github_checks as gc
     from teamctx.connectors.forge_review import ForgeReviewPullRequest
     from teamctx.connectors.github import ForgeReviewFetch
+    from teamctx.connectors.github_checks import CheckRunsFetch
 
     def fake_prs(**kwargs):  # type: ignore[no-untyped-def]
         return ForgeReviewFetch(
@@ -80,9 +88,14 @@ def test_work_start_tool_surfaces_a_collision(monkeypatch, tmp_path) -> None:
         )
 
     monkeypatch.setattr(gh, "fetch_github_pull_requests", fake_prs)
+    monkeypatch.setattr(
+        gc,
+        "fetch_failing_check_runs",
+        lambda **kw: CheckRunsFetch(failing=[], truncated=False, pending=False),
+    )
     monkeypatch.setenv("GITHUB_TOKEN", "t")
 
-    output = work_start(repo="acme/widgets", paths=["src/app/core.py"])
+    output = work_start(paths=["src/app/core.py"])
     assert "Before you start, here is what to handle first:" in output
     assert "PR #7" in output
     assert "look at it before you edit" in output
@@ -97,12 +110,17 @@ def test_list_tools_exposes_work_start() -> None:
     assert "before" in (work_start_tool.description or "").lower()
 
 
+def test_work_start_tool_schema_drops_team_semantic_overrides() -> None:
+    params = signature(work_start).parameters
+    assert "repo" not in params
+    assert "docs_root" not in params
+
+
 def test_call_tool_runs_the_broker_over_mcp(monkeypatch, tmp_path) -> None:
+    _init_repo(tmp_path)
     monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-    result = asyncio.run(
-        mcp.call_tool("work_start", {"repo": "acme/widgets", "paths": ["src/app/core.py"]})
-    )
+    result = asyncio.run(mcp.call_tool("work_start", {"paths": ["src/app/core.py"]}))
     text = _content_text(result)
     # no token => conflict unreachable => cant_verify
     assert "Heads up: I can't confirm the important things yet:" in text
@@ -113,8 +131,6 @@ def test_work_start_resolves_repo_from_root(monkeypatch, tmp_path) -> None:
     import teamctx.mcp_server as mcp_server
 
     _init_repo(tmp_path)
-    subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin",
-                    "git@github.com:acme/widgets.git"], check=True)
     monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
 
     captured: dict[str, object] = {}
@@ -142,7 +158,7 @@ def test_work_start_returns_error_text_for_malformed_authority(monkeypatch, tmp_
     monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
-    out = work_start(repo="acme/widgets", paths=["src/x.py"])
+    out = work_start(paths=["src/x.py"])
 
     assert "Fix or remove the file." in out
 
