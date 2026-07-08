@@ -7,6 +7,7 @@ rather than crash or block. Fail-safe and prints-never-blocks, proven without a 
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from teamctx.cli import main
 
 
 def test_work_start_with_no_token_degrades_honestly(monkeypatch, tmp_path: Path) -> None:
+    _init_repo_with_origin(tmp_path, "git@github.com:acme/widgets.git", "feature")
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
 
@@ -23,8 +25,6 @@ def test_work_start_with_no_token_degrades_honestly(monkeypatch, tmp_path: Path)
         main,
         [
             "work-start",
-            "--github-repo",
-            "acme/widgets",
             "--path",
             "src/widgets/core.py",
             "--token-env",
@@ -44,6 +44,8 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
     check. With a branch + issue + docs-root supplied (and the fetchers stubbed), all four
     verdict lines appear (collision, gate, criteria, docs) in a single answer."""
 
+    _init_repo_with_origin(tmp_path, "git@github.com:acme/widgets.git", "feature")
+    _write_project_config(tmp_path, {"repo": "acme/widgets", "docs_root": "docs"})
     monkeypatch.chdir(tmp_path)
     import teamctx.connectors.github as gh
     import teamctx.connectors.github_checks as gc
@@ -75,10 +77,9 @@ def test_work_start_unified_surfaces_all_four_checks(monkeypatch, tmp_path: Path
     result = CliRunner().invoke(
         main,
         [
-            "work-start", "--github-repo", "acme/widgets",
+            "work-start",
             "--path", "src/widgets/core.py", "--path", "docs/guide.md",
             "--branch", "feature", "--issue", "#7", "--since", "2026-06-24T00:00:00Z",
-            "--docs-root", "docs",
         ],
         catch_exceptions=False,
     )
@@ -105,6 +106,23 @@ def _init_repo_with_origin(root: Path, url: str, branch: str) -> None:
 def _commit_paths(root: Path, *paths: str) -> None:
     subprocess.run(["git", "-C", str(root), "add", *paths], check=True)
     subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+
+
+def _write_project_config(root: Path, work_start: dict[str, object]) -> None:
+    (root / ".teamctx").mkdir(exist_ok=True)
+    (root / ".teamctx" / "config.json").write_text(
+        json.dumps({"schema_version": "teamctx.project_config.v0", "work_start": work_start}),
+        encoding="utf-8",
+    )
+    _commit_paths(root, ".teamctx/config.json")
+
+
+def test_work_start_help_names_diagnostic_overrides() -> None:
+    result = CliRunner().invoke(main, ["work-start", "--help"])
+    assert result.exit_code == 0, result.output
+    assert "Diagnostic override for the GitHub repo" in result.output
+    assert "Normal work-start reads" in result.output
+    assert "Diagnostic override for the docs root" in result.output
 
 
 def test_work_start_resolves_repo_from_git_without_flag(monkeypatch, tmp_path: Path) -> None:
@@ -137,10 +155,13 @@ def test_work_start_reads_token_from_file(monkeypatch, tmp_path: Path) -> None:
     token_file.write_text("file-based-token\n", encoding="utf-8")
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.setenv("GITHUB_TOKEN_FILE", str(token_file))
+    _init_repo_with_origin(tmp_path, "git@github.com:acme/widgets.git", "feature")
     monkeypatch.chdir(tmp_path)
 
     import teamctx.connectors.github as gh
+    import teamctx.connectors.github_checks as gc
     from teamctx.connectors.github import ForgeReviewFetch
+    from teamctx.connectors.github_checks import CheckRunsFetch
 
     # The connector is called with the file-sourced token; capture it.
     captured: list[str | None] = []
@@ -150,10 +171,15 @@ def test_work_start_reads_token_from_file(monkeypatch, tmp_path: Path) -> None:
         return ForgeReviewFetch(pull_requests=[])
 
     monkeypatch.setattr(gh, "fetch_github_pull_requests", _fake_fetch)
+    monkeypatch.setattr(
+        gc,
+        "fetch_failing_check_runs",
+        lambda **kw: CheckRunsFetch(failing=[], truncated=False, pending=False),
+    )
 
     result = CliRunner().invoke(
         main,
-        ["work-start", "--github-repo", "acme/widgets", "--path", "src/widgets/core.py"],
+        ["work-start", "--path", "src/widgets/core.py"],
         catch_exceptions=False,
     )
 
@@ -168,9 +194,7 @@ def test_work_start_errors_on_malformed_config(monkeypatch, tmp_path: Path) -> N
     (tmp_path / ".teamctx").mkdir()
     (tmp_path / ".teamctx" / "config.json").write_text("{ not valid json", encoding="utf-8")
     _commit_paths(tmp_path, ".teamctx/config.json")
-    result = CliRunner().invoke(
-        main, ["work-start", "--github-repo", "acme/widgets", "--path", "src/x.py"]
-    )
+    result = CliRunner().invoke(main, ["work-start", "--path", "src/x.py"])
     assert result.exit_code != 0
     assert "config" in result.output.lower()  # clean message, not a traceback
 
@@ -186,8 +210,6 @@ def test_work_start_errors_on_malformed_authority(monkeypatch, tmp_path: Path) -
         main,
         [
             "work-start",
-            "--github-repo",
-            "acme/widgets",
             "--path",
             "src/x.py",
             "--token-env",

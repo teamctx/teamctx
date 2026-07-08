@@ -8,10 +8,11 @@ gate checks read clear and the docs verdict is the row's subject.
 
 from __future__ import annotations
 
+import json
 import tempfile
 from pathlib import Path
 
-from emulation.actors import SubprocessEnv, build_lab_repo, run_cli
+from emulation.actors import SubprocessEnv, build_lab_repo, commit_files, run_cli, write_file
 from emulation.evidence import Expectation, RowResult, combine, passed_or_failed
 from emulation.mockgh import Fixtures, MockGitHub, check_runs_payload, graphql_page
 
@@ -24,6 +25,20 @@ _SUPERSEDED_DOC = "---\nsuperseded_by: docs/new-auth.md\n---\nOld auth design.\n
 _CURRENT_DOC = "# Auth design\nStill current.\n"
 
 
+def _commit_team_config(root: Path) -> None:
+    write_file(
+        root,
+        ".teamctx/config.json",
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "work_start": {"repo": "teamctx-emulation-lab/widgets", "docs_root": "docs"},
+            }
+        ),
+    )
+    commit_files(root, ".teamctx/config.json")
+
+
 def _superseded_sub_row(tmp: Path) -> RowResult:
     repo = build_lab_repo(
         tmp / "superseded",
@@ -34,11 +49,10 @@ def _superseded_sub_row(tmp: Path) -> RowResult:
             "docs/new-auth.md": "# New auth design\n",
         },
     )
+    _commit_team_config(repo.root)
     with MockGitHub(_EMPTY_GITHUB) as server:
         env = SubprocessEnv(api_root=server.api_root)
-        run = run_cli(
-            ["work-start", "--path", "src/a.py", "--docs-root", "docs"], cwd=repo.root, env=env
-        )
+        run = run_cli(["work-start", "--path", "src/a.py"], cwd=repo.root, env=env)
     expectation = Expectation(
         must_match=(
             "Before you start, here is what to handle first:",
@@ -55,11 +69,10 @@ def _clean_sub_row(tmp: Path) -> RowResult:
         branch="feature",
         files={"src/a.py": "x\n", "docs/auth.md": _CURRENT_DOC},
     )
+    _commit_team_config(repo.root)
     with MockGitHub(_EMPTY_GITHUB) as server:
         env = SubprocessEnv(api_root=server.api_root)
-        run = run_cli(
-            ["work-start", "--path", "src/a.py", "--docs-root", "docs"], cwd=repo.root, env=env
-        )
+        run = run_cli(["work-start", "--path", "src/a.py"], cwd=repo.root, env=env)
     expectation = Expectation(
         must_match=(
             "Looks clear to start.",

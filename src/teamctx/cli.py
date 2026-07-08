@@ -179,8 +179,8 @@ def github_pr_probe_command(
 @main.command("work-start")
 @click.option(
     "--github-repo", "repo", default=None,
-    help="GitHub repo owner/name. Optional: auto-detected from the git 'origin' remote or "
-         ".teamctx/config.json when omitted.",
+    help="Diagnostic override for the GitHub repo owner/name. Normal work-start reads the "
+         "git 'origin' remote or committed .teamctx/config.json.",
 )
 @click.option(
     "--path", "paths", multiple=True, required=True, help="A path the work is about to touch."
@@ -198,7 +198,12 @@ def github_pr_probe_command(
 )
 @click.option("--issue", "issues", multiple=True, help="A linked issue to check (e.g. #42).")
 @click.option("--since", default=None, help="ISO timestamp: issue changes after this are surfaced.")
-@click.option("--docs-root", default=None, help="Docs root to scan for supersession frontmatter.")
+@click.option(
+    "--docs-root",
+    default=None,
+    help="Diagnostic override for the docs root. Normal work-start reads committed "
+         ".teamctx/config.json.",
+)
 @click.option("--ref", default=None, help="Gate ref to read check-runs for (defaults to --branch).")
 @click.option(
     "--allow-dirty",
@@ -330,7 +335,8 @@ def _add_work_start_options(func: Any) -> Any:
     opts = [
         click.option(
             "--github-repo", "repo", default=None,
-            help="GitHub repo owner/name. Auto-detected from git 'origin' or .teamctx/config.json.",
+            help="Diagnostic override for the GitHub repo owner/name. Normal use reads git "
+                 "'origin' or committed .teamctx/config.json.",
         ),
         click.option(
             "--path", "paths", multiple=True, required=True,
@@ -349,7 +355,12 @@ def _add_work_start_options(func: Any) -> Any:
             "--issue", "issues", multiple=True, help="A linked issue to check (e.g. #42).",
         ),
         click.option("--since", default=None, help="ISO timestamp for issue change window."),
-        click.option("--docs-root", default=None, help="Docs root to scan for supersession."),
+        click.option(
+            "--docs-root",
+            default=None,
+            help="Diagnostic override for the docs root. Normal use reads committed "
+                 ".teamctx/config.json.",
+        ),
         click.option("--ref", default=None, help="Gate ref to read check-runs for."),
     ]
     for opt in reversed(opts):

@@ -7,6 +7,16 @@ may change while the product is hardened.
 
 ## [Unreleased]
 
+### Changed
+
+- Slice 1 (`24909bd`): work-start, hook, and MCP output stayed unchanged while every check began carrying explicit closure evidence for the catalog spine.
+- Slice 2 (`c488f35`): source health and check verifiedness are tracked separately, so one source result can honestly support more than one check without changing existing answers.
+- Slice 3 (`9780f64`): the built-in checks now run through the check contract with the same rendered text, and invalid check declarations fail conformance before they can register.
+- Slice 4 (`c5064c8`): normal work-start, MCP, and hook surfaces read team semantics from committed `.teamctx/config.json` and `.teamctx/authority.json`; uncommitted or dirty changes are named in output.
+- Slice 5 (`e8b5f5a`): committed config can enable, disable, and lane checks for the team, and disabled checks appear in the coverage output instead of disappearing.
+- Slice 6 (`a0c5798`): committed JSON record files can feed data-only team checks; invalid declarations, unsafe paths, or untracked records report as failures instead of becoming clears.
+- Slice 7 (`feat/spine-cleanup`): breaking pre-1.0 MCP change: `work_start` no longer accepts `repo` or `docs_root`; normal work-start override flags are documented as diagnostic, and fixtures exercise committed config.
+
 ## [0.1.0] - 2026-07-04
 
 ### Added

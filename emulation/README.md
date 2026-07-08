@@ -56,6 +56,12 @@ Implemented rows report PASS; a FAIL exits non-zero.
 | 14 | Lawful silence (silent only after re-check; digest unchanged, timestamp advanced) | runnable |
 | 15 | Gap honesty (new gap speaks; persisting gap re-speaks after the floor) | runnable |
 | 16 | Reopened PR re-speaks (last-value law, not a seen-set) | runnable |
+| 17 | Untracked config (default checks plus commit-to-activate line) | runnable |
+| 18 | Hook speaks on unknown check | runnable |
+| 19 | Dirty authority (committed authority wins, dirty note speaks) | runnable |
+| 20 | Checks block honored | runnable |
+| 21 | Disabled check visible | runnable |
+| 22 | Declared file checks | runnable |
 
 ## Expected blocks
 

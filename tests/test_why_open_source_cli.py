@@ -9,6 +9,7 @@ Renderer unit tests for render_why and render_open_source are included below the
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,20 @@ _EM_DASH = chr(0x2014)
 # ---------------------------------------------------------------------------
 
 
+def _init_repo_with_origin(root: Path) -> None:
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+    (root / "f.txt").write_text("x", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "i"], check=True)
+    subprocess.run(["git", "-C", str(root), "checkout", "-qb", "feature"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "remote", "add", "origin", "git@github.com:acme/widgets.git"],
+        check=True,
+    )
+
+
 def _stub_connectors(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -31,6 +46,7 @@ def _stub_connectors(
 ) -> None:
     """Stub all network connectors; set a fake token so the connectors are reached."""
 
+    _init_repo_with_origin(tmp_path)
     monkeypatch.chdir(tmp_path)
 
     import teamctx.connectors.github as gh
@@ -80,7 +96,7 @@ def _make_pr(
     )
 
 
-_BASE_ARGS = ["--github-repo", "acme/widgets", "--path", "src/app.py"]
+_BASE_ARGS = ["--path", "src/app.py"]
 
 
 # ---------------------------------------------------------------------------
@@ -264,11 +280,12 @@ def test_no_match_when_unreachable_says_could_not_check(
     """No token -> conflict check is Unknown. Asking for pr:7 should say 'could not check',
     not 'may have cleared'. This is the key honest-UNKNOWN distinction."""
 
+    _init_repo_with_origin(tmp_path)
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(
         main,
-        ["why", "pr:7"] + ["--github-repo", "acme/widgets", "--path", "src/app.py",
-                             "--token-env", "TEAMCTX_DEFINITELY_UNSET_TOKEN"],
+        ["why", "pr:7"]
+        + ["--path", "src/app.py", "--token-env", "TEAMCTX_DEFINITELY_UNSET_TOKEN"],
     )
     assert result.exit_code != 0
     assert "could not check" in result.output
@@ -279,11 +296,12 @@ def test_no_match_when_unreachable_says_could_not_check(
 def test_no_match_when_unreachable_open_source_also_honest(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    _init_repo_with_origin(tmp_path)
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(
         main,
-        ["open-source", "pr:7"] + ["--github-repo", "acme/widgets", "--path", "src/app.py",
-                                    "--token-env", "TEAMCTX_DEFINITELY_UNSET_TOKEN"],
+        ["open-source", "pr:7"]
+        + ["--path", "src/app.py", "--token-env", "TEAMCTX_DEFINITELY_UNSET_TOKEN"],
     )
     assert result.exit_code != 0
     assert "could not check" in result.output
@@ -297,11 +315,12 @@ def test_no_match_path_selector_when_unreachable_says_could_not_check(
     so a no-match must say 'could not check', NOT 'may have cleared'. Without this, path: would
     fall through to a false all-clear (the gap this fix closes)."""
 
+    _init_repo_with_origin(tmp_path)
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(
         main,
-        ["why", "path:src/app.py"] + ["--github-repo", "acme/widgets", "--path", "src/app.py",
-                                       "--token-env", "TEAMCTX_DEFINITELY_UNSET_TOKEN"],
+        ["why", "path:src/app.py"]
+        + ["--path", "src/app.py", "--token-env", "TEAMCTX_DEFINITELY_UNSET_TOKEN"],
     )
     assert result.exit_code != 0
     assert "could not check" in result.output

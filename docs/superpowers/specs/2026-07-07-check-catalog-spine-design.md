@@ -1,11 +1,11 @@
 # Design: the check catalog spine (issue #10)
 
 ## Status
-**Revision 5: ROCK-SOLID (CTO verdict, 2026-07-08).** Four adversarial rounds (codex 1, 2,
-4; Opus fresh-eyes 3), every finding accepted and pinned, dispositions below. Round 4 found
-no P0 and no architectural challenge: one classification gap (authority.json, folded) and
-wording. The architecture has been unchallenged since round 2. Awaiting Edgar's sign-off,
-then writing-plans. Two CPO laws locked 2026-07-07.
+**BUILT (2026-07-08).** Revision 5 landed through the catalog spine slices: slice 1
+`24909bd`, slice 2 `c488f35`, slice 3 `9780f64`, slice 4 `c5064c8`, slice 5 `e8b5f5a`,
+slice 6 `a0c5798`. Slice 7 is built on `feat/spine-cleanup`; its merge hash is assigned by
+the CTO merge, which this builder must not perform. Four adversarial rounds (codex 1, 2, 4;
+Opus fresh-eyes 3) accepted and pinned every finding. Two CPO laws locked 2026-07-07.
 
 ## The two laws (locked, not revisitable in review)
 1. **Trust by design.** Secure, private, content-safe by construction: vulnerability
