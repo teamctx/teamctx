@@ -26,14 +26,30 @@ def load_declared_authority(path: Path) -> list[AuthorityDecl]:
     if not path.exists():
         return []
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        raw = path.read_bytes()
+    except OSError as exc:
         raise DeclaredAuthorityError(
             f"{path} is not valid teamctx authority JSON ({exc}). Fix or remove the file."
         ) from exc
+    return parse_declared_authority_bytes(raw, str(path))
+
+
+def parse_declared_authority_bytes(raw: bytes, source: str) -> list[AuthorityDecl]:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise DeclaredAuthorityError(
+            f"{source} is not valid teamctx authority JSON ({exc}). Fix or remove the file."
+        ) from exc
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise DeclaredAuthorityError(
+            f"{source} is not valid teamctx authority JSON ({exc}). Fix or remove the file."
+        ) from exc
     if not isinstance(data, list):
         raise DeclaredAuthorityError(
-            f"{path} is not valid teamctx authority JSON (expected a list of declarations). "
+            f"{source} is not valid teamctx authority JSON (expected a list of declarations). "
             "Fix or remove the file."
         )
     try:
@@ -49,6 +65,6 @@ def load_declared_authority(path: Path) -> list[AuthorityDecl]:
         ]
     except (KeyError, TypeError, ValueError) as exc:
         raise DeclaredAuthorityError(
-            f"{path} is not valid teamctx authority JSON (a declaration is missing a field or "
+            f"{source} is not valid teamctx authority JSON (a declaration is missing a field or "
             "has the wrong type). Fix or remove the file."
         ) from exc

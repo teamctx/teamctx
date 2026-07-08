@@ -8,6 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import teamctx.hook as hook
+from teamctx.config_failure import TEAM_CONFIG_UPGRADE_LINE
 from teamctx.connectors.github import ForgeReviewFetch
 from teamctx.resolve import resolve_work_start_inputs
 
@@ -224,6 +225,30 @@ def test_non_git_dir_fails_safe(monkeypatch, capsys, tmp_path) -> None:
     })
     out = _run(payload, monkeypatch, capsys)
     assert out.strip() == "" or "permissionDecision" not in json.loads(out)["hookSpecificOutput"]
+
+
+def test_hook_speaks_when_committed_config_names_unknown_checks(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    _init_repo(tmp_path)
+    _state(monkeypatch, tmp_path)
+    (tmp_path / ".teamctx").mkdir(exist_ok=True)
+    (tmp_path / ".teamctx" / "config.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "work_start": {"repo": "acme/widgets"},
+                "checks": {"x_future": {"enabled": True}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "-C", str(tmp_path), "add", ".teamctx/config.json"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "future checks"], check=True)
+
+    out = _run(_payload(tmp_path), monkeypatch, capsys)
+
+    assert json.loads(out)["hookSpecificOutput"]["additionalContext"] == TEAM_CONFIG_UPGRADE_LINE
 
 
 def _prompt_payload(root: Path, session_id: str = "ups-1") -> str:

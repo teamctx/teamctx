@@ -15,6 +15,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from teamctx.clock import utc_now_iso
+from teamctx.config_failure import format_config_failure
 from teamctx.connectors.declared_authority import DeclaredAuthorityError
 from teamctx.git_context import resolve_project_root
 from teamctx.project_config import ProjectConfigError
@@ -52,6 +53,7 @@ def work_start(
     the server's working tree and ``.teamctx/config.json``; pass them only to override.
     """
 
+    root = _resolution_root()
     try:
         inputs = resolve_work_start_inputs(
             paths=tuple(paths),
@@ -63,14 +65,14 @@ def work_start(
             since=since,
             ref=ref,
             token=resolve_github_token(),
-            root=_resolution_root(),
+            root=root,
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
-        return str(exc)
+        return format_config_failure(exc)
     try:
-        return render_work_start(inputs, observed_at=utc_now_iso(), project_root=_resolution_root())
+        return render_work_start(inputs, observed_at=utc_now_iso(), project_root=root)
     except DeclaredAuthorityError as exc:
-        return str(exc)
+        return format_config_failure(exc)
 
 
 def _resolution_root() -> Path:

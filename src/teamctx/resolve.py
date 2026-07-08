@@ -23,11 +23,11 @@ from teamctx.git_context import (
     repo_relative_path,
 )
 from teamctx.project_config import (
-    DEFAULT_CONFIG_PATH,
     WorkStartConfig,
     maybe_load_project_config,
 )
 from teamctx.runner import WorkStartInputs
+from teamctx.team_semantics import SemanticsState, load_team_project_config, semantics_notices
 from teamctx.tokens import resolve_atlassian_auth_with_state
 
 _REPO_UNRESOLVED = (
@@ -95,8 +95,11 @@ def resolve_work_start_inputs(
     token: str | None = None,
     root: Path,
     config_path: Path | None = None,
+    allow_dirty: bool = False,
 ) -> WorkStartInputs:
-    config = _load_work_start_config(root, config_path)
+    config, notices, config_state, config_key_bytes = _load_work_start_config(
+        root, config_path, allow_dirty=allow_dirty
+    )
 
     resolved, repo_error = resolve_forge_repo(
         repo,
@@ -150,13 +153,32 @@ def resolve_work_start_inputs(
         confluence_space_key=_config_confluence_space_key(config),
         atlassian_auth=atlassian_auth,
         atlassian_auth_missing_half=atlassian_auth_state == "partial",
+        semantics_notices=notices,
+        semantics_allow_dirty=allow_dirty,
+        config_state=config_state,
+        config_key_bytes=config_key_bytes,
     )
 
 
-def _load_work_start_config(root: Path, config_path: Path | None) -> WorkStartConfig | None:
-    path = config_path if config_path is not None else root / DEFAULT_CONFIG_PATH
-    project = maybe_load_project_config(path)
-    return project.work_start if project is not None else None
+def _load_work_start_config(
+    root: Path, config_path: Path | None, *, allow_dirty: bool
+) -> tuple[WorkStartConfig | None, tuple[str, ...], SemanticsState, bytes]:
+    if config_path is not None:
+        path = config_path if config_path.is_absolute() else root / config_path
+        project = maybe_load_project_config(path)
+        return (
+            project.work_start if project is not None else None,
+            (),
+            "allow_dirty" if allow_dirty else "committed_clean",
+            path.read_bytes() if path.exists() and path.is_file() else b"",
+        )
+    loaded = load_team_project_config(root, allow_dirty=allow_dirty)
+    return (
+        loaded.config.work_start if loaded.config is not None else None,
+        semantics_notices(config=loaded.file, allow_dirty=allow_dirty),
+        loaded.file.state,
+        loaded.file.key_bytes,
+    )
 
 
 def _config_repo(config: WorkStartConfig | None) -> str | None:

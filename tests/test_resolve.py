@@ -12,12 +12,26 @@ from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
 from teamctx.runner import build_request_context
 
 
+def _git(root: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(root), *args], check=True)
+
+
+def _ensure_committable_repo(root: Path) -> None:
+    if not (root / ".git").exists():
+        _git(root, "init", "-q")
+    _git(root, "config", "user.email", "t@t")
+    _git(root, "config", "user.name", "t")
+
+
 def _write_config(root: Path, **work_start: object) -> None:
+    _ensure_committable_repo(root)
     (root / ".teamctx").mkdir(parents=True, exist_ok=True)
     (root / ".teamctx" / "config.json").write_text(
         json.dumps({"schema_version": "teamctx.project_config.v0", "work_start": work_start}),
         encoding="utf-8",
     )
+    _git(root, "add", ".teamctx/config.json")
+    _git(root, "commit", "-qm", "config")
 
 
 def test_explicit_repo_wins_over_config_and_git(monkeypatch, tmp_path: Path) -> None:
@@ -117,17 +131,14 @@ def test_resolve_rejects_non_github_explicit_repo(tmp_path: Path) -> None:
 
 
 def test_resolves_from_a_real_repo_and_config(tmp_path: Path) -> None:
-    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True)
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "t@t")
+    _git(tmp_path, "config", "user.name", "t")
     (tmp_path / "f.txt").write_text("x", encoding="utf-8")
-    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "i"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "checkout", "-qb", "feat"], check=True)
-    subprocess.run(
-        ["git", "-C", str(tmp_path), "remote", "add", "origin",
-         "https://github.com/acme/widgets.git"], check=True,
-    )
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "i")
+    _git(tmp_path, "checkout", "-qb", "feat")
+    _git(tmp_path, "remote", "add", "origin", "https://github.com/acme/widgets.git")
     _write_config(tmp_path, docs_root="docs")
     inputs = resolve_work_start_inputs(paths=("src/x.py",), root=tmp_path)
     assert inputs.repo == "acme/widgets"

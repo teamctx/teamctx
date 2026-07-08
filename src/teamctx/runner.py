@@ -28,6 +28,7 @@ from teamctx.connectors.issue_criteria import unavailable_issues_document
 from teamctx.connectors.jira import run_jira_issues_probe
 from teamctx.core.contracts import CoreContractDocument, RequestContext, SourceFamily
 from teamctx.git_context import ForgeProvider, parse_github_repo, parse_gitlab_repo
+from teamctx.team_semantics import SemanticsState
 from teamctx.tokens import resolve_token
 
 _JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9]+-\d{1,6}$", re.IGNORECASE)
@@ -97,6 +98,10 @@ class WorkStartInputs:
     confluence_space_key: str | None = None
     atlassian_auth: tuple[str, str] | None = None
     atlassian_auth_missing_half: bool = False
+    semantics_notices: tuple[str, ...] = ()
+    semantics_allow_dirty: bool = False
+    config_state: SemanticsState = "committed_clean"
+    config_key_bytes: bytes = b""
 
     def __post_init__(self) -> None:
         normalized = _parse_repo_for_forge(self.repo, self.forge)
