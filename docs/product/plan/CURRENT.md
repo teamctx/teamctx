@@ -1,5 +1,14 @@
 # CURRENT: teamctx rolling plan
 
+**SPINE BUILD IN PROGRESS (issue #10; spec rev 5 ROCK-SOLID, Edgar-approved; plan
+docs/superpowers/plans/2026-07-08-catalog-spine.md).** Slice 1 MERGED (rich ClosureEntry +
+projection; identity ignores transient reasons). Slice 2 MERGED (document identity;
+fetch status belongs to sources, verifiedness to checks; snapshot digest untouched,
+tested). PAUSED HERE by Edgar 2026-07-08 before slice 3 (the check contract: kinds.py
+becomes declarations; migration task zero = string inventory). Slices 4-7 in the plan.
+A builder STOPPED on a spec self-contradiction (my rev-4 unasserted replace silently
+no-opped): fixed; lesson = assert every scripted edit.
+
 **THE ROADMAP IS NOW GITHUB ISSUES: https://github.com/teamctx/teamctx/issues/30** (the
 tracking issue; priority-ordered; 2026-07-07, Edgar's direction). The catalog vision: the
 four checks become an open catalog on a public check contract (#10 spine, #11 noise/honesty
