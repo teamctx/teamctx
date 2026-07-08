@@ -379,23 +379,33 @@ def decide(
     return "silent"
 
 
-# The scope field that carries each check's finding identity, so one PR/issue/doc/gate is the
-# SAME finding across runs (a re-appearing PR keeps its identity; last-value dedup rides on this).
-_FINDING_KEY_FIELD: dict[str, str] = {
-    "conflict": "pr_number",
-    "criteria": "issue",
-    "docs": "doc",
-    "gate": "gate",
-}
+def _identity_fields(check: str) -> tuple[str, ...]:
+    from teamctx.core.kinds import CHECKS_BY_ID
+
+    if check not in CHECKS_BY_ID:
+        return ()
+    return CHECKS_BY_ID[check].identity.key_scope_fields
+
+
+def _material_fields(check: str) -> tuple[str, ...]:
+    from teamctx.core.kinds import CHECKS_BY_ID
+
+    if check not in CHECKS_BY_ID:
+        return ()
+    return CHECKS_BY_ID[check].identity.material_scope_fields
 
 
 def finding_key(check: str, scope: Mapping[str, Any]) -> str:
     """The stable identity key for a finding of ``check``, from the same scope field a signal and
     its card both carry, so the extractor and the bullet suppression agree by construction."""
 
-    key_field = _FINDING_KEY_FIELD.get(check)
-    value = scope.get(key_field) if key_field is not None else None
-    return f"{check}:{value}"
+    fields = _identity_fields(check)
+    if len(fields) == 1:
+        return f"{check}:{scope.get(fields[0])}"
+    if fields:
+        parts = [f"{field}={scope.get(field)!r}" for field in fields]
+        return f"{check}:{'|'.join(parts)}"
+    return f"{check}:None"
 
 
 def compute_baseline_material(answer: BrokerAnswer) -> BaselineMaterial:
@@ -422,16 +432,22 @@ def compute_baseline_material(answer: BrokerAnswer) -> BaselineMaterial:
 def _finding_material(check: str, card: ContextCard) -> FindingMaterial:
     scope = card.scope
     files = scope.get("files")
-    paths = tuple(str(path) for path in files) if check == "conflict" and isinstance(files, list) \
+    material_fields = _material_fields(check)
+    paths = (
+        tuple(str(path) for path in files)
+        if "files" in material_fields and isinstance(files, list)
         else ()
+    )
     return FindingMaterial(
         key=finding_key(check, scope),
         source_display=card.source_display,
         paths=paths,
-        gate=str(scope.get("gate", "")) if check == "gate" else "",
+        gate=str(scope.get("gate", "")) if "gate" in _identity_fields(check) else "",
         detail=card.text if check == "criteria" else "",
-        doc=str(scope.get("doc", "")) if check == "docs" else "",
-        superseded_by=str(scope.get("superseded_by", "")) if check == "docs" else "",
+        doc=str(scope.get("doc", "")) if "doc" in _identity_fields(check) else "",
+        superseded_by=(
+            str(scope.get("superseded_by", "")) if "superseded_by" in material_fields else ""
+        ),
     )
 
 

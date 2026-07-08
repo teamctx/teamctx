@@ -28,6 +28,7 @@ from teamctx.core.contracts import (
     SourceStatusValue,
     SourceStatusVisibility,
 )
+from teamctx.core.kinds import FORGE_REVIEW_SOURCE_CONTRACT
 
 ForgeProvider = Literal["github", "gitlab"]
 
@@ -146,38 +147,45 @@ def normalize_forge_review_prs(
     messages: list[str] = []
     if coverage_unbounded_list:
         review = review_terms(provider)
+        copy = FORGE_REVIEW_SOURCE_CONTRACT.advisory_copy
         messages.append(
-            f"Checked the {len(pull_request_list)} most recently updated open {review.plural}; "
-            "more exist, so this is not a complete check."
+            copy.unbounded_page.format(count=len(pull_request_list), plural=review.plural)
         )
     if diff_unchecked_count and diff_checked_count is not None:
         review = review_terms(provider)
+        copy = FORGE_REVIEW_SOURCE_CONTRACT.advisory_copy
         messages.append(
-            f"Checked the files of the {diff_checked_count} most recently updated open "
-            f"{review.plural}; {diff_unchecked_count} more open {review.plural} were not "
-            "file-checked."
+            copy.unbounded_diff.format(
+                checked_count=diff_checked_count,
+                unchecked_count=diff_unchecked_count,
+                plural=review.plural,
+            )
         )
     for number in relevant_unbounded_files_prs:
         review = review_terms(provider)
+        copy = FORGE_REVIEW_SOURCE_CONTRACT.advisory_copy
         messages.append(
-            f"Open {review.short} {review.prefix}{number} changes more files than teamctx "
-            "checked; it may touch yours."
+            copy.unbounded_files.format(
+                short=review.short,
+                prefix=review.prefix,
+                number=number,
+            )
         )
     if own_branch_prs:
         review = review_terms(provider)
+        copy = FORGE_REVIEW_SOURCE_CONTRACT.advisory_copy
         numbers = ", ".join(f"{review.prefix}{number}" for number in own_branch_prs)
         if len(own_branch_prs) > 1:
             messages.append(
-                f"Your own open {review.plural} {numbers} for this branch touch these files; "
-                "not flagged as collisions."
+                copy.own_branch_multiple.format(plural=review.plural, numbers=numbers)
             )
         else:
             messages.append(
-                f"Your own open {review.short} {numbers} for this branch touches these files; "
-                "not flagged as a collision."
+                copy.own_branch_single.format(short=review.short, numbers=numbers)
             )
     if not messages:
-        messages.append(f"Git-host {review_terms(provider).short} metadata refreshed.")
+        copy = FORGE_REVIEW_SOURCE_CONTRACT.advisory_copy
+        messages.append(copy.fresh.format(short=review_terms(provider).short))
     safe_user_message = " ".join(messages)
     extra_scope: Scope | None = None
     if own_branch_prs:

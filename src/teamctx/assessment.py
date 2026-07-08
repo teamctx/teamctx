@@ -14,7 +14,16 @@ from teamctx.ambient import Delta, deltas_from_signals, finding_key
 from teamctx.core.broker import BrokerAnswer
 from teamctx.core.contracts import ContextCard
 from teamctx.core.evaluate import Valuation
-from teamctx.core.kinds import CHECK_DEPS_FAMILY, LABEL_CHECK_PAIRS, REASON_PREFIX, CheckId
+from teamctx.core.kinds import (
+    CARD_KINDS,
+    CHECK_DEPS_FAMILY,
+    LABEL_CHECK_PAIRS,
+    REASON_PREFIX,
+    CheckId,
+)
+from teamctx.core.kinds import (
+    IMPORTANT_CHECKS as DECLARED_IMPORTANT_CHECKS,
+)
 
 CheckStatus = Literal[
     "clear",
@@ -26,9 +35,9 @@ CheckStatus = Literal[
     "unbounded",
 ]
 
-# The verdict-label-to-check pairs and reason-prefix routing are DERIVED from CARD_KINDS in
-# core/kinds.py, so a check can never drift out of sync with the kind that produces it.
-IMPORTANT_CHECKS: frozenset[CheckId] = frozenset({"conflict", "gate"})
+# The verdict-label/check pairs, reason-prefix routing, and important-set are DERIVED from
+# core/kinds.py, so a check can never drift out of sync with the declaration that produces it.
+IMPORTANT_CHECKS: frozenset[CheckId] = DECLARED_IMPORTANT_CHECKS
 
 
 @dataclass(frozen=True)
@@ -104,7 +113,7 @@ def card_finding_key(card: ContextCard) -> str | None:
 def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     verdicts: dict[str, Valuation] = {label: val for label, val in answer.verdicts}
     cards_by_check: dict[CheckId, list[ContextCard]] = {
-        "conflict": [], "criteria": [], "docs": [], "gate": []
+        kind.check_id: [] for kind in CARD_KINDS
     }
     coverage_notes = _coverage_notes_by_family_and_status(answer)
     failing_by_family = _failing_source_ids_by_family(answer)

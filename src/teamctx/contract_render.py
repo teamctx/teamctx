@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import cast
 
 from teamctx.ambient import Delta, FindingMaterial
@@ -19,7 +18,14 @@ from teamctx.core.contracts import (
     ContextCard,
     SourceOpenTarget,
 )
-from teamctx.core.kinds import CARD_KINDS, REASON_PREFIX, CheckId
+from teamctx.core.kinds import (
+    CARD_KINDS,
+    CHECK_COPY,
+    DOCS_FAILURE_COPY,
+    REASON_PREFIX,
+    CheckId,
+    check_kind,
+)
 from teamctx.core.select import ContextSelection
 
 _HEADLINE = {
@@ -27,67 +33,7 @@ _HEADLINE = {
     "heads_up": "Before you start, here is what to handle first:",
     "cant_verify": "Heads up: I can't confirm the important things yet:",
 }
-@dataclass(frozen=True)
-class CheckCopy:
-    """The per-check human copy at the render edge, one entry per check. Voice stays
-    hand-written (owned by the CTO); consolidating it into one struct means a new card kind
-    cannot silently ship without the phrases the report and the hook need. ``hook_gap`` is None
-    for a low-stakes check (one that is never headlined as an unconfirmed important gap)."""
-
-    clear: str  # the checked-and-clear coverage phrase
-    not_checked: str  # the not-configured "Not checked" phrase
-    unreachable: str  # the "Couldn't check" phrase
-    finding_action: str  # what to do about a finding, appended to the finding text
-    hook_clear: str  # the glanceable hook's checked-and-clear phrase
-    hook_gap: str | None  # the glanceable hook's unconfirmed-gap phrase (None = not important)
-    gitlab_clear: str | None = None
-    gitlab_unreachable: str | None = None
-    gitlab_hook_clear: str | None = None
-    gitlab_hook_gap: str | None = None
-
-
-# One definition site for every check's copy. The completeness check below fails loud at import
-# if a card kind lacks an entry, so a new kind never silently drops from the report.
-RENDER_COPY: dict[CheckId, CheckCopy] = {
-    "conflict": CheckCopy(
-        clear="no other open PRs touch your files",
-        not_checked="open PRs (couldn't determine the repository)",
-        unreachable="open PRs (couldn't reach GitHub)",
-        finding_action="look at it before you edit so you don't undo each other's work",
-        hook_clear="no other open pull requests touch these files",
-        hook_gap="open pull requests",
-        gitlab_clear="no other open MRs touch your files",
-        gitlab_unreachable="open MRs (couldn't reach GitLab)",
-        gitlab_hook_clear="no other open merge requests touch these files",
-        gitlab_hook_gap="open merge requests",
-    ),
-    "criteria": CheckCopy(
-        clear="the linked issue's criteria are unchanged",
-        not_checked="spec changes (no issue is linked to this branch; link one to enable)",
-        unreachable="spec changes (couldn't reach GitHub)",
-        finding_action="re-check the criteria before you rely on them",
-        hook_clear="the linked issue's criteria are unchanged",
-        hook_gap=None,
-    ),
-    "docs": CheckCopy(
-        clear="the docs you rely on are current",
-        not_checked="docs (no docs root is configured; set work_start.docs_root to enable)",
-        unreachable="the docs you rely on (couldn't read the docs folder)",
-        finding_action="rely on the current one instead",
-        hook_clear="the docs you rely on are current",
-        hook_gap=None,
-    ),
-    "gate": CheckCopy(
-        clear="no failing checks found",
-        not_checked="failing checks (couldn't determine your branch)",
-        unreachable="failing checks (couldn't reach GitHub)",
-        finding_action="fix it or wait for a green build before relying on it",
-        hook_clear="no failing checks found",
-        hook_gap="failing checks",
-        gitlab_unreachable="pipeline state (couldn't reach GitLab)",
-        gitlab_hook_gap="pipeline state",
-    ),
-}
+RENDER_COPY = CHECK_COPY
 
 if set(RENDER_COPY) != {kind.check_id for kind in CARD_KINDS}:
     raise RuntimeError(
@@ -95,20 +41,13 @@ if set(RENDER_COPY) != {kind.check_id for kind in CARD_KINDS}:
         f"have {sorted(RENDER_COPY)}, need {sorted(kind.check_id for kind in CARD_KINDS)}"
     )
 
-_PENDING_PHRASE: dict[CheckId, str] = {
-    "gate": "failing checks (CI still running, not confirmed green yet)",
-}
-# No check emits not_applicable today (docs stopped: reliance is the whole declared docs set).
-# The generic fallback below keeps the render path honest for any future kind that does.
-_NOT_APPLICABLE_PHRASE: dict[CheckId, str] = {}
-
 
 def _pending_phrase(check: CheckId) -> str:
-    return _PENDING_PHRASE.get(check, f"{check} (still running, not confirmed yet)")
+    return RENDER_COPY[check].coverage.pending
 
 
 def _not_applicable_phrase(check: CheckId) -> str:
-    return _NOT_APPLICABLE_PHRASE.get(check, f"{check} (not applicable to the files in scope)")
+    return RENDER_COPY[check].coverage.not_applicable
 
 
 def _pending_bullet(check: CheckId) -> str:
@@ -169,32 +108,45 @@ def _delta_line(delta: Delta, checks: tuple[CheckState, ...], forge: str) -> str
     if delta.direction == "disappear":
         return "since you started: " + _disappear_body(delta.check, delta.identity)
     if delta.direction == "transition":
-        return f"{_source_name(forge)} is back: " + _recovery_tail(delta.check, checks, forge)
+        template = check_kind(_as_check(delta.check)).copy.delta.transition
+        return template.format(
+            source_name=_source_name(forge),
+            tail=_recovery_tail(delta.check, checks, forge),
+        )
     phrase = check_hook_gap_copy(_as_check(delta.check), forge) or delta.check
     note = delta.note or _shrank_default_note(delta.check, forge)
-    return f"since you started: {phrase} can no longer be verified ({note})"
+    body = check_kind(_as_check(delta.check)).copy.delta.coverage_shrank.format(
+        gap=phrase,
+        note=note,
+    )
+    return f"since you started: {body}"
 
 
 def _appear_body(check: str, identity: FindingMaterial) -> str:
-    if check == "conflict":
-        return f"{identity.source_display} appeared, touching {', '.join(identity.paths)}"
-    if check == "gate":
-        return f"check '{identity.gate}' started failing on this branch"
-    if check == "criteria":
-        return f"{identity.source_display} changed: {identity.detail}"
-    if identity.superseded_by:
-        return f"{identity.doc} was superseded by {identity.superseded_by}"
-    return f"{identity.doc} was superseded"
+    delta_copy = check_kind(_as_check(check)).copy.delta
+    if check == "docs" and not identity.superseded_by and delta_copy.appear_without_replacement:
+        template = delta_copy.appear_without_replacement
+    else:
+        template = delta_copy.appear
+    return template.format(
+        source_display=identity.source_display,
+        paths=", ".join(identity.paths),
+        gate=identity.gate,
+        detail=identity.detail,
+        doc=identity.doc,
+        superseded_by=identity.superseded_by,
+    )
 
 
 def _disappear_body(check: str, identity: FindingMaterial) -> str:
-    if check == "conflict":
-        return f"{identity.source_display} no longer touches your files"
-    if check == "gate":
-        return f"check '{identity.gate}' is green again"
-    if check == "criteria":
-        return f"{identity.source_display} is no longer flagged"
-    return f"the note about {identity.doc} cleared"
+    return check_kind(_as_check(check)).copy.delta.disappear.format(
+        source_display=identity.source_display,
+        paths=", ".join(identity.paths),
+        gate=identity.gate,
+        detail=identity.detail,
+        doc=identity.doc,
+        superseded_by=identity.superseded_by,
+    )
 
 
 def _recovery_tail(check: str, checks: tuple[CheckState, ...], forge: str) -> str:
@@ -422,6 +374,9 @@ def _clear_phrase(answer: BrokerAnswer, state: CheckState) -> str:
 
 
 def _criteria_provenance_suffix(answer: BrokerAnswer) -> str:
+    provenance = RENDER_COPY["criteria"].provenance
+    if provenance is None:
+        return ""
     issue_sources = [
         (issue, answer.request.input_provenance[f"issue:{issue}"])
         for issue in answer.request.linked_issues
@@ -430,11 +385,12 @@ def _criteria_provenance_suffix(answer: BrokerAnswer) -> str:
     if not issue_sources:
         return ""
     described = [
-        f"{issue} from {_issue_provenance_label(source)}" for issue, source in issue_sources
+        provenance.item.format(issue=issue, source=_issue_provenance_label(source))
+        for issue, source in issue_sources
     ]
     if len(described) == 1:
-        return f"(issue {described[0]})"
-    return f"(issues {', '.join(described)})"
+        return provenance.single.format(item=described[0])
+    return provenance.multiple.format(items=", ".join(described))
 
 
 def _issue_provenance_label(source: str) -> str:
@@ -475,12 +431,7 @@ def _couldnt_check_line(assessment: WorkStartAssessment, forge: str) -> str:
 # The docs family can fail in two very different places AND in two very different ways; the
 # parenthetical must name both truthfully: a Confluence budget hit or property-read failure was
 # REACHED but not exhausted ("couldn't fully check"), while an unavailable space was not.
-_DOCS_FAILURE_COPY = {
-    ("docs_supersession", "unavailable"): "couldn't read the local docs folder",
-    ("docs_supersession", "stale"): "couldn't fully check the local docs folder",
-    ("confluence_pages", "unavailable"): "couldn't reach Confluence",
-    ("confluence_pages", "stale"): "couldn't fully check Confluence",
-}
+_DOCS_FAILURE_COPY = DOCS_FAILURE_COPY
 
 
 def _unreachable_gap_copy(state: CheckState, forge: str) -> str:
