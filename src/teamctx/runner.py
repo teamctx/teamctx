@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from teamctx.connectors._contract import unavailable_document
+from teamctx.connectors._contract import document_identity, unavailable_document
 from teamctx.connectors.confluence import run_confluence_docs_probe
 from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.docs_supersession import unavailable_docs_document
@@ -279,6 +279,7 @@ def _empty_path_forge_review_document(
 ) -> CoreContractDocument:
     return CoreContractDocument(
         schema_version="teamctx.core_contract_document.v0",
+        **document_identity(source_id=source_id, source_family="git_hosting"),
         request_context=request_context,
         source_signals=[],
         source_statuses=[

@@ -33,6 +33,37 @@ def metadata_only_policy(reason: str) -> PolicyDecision:
     )
 
 
+def document_id_for_source(source_id: str) -> str:
+    """Stable document id for a connector-owned source document."""
+
+    return f"doc_{slug(source_id)}"
+
+
+def document_type_for_source_family(source_family: SourceFamily) -> str:
+    """The current one-check-per-document-type mapping."""
+
+    match source_family:
+        case "git_hosting":
+            return "forge_review"
+        case "ci_deploy":
+            return "gate_status"
+        case "issue_tracker":
+            return "issue_criteria"
+        case "docs":
+            return "docs_supersession"
+        case _:
+            return str(source_family)
+
+
+def document_identity(
+    *, source_id: str, source_family: SourceFamily, document_type: str | None = None
+) -> dict[str, str]:
+    return {
+        "document_id": document_id_for_source(source_id),
+        "document_type": document_type or document_type_for_source_family(source_family),
+    }
+
+
 def source_status(
     *,
     source_id: str,
@@ -75,6 +106,7 @@ def unavailable_document(
 
     return CoreContractDocument(
         schema_version="teamctx.core_contract_document.v0",
+        **document_identity(source_id=source_id, source_family=source_family),
         request_context=request_context,
         source_signals=[],
         source_statuses=[

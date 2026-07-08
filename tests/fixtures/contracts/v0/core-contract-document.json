@@ -1,5 +1,7 @@
 {
   "schema_version": "teamctx.core_contract_document.v0",
+  "document_id": "doc_github_pr_metadata",
+  "document_type": "forge_review",
   "request_context": {
     "schema_version": "teamctx.request_context.v0",
     "request_id": "req_auth_token_retry_001",

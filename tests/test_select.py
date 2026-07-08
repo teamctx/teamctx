@@ -16,7 +16,7 @@ import pytest
 
 from teamctx.contract_render import render_broker_answer
 from teamctx.core.authority import AuthorityDecl
-from teamctx.core.broker import BrokerAnswer, broker_answer
+from teamctx.core.broker import BrokerAnswer, broker_answer, broker_answer_from_documents
 from teamctx.core.content_digest import content_digest
 from teamctx.core.contracts import (
     ClosureProjection,
@@ -289,14 +289,20 @@ def test_select_context_carries_the_collision_query_closure() -> None:
 
 def test_select_context_closure_entries_are_rich_catalog_records() -> None:
     document = load_document()
-
-    selection = select_context(
-        document.request_context, document.source_signals, [_git_hosting_status("fresh")]
+    status = _git_hosting_status("fresh")
+    source_document = document.model_copy(
+        update={
+            "document_id": "doc_github_pr_metadata",
+            "document_type": "forge_review",
+            "source_statuses": [status],
+        }
     )
+
+    selection = broker_answer_from_documents(document.request_context, [source_document]).selection
 
     entry = next(e for e in selection.closure if e.check_id == "conflict")
     assert entry.proposition == "no_pr_conflicts_with_paths"
-    assert entry.consumed_document_ids == ()
+    assert entry.consumed_document_ids == ("doc_github_pr_metadata",)
     assert entry.closure_status == "complete"
     assert entry.status == "complete"
     assert entry.reason == "check conflict requires source families: git_hosting"

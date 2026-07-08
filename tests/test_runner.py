@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from itertools import count
+
 import pytest
 
 import teamctx.runner as runner
@@ -13,6 +15,7 @@ from teamctx.core.evaluate import Valuation
 from teamctx.runner import WorkStartInputs, build_request_context, run_work_start_connectors
 
 OBSERVED = "2026-06-25T12:00:00Z"
+_EMPTY_DOC_COUNTER = count()
 EMPTY_PATH_CONFLICT_NOTE = (
     "no files in scope yet; open pull requests can't be compared until there are paths"
 )
@@ -21,6 +24,8 @@ EMPTY_PATH_CONFLICT_NOTE = (
 def _empty_doc(request_context: RequestContext) -> CoreContractDocument:
     return CoreContractDocument(
         schema_version="teamctx.core_contract_document.v0",
+        document_id=f"doc_empty_test_{next(_EMPTY_DOC_COUNTER)}",
+        document_type="test_empty",
         request_context=request_context,
         source_signals=[],
         source_statuses=[],

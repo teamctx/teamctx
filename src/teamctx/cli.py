@@ -21,7 +21,7 @@ from teamctx.contract_render import (
     render_open_source,
     render_why,
 )
-from teamctx.core.broker import BrokerAnswer, broker_answer
+from teamctx.core.broker import BrokerAnswer, broker_answer_from_documents
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.eval.pack import export_eval_pack
 from teamctx.eval.scenario import EvalScenarioError
@@ -952,12 +952,7 @@ def _github_contract_document(
 
 def _work_start_view(document: CoreContractDocument) -> str:
     declarations = load_declared_authority(resolve_project_root() / ".teamctx" / "authority.json")
-    answer = broker_answer(
-        document.request_context,
-        document.source_signals,
-        document.source_statuses,
-        declarations,
-    )
+    answer = broker_answer_from_documents(document.request_context, [document], declarations)
     return render_broker_answer(answer)
 
 

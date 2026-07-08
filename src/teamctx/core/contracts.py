@@ -85,6 +85,21 @@ Scope = dict[str, ScopeValue]
 
 
 @dataclass(frozen=True)
+class SourceDocument:
+    """Document identity carried beside composed source material.
+
+    Documents own fetch status; checks own verifiedness. The broker uses these records to
+    map source statuses back to the document ids each closure entry consumed without feeding
+    document identity into content or replay digests.
+    """
+
+    document_id: str
+    document_type: str
+    source_ids: tuple[str, ...]
+    source_families: tuple[SourceFamily, ...]
+
+
+@dataclass(frozen=True)
 class ClosureProjection:
     """The content-identity view of one closure entry."""
 
@@ -325,6 +340,8 @@ class RequestContext(ContractModel):
 
 class CoreContractDocument(ContractModel):
     schema_version: Literal["teamctx.core_contract_document.v0"]
+    document_id: str = Field(min_length=1)
+    document_type: str = Field(min_length=1)
     request_context: RequestContext
     source_signals: list[SourceSignal] = Field(default_factory=list)
     source_statuses: list[SourceStatus] = Field(default_factory=list)

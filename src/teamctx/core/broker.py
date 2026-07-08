@@ -19,6 +19,7 @@ from teamctx.core.contracts import (
     CoreContractDocument,
     GuidanceRecord,
     RequestContext,
+    SourceDocument,
     SourceOpenTarget,
     SourceSignal,
     SourceStatus,
@@ -38,6 +39,7 @@ class ComposedSources:
     statuses: tuple[SourceStatus, ...]
     open_targets: tuple[SourceOpenTarget, ...]
     guidance_records: tuple[GuidanceRecord, ...]
+    documents: tuple[SourceDocument, ...]
 
 
 def compose(documents: Iterable[CoreContractDocument]) -> ComposedSources:
@@ -48,7 +50,13 @@ def compose(documents: Iterable[CoreContractDocument]) -> ComposedSources:
     statuses: list[SourceStatus] = []
     open_targets: list[SourceOpenTarget] = []
     guidance_records: list[GuidanceRecord] = []
+    source_documents: list[SourceDocument] = []
+    seen_document_ids: set[str] = set()
     for document in documents:
+        if document.document_id in seen_document_ids:
+            raise ValueError(f"duplicate document id: {document.document_id}")
+        seen_document_ids.add(document.document_id)
+        source_documents.append(_source_document(document))
         signals.extend(document.source_signals)
         statuses.extend(document.source_statuses)
         open_targets.extend(document.source_open_targets)
@@ -58,6 +66,23 @@ def compose(documents: Iterable[CoreContractDocument]) -> ComposedSources:
         statuses=tuple(statuses),
         open_targets=tuple(open_targets),
         guidance_records=tuple(guidance_records),
+        documents=tuple(source_documents),
+    )
+
+
+def _source_document(document: CoreContractDocument) -> SourceDocument:
+    source_ids = tuple(sorted({status.source_id for status in document.source_statuses}))
+    source_families = tuple(
+        sorted(
+            {status.source_family for status in document.source_statuses}
+            | {signal.source_family for signal in document.source_signals}
+        )
+    )
+    return SourceDocument(
+        document_id=document.document_id,
+        document_type=document.document_type,
+        source_ids=source_ids,
+        source_families=source_families,
     )
 
 
@@ -76,6 +101,7 @@ class BrokerAnswer:
     source_signals: tuple[SourceSignal, ...] = ()
     source_statuses: tuple[SourceStatus, ...] = ()
     open_targets: tuple[SourceOpenTarget, ...] = ()
+    source_documents: tuple[SourceDocument, ...] = ()
 
 
 def broker_answer(
@@ -85,6 +111,7 @@ def broker_answer(
     declarations: Iterable[AuthorityDecl] = (),
     *,
     open_targets: Iterable[SourceOpenTarget] = (),
+    source_documents: Iterable[SourceDocument] = (),
 ) -> BrokerAnswer:
     """The one broker entry point. Derives the selection, then evaluates each card kind's
     universal against the certified claims under the coverage closure, so every consumer
@@ -93,7 +120,14 @@ def broker_answer(
     signal_tuple = tuple(signals)
     status_tuple = tuple(statuses)
     declaration_tuple = tuple(declarations)
-    selection = select_context(request, signal_tuple, status_tuple, declaration_tuple)
+    source_document_tuple = tuple(source_documents)
+    selection = select_context(
+        request,
+        signal_tuple,
+        status_tuple,
+        declaration_tuple,
+        source_documents=source_document_tuple,
+    )
     verdicts = tuple(
         (
             kind.verdict_label,
@@ -108,6 +142,7 @@ def broker_answer(
         source_signals=signal_tuple,
         source_statuses=status_tuple,
         open_targets=tuple(open_targets),
+        source_documents=source_document_tuple,
     )
 
 
@@ -126,4 +161,5 @@ def broker_answer_from_documents(
         composed.statuses,
         declarations,
         open_targets=composed.open_targets,
+        source_documents=composed.documents,
     )
