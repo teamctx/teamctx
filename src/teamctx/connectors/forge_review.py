@@ -11,7 +11,12 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
-from teamctx.connectors._contract import metadata_only_policy, source_status, unavailable_document
+from teamctx.connectors._contract import (
+    document_identity,
+    metadata_only_policy,
+    source_status,
+    unavailable_document,
+)
 from teamctx.core.contracts import (
     CoreContractDocument,
     RequestContext,
@@ -194,6 +199,7 @@ def normalize_forge_review_prs(
     ]
     return CoreContractDocument(
         schema_version="teamctx.core_contract_document.v0",
+        **document_identity(source_id=source_id, source_family=_SOURCE_FAMILY),
         request_context=request_context,
         source_signals=source_signals,
         source_statuses=source_statuses,

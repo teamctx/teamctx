@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from itertools import count
 from pathlib import Path
 from urllib.request import Request
 
@@ -15,6 +16,7 @@ from teamctx.work_start import work_start_answer
 
 OBSERVED = "2026-07-03T12:00:00Z"
 BASE_URL = "https://jira.example.test"
+_EMPTY_DOC_COUNTER = count()
 
 
 class _Resp:
@@ -46,6 +48,8 @@ class _Opener:
 def _empty_doc(request_context: RequestContext) -> CoreContractDocument:
     return CoreContractDocument(
         schema_version="teamctx.core_contract_document.v0",
+        document_id=f"doc_empty_jira_e2e_{next(_EMPTY_DOC_COUNTER)}",
+        document_type="test_empty",
         request_context=request_context,
         source_signals=[],
         source_statuses=[],

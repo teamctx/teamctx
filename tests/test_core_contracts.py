@@ -44,6 +44,8 @@ def test_core_contract_fixture_round_trips_deterministically() -> None:
 
     document = load_core_contract_document(data)
 
+    assert document.document_id == "doc_github_pr_metadata"
+    assert document.document_type == "forge_review"
     assert document.model_dump(mode="json") == data
     assert CoreContractDocument.model_validate(document.model_dump(mode="json")) == document
 
@@ -69,6 +71,8 @@ def test_context_cards_carry_explainability_fields() -> None:
 def test_issue_tracker_contract_fixture_is_status_only_structured_metadata() -> None:
     document = load_core_contract_document(load_issue_contract_fixture())
 
+    assert document.document_id == "doc_jira_issue_api_482"
+    assert document.document_type == "issue_criteria"
     assert document.model_dump(mode="json") == load_issue_contract_fixture()
     assert [signal.source_family for signal in document.source_signals] == ["issue_tracker"]
     assert document.guidance_records == []

@@ -187,6 +187,8 @@ def _document_with_open_target(
     target = _open_target(signal.id)
     return CoreContractDocument(
         schema_version="teamctx.core_contract_document.v0",
+        document_id="doc_open_target_test",
+        document_type="forge_review",
         request_context=request,
         source_signals=[signal],
         source_statuses=[status],

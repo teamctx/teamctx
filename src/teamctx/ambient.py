@@ -169,6 +169,8 @@ def build_delta_document(
     ]
     return CoreContractDocument(
         schema_version="teamctx.core_contract_document.v0",
+        document_id="doc_ambient_delta",
+        document_type="ambient_delta",
         request_context=request,
         source_signals=signals,
         source_statuses=[],

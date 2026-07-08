@@ -21,6 +21,7 @@ from teamctx.core.contracts import (
     ClosureStatus,
     ContextCard,
     RequestContext,
+    SourceDocument,
     SourceSignal,
     SourceStatus,
 )
@@ -104,6 +105,7 @@ class CoverageEntry:
     last_checked_at: str | None
     note: str | None = None
     visibility: str = "silent"
+    document_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -163,11 +165,17 @@ def assess_completeness(prop: Prop, coverage: Coverage) -> Completeness:
     return "complete"
 
 
-def build_coverage(statuses: Iterable[SourceStatus], delta: Delta = "none") -> Coverage:
+def build_coverage(
+    statuses: Iterable[SourceStatus],
+    delta: Delta = "none",
+    *,
+    source_documents: Iterable[SourceDocument] = (),
+) -> Coverage:
     """Record each observed source's status verbatim, with the declassification dial. The
     dial defaults to ``none``; ``count``/``identity`` declassification of invisible-target
     dangling references is deferred until reference-target tracking exists."""
 
+    document_id_by_source_id = _document_id_by_source_id(source_documents)
     entries = tuple(
         CoverageEntry(
             source_id=status.source_id,
@@ -176,10 +184,35 @@ def build_coverage(statuses: Iterable[SourceStatus], delta: Delta = "none") -> C
             last_checked_at=status.last_checked_at,
             note=status.safe_user_message,
             visibility=status.normal_context_visibility,
+            document_id=document_id_by_source_id.get(status.source_id),
         )
         for status in statuses
     )
     return Coverage(entries=entries, delta=delta)
+
+
+def _document_id_by_source_id(source_documents: Iterable[SourceDocument]) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for document in source_documents:
+        for source_id in document.source_ids:
+            existing = mapping.get(source_id)
+            if existing is not None and existing != document.document_id:
+                raise ValueError(f"source id {source_id} belongs to multiple documents")
+            mapping[source_id] = document.document_id
+    return mapping
+
+
+def _consumed_document_ids(prop: Prop, coverage: Coverage) -> tuple[str, ...]:
+    families = deps_for(prop)
+    return tuple(
+        sorted(
+            {
+                entry.document_id
+                for entry in coverage.entries
+                if entry.source_family in families and entry.document_id is not None
+            }
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -202,6 +235,8 @@ def select_context(
     signals: Iterable[SourceSignal],
     statuses: Iterable[SourceStatus],
     declarations: Iterable[AuthorityDecl] = (),
+    *,
+    source_documents: Iterable[SourceDocument] = (),
 ) -> ContextSelection:
     """Broker entry point: derive typed claims, render cards, report coverage + closure,
     resolve authority, and bind the inputs with a verifiable-replay digest."""
@@ -209,17 +244,12 @@ def select_context(
     signal_list = list(signals)
     status_list = list(statuses)
     declaration_list = list(declarations)
-    coverage = build_coverage(status_list)
+    source_document_list = list(source_documents)
+    coverage = build_coverage(status_list, source_documents=source_document_list)
     claim_cards = tuple(derive_claims(request, signal_list))
     cards = tuple(render_claim(claim_card) for claim_card in claim_cards)
     closure = tuple(
-        ClosureEntry(
-            check_id=kind.check_id,
-            proposition=kind.query(request).predicate,
-            consumed_document_ids=(),
-            closure_status=assess_completeness(kind.query(request), coverage),
-            reason=_closure_reason(kind, request),
-        )
+        _closure_entry(kind, request, coverage)
         for kind in CARD_KINDS
     )
     subjects = sorted({decl.subject for decl in declaration_list})
@@ -238,6 +268,17 @@ def select_context(
         closure=closure,
         authority=authority,
         snapshot_digest=digest,
+    )
+
+
+def _closure_entry(kind: CardKind, request: RequestContext, coverage: Coverage) -> ClosureEntry:
+    query = kind.query(request)
+    return ClosureEntry(
+        check_id=kind.check_id,
+        proposition=query.predicate,
+        consumed_document_ids=_consumed_document_ids(query, coverage),
+        closure_status=assess_completeness(query, coverage),
+        reason=_closure_reason(kind, request),
     )
 
 
