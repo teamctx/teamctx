@@ -31,6 +31,193 @@ from teamctx.core.prop import Prop, PropShape, RefutesMatch, SubjectRef, Witness
 from teamctx.core.severity import compute_severity
 
 CheckId = Literal["conflict", "criteria", "docs", "gate"]
+CheckProfile = Literal["reflex", "full"]
+CheckLane = Literal["important", "fyi"]
+
+
+@dataclass(frozen=True)
+class ClaimDeclaration:
+    """The typed claim a check owns: the finding predicate, the clear-query predicate, and
+    the structural match rule by which the finding refutes that query."""
+
+    proposition: str
+    card_predicate: str
+    query_predicate: str
+    refutes_match: RefutesMatch
+
+
+@dataclass(frozen=True)
+class ClosureDeclaration:
+    """The closure propositions this check answers up front."""
+
+    propositions: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CoverageCopy:
+    """Coverage phrases for one check across the report and hook surfaces."""
+
+    clear: str
+    not_checked: str
+    unreachable: str
+    pending: str
+    not_applicable: str
+    gitlab_clear: str | None = None
+    gitlab_unreachable: str | None = None
+
+
+@dataclass(frozen=True)
+class HookCopy:
+    clear: str
+    gap: str | None
+    gitlab_clear: str | None = None
+    gitlab_gap: str | None = None
+
+
+@dataclass(frozen=True)
+class FindingCopy:
+    action: str
+
+
+@dataclass(frozen=True)
+class SourceStatusCopy:
+    """A check-owned source-status phrase keyed by the source contract that produced it."""
+
+    source_id: str
+    status: str
+    text: str
+
+
+@dataclass(frozen=True)
+class ProvenanceCopy:
+    item: str
+    single: str
+    multiple: str
+
+
+@dataclass(frozen=True)
+class DeltaCopy:
+    appear: str
+    disappear: str
+    transition: str = "{source_name} is back: {tail}"
+    coverage_shrank: str = "{gap} can no longer be verified ({note})"
+    appear_without_replacement: str | None = None
+
+
+@dataclass(frozen=True)
+class CheckCopy:
+    """The complete check-owned copy table. Compatibility properties keep older consumers
+    readable while the migration moves them onto the structured contract."""
+
+    coverage: CoverageCopy
+    finding: FindingCopy
+    hook: HookCopy
+    delta: DeltaCopy
+    source_status: tuple[SourceStatusCopy, ...] = ()
+    provenance: ProvenanceCopy | None = None
+
+    @property
+    def clear(self) -> str:
+        return self.coverage.clear
+
+    @property
+    def not_checked(self) -> str:
+        return self.coverage.not_checked
+
+    @property
+    def unreachable(self) -> str:
+        return self.coverage.unreachable
+
+    @property
+    def finding_action(self) -> str:
+        return self.finding.action
+
+    @property
+    def hook_clear(self) -> str:
+        return self.hook.clear
+
+    @property
+    def hook_gap(self) -> str | None:
+        return self.hook.gap
+
+    @property
+    def gitlab_clear(self) -> str | None:
+        return self.coverage.gitlab_clear
+
+    @property
+    def gitlab_unreachable(self) -> str | None:
+        return self.coverage.gitlab_unreachable
+
+    @property
+    def gitlab_hook_clear(self) -> str | None:
+        return self.hook.gitlab_clear
+
+    @property
+    def gitlab_hook_gap(self) -> str | None:
+        return self.hook.gitlab_gap
+
+
+@dataclass(frozen=True)
+class IdentityDeclaration:
+    """Fields that name a finding across runs. ``key_scope_fields`` preserve the stable
+    ambient key; ``material_scope_fields`` are extra rendered-card scope fields the delta voice
+    needs to speak the finding."""
+
+    key_scope_fields: tuple[str, ...]
+    material_scope_fields: tuple[str, ...] = ()
+
+    @property
+    def all_scope_fields(self) -> tuple[str, ...]:
+        return self.key_scope_fields + self.material_scope_fields
+
+
+@dataclass(frozen=True)
+class ConfigSchema:
+    options: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ForgeReviewAdvisoryCopy:
+    own_branch_single: str
+    own_branch_multiple: str
+    unbounded_page: str
+    unbounded_diff: str
+    unbounded_files: str
+    fresh: str
+
+
+@dataclass(frozen=True)
+class SourceContract:
+    id: str
+    advisory_copy: ForgeReviewAdvisoryCopy
+
+
+FORGE_REVIEW_SOURCE_CONTRACT = SourceContract(
+    id="source.git_hosting.forge_review",
+    advisory_copy=ForgeReviewAdvisoryCopy(
+        own_branch_single=(
+            "Your own open {short} {numbers} for this branch touches these files; "
+            "not flagged as a collision."
+        ),
+        own_branch_multiple=(
+            "Your own open {plural} {numbers} for this branch touch these files; "
+            "not flagged as collisions."
+        ),
+        unbounded_page=(
+            "Checked the {count} most recently updated open {plural}; more exist, so this is "
+            "not a complete check."
+        ),
+        unbounded_diff=(
+            "Checked the files of the {checked_count} most recently updated open {plural}; "
+            "{unchecked_count} more open {plural} were not file-checked."
+        ),
+        unbounded_files=(
+            "Open {short} {prefix}{number} changes more files than teamctx checked; "
+            "it may touch yours."
+        ),
+        fresh="Git-host {short} metadata refreshed.",
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -260,81 +447,251 @@ def render_missed_gate_claim(claim_card: ClaimCard) -> ContextCard:
 
 @dataclass(frozen=True)
 class CardKind:
-    """One registered card kind: every fact about it in one place. ``signal_type`` is the source
-    signal it derives from; ``card_predicate``/``query_predicate`` are the existential it asserts
-    and the universal that refutes; ``verdict_label``/``check_id``/``reason_prefix`` route it into
-    the assessment; ``deps_family`` is the source family its truth depends on; ``severity_base``
-    is its cost-of-not-knowing base; ``refutes_match`` is the structural overlap a refutation
-    needs; ``derive``/``query``/``render`` are its behavior. New kinds are added by appending an
-    entry; the engine's control flow and every derived table follow automatically."""
+    """One registered check declaration: every fact about a check in one place.
+
+    The legacy properties below keep the existing engine readable while callers migrate to the
+    structured contract fields (claim, closure, copy, identity, lane/profile, and schema).
+    """
 
     signal_type: str
-    card_predicate: str  # existential
-    query_predicate: str  # universal
     verdict_label: str
     check_id: CheckId
     reason_prefix: str  # "collision" | "criteria" | "doc" | "gate" (assessment routing)
     deps_family: str
     severity_base: float
-    refutes_match: RefutesMatch
+    contract_version: int
+    claim: ClaimDeclaration
+    consumes: tuple[str, ...]
+    closure: ClosureDeclaration
+    copy: CheckCopy
+    identity: IdentityDeclaration
+    profile: CheckProfile
+    lane: CheckLane
+    config_schema: ConfigSchema
     derive: Callable[[RequestContext, SourceSignal], ClaimCard | None]
     query: Callable[[RequestContext], Prop]
     render: Callable[[ClaimCard], ContextCard]
+
+    @property
+    def id(self) -> CheckId:
+        return self.check_id
+
+    @property
+    def card_predicate(self) -> str:
+        return self.claim.card_predicate
+
+    @property
+    def query_predicate(self) -> str:
+        return self.claim.query_predicate
+
+    @property
+    def refutes_match(self) -> RefutesMatch:
+        return self.claim.refutes_match
 
 
 CARD_KINDS: tuple[CardKind, ...] = (
     CardKind(
         signal_type="collision",
-        card_predicate="pr_conflicts_with_path",
-        query_predicate="no_pr_conflicts_with_paths",
         verdict_label="Conflict check",
         check_id="conflict",
         reason_prefix="collision",
         deps_family="git_hosting",
         severity_base=0.8,
-        refutes_match="subject-overlap",
+        contract_version=1,
+        claim=ClaimDeclaration(
+            proposition="an open PR or MR conflicts with the requested paths",
+            card_predicate="pr_conflicts_with_path",
+            query_predicate="no_pr_conflicts_with_paths",
+            refutes_match="subject-overlap",
+        ),
+        consumes=("forge_review",),
+        closure=ClosureDeclaration(propositions=("no_pr_conflicts_with_paths",)),
+        copy=CheckCopy(
+            coverage=CoverageCopy(
+                clear="no other open PRs touch your files",
+                not_checked="open PRs (couldn't determine the repository)",
+                unreachable="open PRs (couldn't reach GitHub)",
+                pending="conflict (still running, not confirmed yet)",
+                not_applicable="conflict (not applicable to the files in scope)",
+                gitlab_clear="no other open MRs touch your files",
+                gitlab_unreachable="open MRs (couldn't reach GitLab)",
+            ),
+            finding=FindingCopy(
+                action="look at it before you edit so you don't undo each other's work"
+            ),
+            hook=HookCopy(
+                clear="no other open pull requests touch these files",
+                gap="open pull requests",
+                gitlab_clear="no other open merge requests touch these files",
+                gitlab_gap="open merge requests",
+            ),
+            delta=DeltaCopy(
+                appear="{source_display} appeared, touching {paths}",
+                disappear="{source_display} no longer touches your files",
+            ),
+        ),
+        identity=IdentityDeclaration(
+            key_scope_fields=("pr_number",),
+            material_scope_fields=("files",),
+        ),
+        profile="reflex",
+        lane="important",
+        config_schema=ConfigSchema(),
         derive=_derive_collision_claim,
         query=no_conflict_query,
         render=render_collision_claim,
     ),
     CardKind(
         signal_type="criteria_changed",
-        card_predicate="issue_criteria_changed",
-        query_predicate="no_criteria_changed_for_issues",
         verdict_label="Criteria check",
         check_id="criteria",
         reason_prefix="criteria",
         deps_family="issue_tracker",
         severity_base=0.5,
-        refutes_match="subject-overlap",
+        contract_version=1,
+        claim=ClaimDeclaration(
+            proposition="acceptance criteria changed for a linked issue",
+            card_predicate="issue_criteria_changed",
+            query_predicate="no_criteria_changed_for_issues",
+            refutes_match="subject-overlap",
+        ),
+        consumes=("issue_criteria",),
+        closure=ClosureDeclaration(propositions=("no_criteria_changed_for_issues",)),
+        copy=CheckCopy(
+            coverage=CoverageCopy(
+                clear="the linked issue's criteria are unchanged",
+                not_checked="spec changes (no issue is linked to this branch; link one to enable)",
+                unreachable="spec changes (couldn't reach GitHub)",
+                pending="criteria (still running, not confirmed yet)",
+                not_applicable="criteria (not applicable to the files in scope)",
+            ),
+            finding=FindingCopy(action="re-check the criteria before you rely on them"),
+            hook=HookCopy(clear="the linked issue's criteria are unchanged", gap=None),
+            delta=DeltaCopy(
+                appear="{source_display} changed: {detail}",
+                disappear="{source_display} is no longer flagged",
+            ),
+            provenance=ProvenanceCopy(
+                item="{issue} from {source}",
+                single="(issue {item})",
+                multiple="(issues {items})",
+            ),
+        ),
+        identity=IdentityDeclaration(key_scope_fields=("issue",)),
+        profile="reflex",
+        lane="fyi",
+        config_schema=ConfigSchema(),
         derive=_derive_criteria_changed_claim,
         query=criteria_changed_query,
         render=render_criteria_changed_claim,
     ),
     CardKind(
         signal_type="doc_superseded",
-        card_predicate="doc_superseded",
-        query_predicate="no_superseded_docs",
         verdict_label="Docs check",
         check_id="docs",
         reason_prefix="doc",
         deps_family="docs",
         severity_base=0.4,
-        refutes_match="repo-wide",
+        contract_version=1,
+        claim=ClaimDeclaration(
+            proposition="a relied-on document was superseded",
+            card_predicate="doc_superseded",
+            query_predicate="no_superseded_docs",
+            refutes_match="repo-wide",
+        ),
+        consumes=("docs_supersession",),
+        closure=ClosureDeclaration(propositions=("no_superseded_docs",)),
+        copy=CheckCopy(
+            coverage=CoverageCopy(
+                clear="the docs you rely on are current",
+                not_checked="docs (no docs root is configured; set work_start.docs_root to enable)",
+                unreachable="the docs you rely on (couldn't read the docs folder)",
+                pending="docs (still running, not confirmed yet)",
+                not_applicable="docs (not applicable to the files in scope)",
+            ),
+            finding=FindingCopy(action="rely on the current one instead"),
+            hook=HookCopy(clear="the docs you rely on are current", gap=None),
+            delta=DeltaCopy(
+                appear="{doc} was superseded by {superseded_by}",
+                appear_without_replacement="{doc} was superseded",
+                disappear="the note about {doc} cleared",
+            ),
+            source_status=(
+                SourceStatusCopy(
+                    source_id="docs_supersession",
+                    status="unavailable",
+                    text="couldn't read the local docs folder",
+                ),
+                SourceStatusCopy(
+                    source_id="docs_supersession",
+                    status="stale",
+                    text="couldn't fully check the local docs folder",
+                ),
+                SourceStatusCopy(
+                    source_id="confluence_pages",
+                    status="unavailable",
+                    text="couldn't reach Confluence",
+                ),
+                SourceStatusCopy(
+                    source_id="confluence_pages",
+                    status="stale",
+                    text="couldn't fully check Confluence",
+                ),
+            ),
+        ),
+        identity=IdentityDeclaration(
+            key_scope_fields=("doc",),
+            material_scope_fields=("superseded_by",),
+        ),
+        profile="reflex",
+        lane="fyi",
+        config_schema=ConfigSchema(),
         derive=_derive_doc_superseded_claim,
         query=no_superseded_docs_query,
         render=render_doc_superseded_claim,
     ),
     CardKind(
         signal_type="missed_gate",
-        card_predicate="gate_failed",
-        query_predicate="all_gates_pass",
         verdict_label="Gate check",
         check_id="gate",
         reason_prefix="gate",
         deps_family="ci_deploy",
         severity_base=0.7,
-        refutes_match="repo-wide",
+        contract_version=1,
+        claim=ClaimDeclaration(
+            proposition="a required gate is failing on this branch",
+            card_predicate="gate_failed",
+            query_predicate="all_gates_pass",
+            refutes_match="repo-wide",
+        ),
+        consumes=("gate_status",),
+        closure=ClosureDeclaration(propositions=("all_gates_pass",)),
+        copy=CheckCopy(
+            coverage=CoverageCopy(
+                clear="no failing checks found",
+                not_checked="failing checks (couldn't determine your branch)",
+                unreachable="failing checks (couldn't reach GitHub)",
+                pending="failing checks (CI still running, not confirmed green yet)",
+                not_applicable="gate (not applicable to the files in scope)",
+                gitlab_unreachable="pipeline state (couldn't reach GitLab)",
+            ),
+            finding=FindingCopy(
+                action="fix it or wait for a green build before relying on it"
+            ),
+            hook=HookCopy(
+                clear="no failing checks found",
+                gap="failing checks",
+                gitlab_gap="pipeline state",
+            ),
+            delta=DeltaCopy(
+                appear="check '{gate}' started failing on this branch",
+                disappear="check '{gate}' is green again",
+            ),
+        ),
+        identity=IdentityDeclaration(key_scope_fields=("gate",)),
+        profile="reflex",
+        lane="important",
+        config_schema=ConfigSchema(),
         derive=_derive_missed_gate_claim,
         query=all_gates_pass_query,
         render=render_missed_gate_claim,
@@ -392,6 +749,27 @@ REASON_PREFIX: dict[str, CheckId] = {kind.reason_prefix: kind.check_id for kind 
 CHECK_DEPS_FAMILY: dict[CheckId, str] = {
     kind.check_id: kind.deps_family for kind in CARD_KINDS
 }
+
+CHECKS_BY_ID: dict[CheckId, CardKind] = {kind.check_id: kind for kind in CARD_KINDS}
+CHECK_COPY: dict[CheckId, CheckCopy] = {
+    kind.check_id: kind.copy for kind in CARD_KINDS
+}
+IMPORTANT_CHECKS: frozenset[CheckId] = frozenset(
+    kind.check_id for kind in CARD_KINDS if kind.lane == "important"
+)
+IDENTITY_BY_CHECK: dict[CheckId, IdentityDeclaration] = {
+    kind.check_id: kind.identity for kind in CARD_KINDS
+}
+DOCS_FAILURE_COPY: dict[tuple[str, str], str] = {
+    (copy.source_id, copy.status): copy.text
+    for copy in CHECKS_BY_ID["docs"].copy.source_status
+}
+
+
+def check_kind(check: CheckId) -> CardKind:
+    """Return the frozen declaration for a registered check."""
+
+    return CHECKS_BY_ID[check]
 
 
 def shape_of(prop: Prop) -> PropShape:

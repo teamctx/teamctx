@@ -273,6 +273,10 @@ def select_context(
 
 def _closure_entry(kind: CardKind, request: RequestContext, coverage: Coverage) -> ClosureEntry:
     query = kind.query(request)
+    if query.predicate not in kind.closure.propositions:
+        raise ValueError(
+            f"check {kind.check_id} query {query.predicate!r} is not declared in closure"
+        )
     return ClosureEntry(
         check_id=kind.check_id,
         proposition=query.predicate,
