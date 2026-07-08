@@ -70,10 +70,15 @@ fetched in reflex; those checks close as profile_skipped.
 SOURCE/document; verifiedness belongs to each CHECK. Documents gain STABLE ids (uniqueness
 validated, consumed ids sorted); closure entries become (check_id, proposition,
 consumed_document_ids, closure_status, reason). One failed Jira fetch closes BOTH criteria
-and issue-lifecycle as couldn't-check, each with its own copy, off one status. The replay
-digest changes shape with this: that is an EXPLICIT versioned change (digest version bump,
-tested), while rendered bytes for unchanged worlds stay identical: the oracle checks bytes,
-not digests. This is the largest single piece of the build (build risk #1).
+and issue-lifecycle as couldn't-check, each with its own copy, off one status. Digest
+impact, corrected (round-3 P1-4; an earlier revision left a contradictory sentence here and
+a builder rightly stopped on it): closure does NOT feed the replay/snapshot digest (it
+hashes request, signals, statuses, declarations) and slice 2 leaves that digest untouched,
+with a test proving it. The digest closure feeds is the AMBIENT content digest, which takes
+closure (proposition, status) ONLY: reasons and consumed_document_ids stay out (landed in
+slice 1 with the ambient state schema bump). Rendered bytes for unchanged worlds stay
+identical: the oracle checks bytes, not digests. This is the largest single piece of the
+build (build risk #1).
 
 **Advisory ownership (round-2 P2-9, better factoring):** advisory/FYI notes are born from
 source statuses, so the SOURCE/document contract owns advisory note keys and payloads;
