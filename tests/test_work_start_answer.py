@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
+
 from teamctx.connectors.github import ForgeReviewFetch
 from teamctx.core.broker import BrokerAnswer
 from teamctx.runner import WorkStartInputs
@@ -11,6 +14,15 @@ EMPTY_PATH_CONFLICT_NOTE = (
 )
 
 _EMPTY_FETCH = ForgeReviewFetch(pull_requests=[])
+
+
+def _init_repo(root: Path) -> None:
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+    (root / "README.md").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "base"], check=True)
 
 
 def test_work_start_answer_returns_broker_answer(monkeypatch) -> None:
@@ -51,6 +63,7 @@ def test_work_start_answer_loads_authority_from_project_root(monkeypatch, tmp_pa
 
     import teamctx.connectors.github as gh
     monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: _EMPTY_FETCH)
+    _init_repo(tmp_path)
     (tmp_path / ".teamctx").mkdir()
     (tmp_path / ".teamctx" / "authority.json").write_text(
         json.dumps(
@@ -59,6 +72,8 @@ def test_work_start_answer_loads_authority_from_project_root(monkeypatch, tmp_pa
         ),
         encoding="utf-8",
     )
+    subprocess.run(["git", "-C", str(tmp_path), "add", ".teamctx/authority.json"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "authority"], check=True)
     inputs = WorkStartInputs(repo="acme/widgets", paths=("src/x.py",), token="t")
     # cwd is NOT tmp_path: authority must be loaded relative to project_root, not the process cwd.
     answer = work_start_answer(inputs, observed_at=OBS, project_root=tmp_path)

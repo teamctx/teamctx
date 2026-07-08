@@ -30,11 +30,14 @@ from teamctx.ambient import (
 )
 from teamctx.assessment import assess, class_of_answer
 from teamctx.clock import utc_now_iso
+from teamctx.config_failure import format_config_failure
+from teamctx.connectors.declared_authority import DeclaredAuthorityError
 from teamctx.core.content_digest import content_digest
 from teamctx.git_context import repo_relative_path, resolve_project_root
+from teamctx.project_config import ProjectConfigError
+from teamctx.team_semantics import load_team_authority, read_team_semantics_file, semantics_notices
 
 _EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
-_CONFIG_PATH = Path(".teamctx/config.json")
 _AUTHORITY_PATH = Path(".teamctx/authority.json")
 
 if TYPE_CHECKING:
@@ -71,58 +74,61 @@ def _run() -> None:
     session_id = event.get("session_id")
     if not cwd or not session_id:
         return
-    root = resolve_project_root(start=Path(cwd))
-    rel_file, inputs, token_present = _prepare_grounding(root, file_path)
-    key = _key_for_inputs(root, inputs, token_present=token_present)
-    state_dir = ambient_state_dir(root)
-    interval = ambient_interval_seconds()
-    now = _now_seconds()
-    baseline = load_baseline(state_dir, session_id, key)
-    if baseline is not None:
-        precheck = decide(
+    emit_name: Literal["PreToolUse", "UserPromptSubmit"] = (
+        "UserPromptSubmit" if event_name == "UserPromptSubmit" else "PreToolUse"
+    )
+    try:
+        root = resolve_project_root(start=Path(cwd))
+        rel_file, inputs, token_present = _prepare_grounding(root, file_path)
+        key = _key_for_inputs(root, inputs, token_present=token_present)
+        state_dir = ambient_state_dir(root)
+        interval = ambient_interval_seconds()
+        now = _now_seconds()
+        baseline = load_baseline(state_dir, session_id, key)
+        if baseline is not None:
+            precheck = decide(
+                baseline,
+                now=now,
+                interval=interval,
+                content_digest=baseline.content_digest,
+                class_of_answer="NONE",
+            )
+            if precheck == "silent":
+                return
+
+        grounding = _ground(root, rel_file, inputs, token_present, baseline)
+        # A delta always speaks: it means the pre-delta content changed, so decide() already returns
+        # speak_full; has_deltas makes the transition-speak-over-silence law explicit in code.
+        should_speak = grounding.has_deltas or baseline is None or decide(
             baseline,
             now=now,
             interval=interval,
-            content_digest=baseline.content_digest,
-            class_of_answer="NONE",
-        )
-        if precheck == "silent":
-            return
-
-    grounding = _ground(root, rel_file, inputs, token_present, baseline)  # broker imported lazily
-    # A delta always speaks: it means the pre-delta content changed, so decide() already returns
-    # speak_full; has_deltas makes the transition-speak-over-silence law explicit in code.
-    should_speak = grounding.has_deltas or baseline is None or decide(
-        baseline,
-        now=now,
-        interval=interval,
-        content_digest=grounding.content_digest,
-        class_of_answer=grounding.class_of_answer,
-    ) == "speak_full"
-
-    store_baseline(
-        state_dir,
-        session_id,
-        Baseline(
-            key=key,
             content_digest=grounding.content_digest,
             class_of_answer=grounding.class_of_answer,
-            last_network_check_at=now,
-            last_spoken_at=(
-                now
-                if should_speak and grounding.text
-                else baseline.last_spoken_at if baseline is not None else now
+        ) == "speak_full"
+
+        store_baseline(
+            state_dir,
+            session_id,
+            Baseline(
+                key=key,
+                content_digest=grounding.content_digest,
+                class_of_answer=grounding.class_of_answer,
+                last_network_check_at=now,
+                last_spoken_at=(
+                    now
+                    if should_speak and grounding.text
+                    else baseline.last_spoken_at if baseline is not None else now
+                ),
+                material=grounding.material,
             ),
-            material=grounding.material,
-        ),
-        now=now,
-        project_root=root,
-    )
-    if should_speak and grounding.text:
-        emit_name: Literal["PreToolUse", "UserPromptSubmit"] = (
-            "UserPromptSubmit" if event_name == "UserPromptSubmit" else "PreToolUse"
+            now=now,
+            project_root=root,
         )
-        _emit(grounding.text, emit_name)
+        if should_speak and grounding.text:
+            _emit(grounding.text, emit_name)
+    except (ProjectConfigError, DeclaredAuthorityError) as exc:
+        _emit(format_config_failure(exc), emit_name)
 
 
 def _entry_target(event: object, event_name: object) -> tuple[bool, str | None]:
@@ -197,6 +203,9 @@ def _prepare_grounding(
 
 
 def _key_for_inputs(root: Path, inputs: WorkStartInputs, *, token_present: bool) -> str:
+    authority = read_team_semantics_file(
+        root, _AUTHORITY_PATH.as_posix(), allow_dirty=inputs.semantics_allow_dirty
+    )
     return compute_key(
         repo=inputs.repo,
         forge=inputs.forge,
@@ -207,16 +216,11 @@ def _key_for_inputs(root: Path, inputs: WorkStartInputs, *, token_present: bool)
         docs_root=inputs.docs_root,
         profile=inputs.profile,
         token_present=token_present,
-        config_bytes=_read_bytes(root / _CONFIG_PATH),
-        authority_bytes=_read_bytes(root / _AUTHORITY_PATH),
+        config_bytes=inputs.config_key_bytes,
+        authority_bytes=authority.key_bytes,
+        config_state=inputs.config_state,
+        authority_state=authority.state,
     )
-
-
-def _read_bytes(path: Path) -> bytes:
-    try:
-        return path.read_bytes()
-    except OSError:
-        return b""
 
 
 def _now_seconds() -> float:
@@ -233,10 +237,9 @@ def _ground(
     import socket
 
     from teamctx.ambient import build_delta_document, compute_baseline_material, compute_deltas
-    from teamctx.connectors.declared_authority import load_declared_authority
     from teamctx.core.broker import broker_answer_from_documents
     from teamctx.hook_signal import hook_signal
-    from teamctx.work_start import DEFAULT_AUTHORITY_PATH, ground_work_start
+    from teamctx.work_start import ground_work_start, render_with_config_notices
 
     observed_at = utc_now_iso()
     old_timeout = socket.getdefaulttimeout()
@@ -245,7 +248,8 @@ def _ground(
         request, documents = ground_work_start(inputs, observed_at=observed_at, project_root=root)
     finally:
         socket.setdefaulttimeout(old_timeout)
-    declarations = load_declared_authority(root / DEFAULT_AUTHORITY_PATH)
+    authority = load_team_authority(root, allow_dirty=inputs.semantics_allow_dirty)
+    declarations = authority.declarations
     base_answer = broker_answer_from_documents(request, documents, declarations)
 
     material = compute_baseline_material(base_answer)
@@ -257,8 +261,17 @@ def _ground(
     else:
         answer = base_answer
 
+    text = hook_signal(answer, file_path=file_path, token_present=token_present)
     return Grounding(
-        text=hook_signal(answer, file_path=file_path, token_present=token_present),
+        text=render_with_config_notices(
+            (
+                *inputs.semantics_notices,
+                *semantics_notices(
+                    authority=authority.file, allow_dirty=inputs.semantics_allow_dirty
+                ),
+            ),
+            text,
+        ),
         content_digest=content_digest(  # over the PRE-DELTA answer; delta signals are excluded
             base_answer.source_signals,
             base_answer.source_statuses,

@@ -8,6 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
+from teamctx.config_failure import TEAM_CONFIG_UPGRADE_LINE
 from teamctx.git_context import ForgeProvider
 
 DEFAULT_CONFIG_PATH = Path(".teamctx/config.json")
@@ -74,16 +75,37 @@ def load_project_config(path: Path) -> ProjectConfig:
     except OSError as exc:
         raise ProjectConfigError(f"Could not read project config: {path}") from exc
 
+    return parse_project_config_text(raw, str(path))
+
+
+def parse_project_config_bytes(raw: bytes, source: str) -> ProjectConfig:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ProjectConfigError(f"Project config is not valid UTF-8: {source}") from exc
+    return parse_project_config_text(text, source)
+
+
+def parse_project_config_text(raw: str, source: str) -> ProjectConfig:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ProjectConfigError(f"Project config is not valid JSON: {path}") from exc
+        raise ProjectConfigError(f"Project config is not valid JSON: {source}") from exc
 
     try:
         return ProjectConfig.model_validate(data)
     except ValidationError as exc:
-        message = f"Project config does not match teamctx.project_config.v0: {path}"
+        if _looks_like_future_team_config(data):
+            raise ProjectConfigError(TEAM_CONFIG_UPGRADE_LINE) from exc
+        message = f"Project config does not match teamctx.project_config.v0: {source}"
         raise ProjectConfigError(message) from exc
+
+
+def _looks_like_future_team_config(data: object) -> bool:
+    if not isinstance(data, dict):
+        return False
+    future_team_semantics = {"checks", "requires_teamctx", "declared_sources", "sources"}
+    return any(key in data for key in future_team_semantics)
 
 
 def maybe_load_project_config(path: Path) -> ProjectConfig | None:

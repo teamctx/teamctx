@@ -98,6 +98,8 @@ def _init_confluence_repo(root: Path, *, docs_root: str | None) -> None:
         json.dumps({"schema_version": "teamctx.project_config.v0", "work_start": work_start}),
         encoding="utf-8",
     )
+    _git(root, "add", ".teamctx/config.json")
+    _git(root, "commit", "-qm", "config")
 
 
 def _stub_forge_sources(monkeypatch) -> None:

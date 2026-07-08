@@ -44,6 +44,9 @@ from emulation.rows import (  # noqa: E402
     row14_lawful_silence,
     row15_gap_honesty,
     row16_reopened_respeak,
+    row17_untracked_config,
+    row18_hook_speaks_on_unknown_check,
+    row19_dirty_authority,
 )
 
 # The scenario matrix in program order.
@@ -64,6 +67,9 @@ ROW_MODULES = [
     row14_lawful_silence,
     row15_gap_honesty,
     row16_reopened_respeak,
+    row17_untracked_config,
+    row18_hook_speaks_on_unknown_check,
+    row19_dirty_authority,
 ]
 
 

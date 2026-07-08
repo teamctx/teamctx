@@ -11,7 +11,8 @@ from typing import Any, NoReturn
 import click
 
 from teamctx.clock import utc_now_iso
-from teamctx.connectors.declared_authority import DeclaredAuthorityError, load_declared_authority
+from teamctx.config_failure import format_config_failure
+from teamctx.connectors.declared_authority import DeclaredAuthorityError
 from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.github import run_github_pr_probe
 from teamctx.connectors.github_checks import run_github_checks_probe
@@ -47,6 +48,7 @@ from teamctx.project_config import (
     write_project_config,
 )
 from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
+from teamctx.team_semantics import load_team_authority
 from teamctx.tokens import resolve_github_token
 from teamctx.work_start import render_work_start, work_start_answer
 
@@ -198,6 +200,11 @@ def github_pr_probe_command(
 @click.option("--since", default=None, help="ISO timestamp: issue changes after this are surfaced.")
 @click.option("--docs-root", default=None, help="Docs root to scan for supersession frontmatter.")
 @click.option("--ref", default=None, help="Gate ref to read check-runs for (defaults to --branch).")
+@click.option(
+    "--allow-dirty",
+    is_flag=True,
+    help="Diagnostic: use working-tree .teamctx config and authority before they are committed.",
+)
 def work_start_command(
     repo: str | None,
     paths: tuple[str, ...],
@@ -209,6 +216,7 @@ def work_start_command(
     since: str | None,
     docs_root: str | None,
     ref: str | None,
+    allow_dirty: bool,
 ) -> None:
     """Derive unified work-start context: run every connector the inputs allow (collisions +
     gates + linked-issue criteria + relied-on docs), compose, and report cards + honest
@@ -228,13 +236,14 @@ def work_start_command(
             include_titles=include_title,
             token=resolve_github_token(token_env),
             root=project_root,
+            allow_dirty=allow_dirty,
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
-        raise click.ClickException(str(exc)) from exc
+        raise click.ClickException(format_config_failure(exc)) from exc
     try:
         output = render_work_start(inputs, observed_at=utc_now_iso(), project_root=project_root)
     except DeclaredAuthorityError as exc:
-        raise click.ClickException(str(exc)) from exc
+        raise click.ClickException(format_config_failure(exc)) from exc
     click.echo(output, nl=False)
 
 
@@ -308,11 +317,11 @@ def _resolve_work_start(
             root=project_root,
         )
     except (WorkStartResolutionError, ProjectConfigError) as exc:
-        raise click.ClickException(str(exc)) from exc
+        raise click.ClickException(format_config_failure(exc)) from exc
     try:
         return work_start_answer(inputs, observed_at=utc_now_iso(), project_root=project_root)
     except DeclaredAuthorityError as exc:
-        raise click.ClickException(str(exc)) from exc
+        raise click.ClickException(format_config_failure(exc)) from exc
 
 
 def _add_work_start_options(func: Any) -> Any:
@@ -951,7 +960,7 @@ def _github_contract_document(
 
 
 def _work_start_view(document: CoreContractDocument) -> str:
-    declarations = load_declared_authority(resolve_project_root() / ".teamctx" / "authority.json")
+    declarations = load_team_authority(resolve_project_root()).declarations
     answer = broker_answer_from_documents(document.request_context, [document], declarations)
     return render_broker_answer(answer)
 

@@ -15,7 +15,14 @@ import json
 import tempfile
 from pathlib import Path
 
-from emulation.actors import DEFAULT_SLUG, SubprocessEnv, build_lab_repo, run_cli, write_file
+from emulation.actors import (
+    DEFAULT_SLUG,
+    SubprocessEnv,
+    build_lab_repo,
+    commit_files,
+    run_cli,
+    write_file,
+)
 from emulation.evidence import Expectation, RowResult, combine, passed_or_failed
 from emulation.mockgh import Fixtures, MockGitHub, check_runs_payload, graphql_page, issue_payload
 from emulation.mockjira import (
@@ -58,6 +65,7 @@ def _write_config(repo_root: Path, *, jira_base_url: str | None = None) -> None:
         ".teamctx/config.json",
         json.dumps({"schema_version": "teamctx.project_config.v0", "work_start": work_start}),
     )
+    commit_files(repo_root, ".teamctx/config.json")
 
 
 def _jira_changed_sub_row(tmp: Path) -> RowResult:

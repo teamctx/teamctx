@@ -164,8 +164,8 @@ def _config_is_trackable(root: Path) -> bool:
 
 def ensure_config_trackable(root: Path, *, dry_run: bool) -> StepResult:
     """Make .teamctx/config.json trackable in the user repo, idempotently, verified by
-    git check-ignore. In a non-git tree there is nothing to track (git check-ignore errors), so it
-    is skipped, not failed, matching that work-start still works from config alone."""
+    git check-ignore. In a non-git tree there is nothing to track yet (git check-ignore errors),
+    so this setup step is skipped, not failed."""
 
     if not _is_git_repo(root):
         return StepResult(

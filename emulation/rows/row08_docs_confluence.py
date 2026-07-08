@@ -21,6 +21,7 @@ from emulation.actors import (
     SYNTHETIC_TOKEN,
     SubprocessEnv,
     build_lab_repo,
+    commit_files,
     pretooluse_event,
     process_env,
     run_cli,
@@ -96,6 +97,7 @@ def _write_config(repo_root: Path, *, confluence_base_url: str, space_key: str) 
             }
         ),
     )
+    commit_files(repo_root, ".teamctx/config.json")
 
 
 def _env(*, github_api_root: str, ambient_state: Path | None = None) -> SubprocessEnv:

@@ -6,6 +6,9 @@ seam: the tool is registered, callable, returns the broker's text, and degrades 
 
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
+
 import pytest
 
 pytest.importorskip("mcp", reason="the optional mcp extra is not installed")
@@ -13,6 +16,20 @@ pytest.importorskip("mcp", reason="the optional mcp extra is not installed")
 import asyncio
 
 from teamctx.mcp_server import mcp, work_start
+
+
+def _init_repo(root: Path) -> None:
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+    (root / "f.txt").write_text("x", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "i"], check=True)
+
+
+def _commit_paths(root: Path, *paths: str) -> None:
+    subprocess.run(["git", "-C", str(root), "add", *paths], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
 
 
 def _content_text(result: object) -> str:
@@ -93,17 +110,9 @@ def test_call_tool_runs_the_broker_over_mcp(monkeypatch, tmp_path) -> None:
 
 
 def test_work_start_resolves_repo_from_root(monkeypatch, tmp_path) -> None:
-    import subprocess
-
     import teamctx.mcp_server as mcp_server
 
-    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True)
-    (tmp_path / "f.txt").write_text("x", encoding="utf-8")
-    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
-    # git needs a committed HEAD before a remote can be added
-    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "i"], check=True)
+    _init_repo(tmp_path)
     subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin",
                     "git@github.com:acme/widgets.git"], check=True)
     monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
@@ -126,8 +135,10 @@ def test_work_start_returns_error_text_when_repo_unresolvable(monkeypatch, tmp_p
 
 
 def test_work_start_returns_error_text_for_malformed_authority(monkeypatch, tmp_path) -> None:
+    _init_repo(tmp_path)
     (tmp_path / ".teamctx").mkdir()
     (tmp_path / ".teamctx" / "authority.json").write_text("{ not valid json", encoding="utf-8")
+    _commit_paths(tmp_path, ".teamctx/authority.json")
     monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
@@ -140,6 +151,8 @@ def test_work_start_docs_scanned_from_project_root_not_cwd(monkeypatch, tmp_path
     import json
 
     proj = tmp_path / "proj"
+    proj.mkdir()
+    _init_repo(proj)
     (proj / ".teamctx").mkdir(parents=True)
     (proj / ".teamctx" / "config.json").write_text(
         json.dumps(
@@ -154,6 +167,7 @@ def test_work_start_docs_scanned_from_project_root_not_cwd(monkeypatch, tmp_path
     (proj / "docs" / "old.md").write_text(
         "---\nsuperseded_by: docs/new.md\n---\n", encoding="utf-8"
     )
+    _commit_paths(proj, ".teamctx/config.json")
     other = tmp_path / "other"
     other.mkdir()
     monkeypatch.chdir(other)  # cwd != project root

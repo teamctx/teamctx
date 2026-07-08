@@ -10,13 +10,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from teamctx.config_failure import format_config_failure
 from teamctx.connectors.declared_authority import load_declared_authority
 from teamctx.contract_render import render_broker_answer
+from teamctx.core.authority import AuthorityDecl
 from teamctx.core.broker import BrokerAnswer, broker_answer_from_documents
 from teamctx.core.contracts import CoreContractDocument, RequestContext
 from teamctx.runner import WorkStartInputs, run_work_start_connectors
+from teamctx.team_semantics import load_team_authority, semantics_notices
 
-DEFAULT_AUTHORITY_PATH = Path(".teamctx/authority.json")
+
+def render_with_config_notices(notices: tuple[str, ...], text: str) -> str:
+    unique = tuple(dict.fromkeys(line for line in notices if line))
+    if not unique:
+        return text
+    return "\n".join(unique) + "\n" + text
 
 
 def ground_work_start(
@@ -40,6 +48,7 @@ def work_start_answer(
     observed_at: str,
     authority_path: Path | None = None,
     project_root: Path = Path("."),
+    authority_declarations: list[AuthorityDecl] | None = None,
 ) -> BrokerAnswer:
     """Run every applicable connector, compose, and evaluate, returning the structured
     broker answer (cards + honest coverage + one verdict per check). Transports render it;
@@ -49,7 +58,14 @@ def work_start_answer(
     request_context, documents = ground_work_start(
         inputs, observed_at=observed_at, project_root=project_root
     )
-    declarations = load_declared_authority(authority_path or project_root / DEFAULT_AUTHORITY_PATH)
+    if authority_declarations is not None:
+        declarations = authority_declarations
+    elif authority_path is not None:
+        declarations = load_declared_authority(authority_path)
+    else:
+        declarations = load_team_authority(
+            project_root, allow_dirty=inputs.semantics_allow_dirty
+        ).declarations
     return broker_answer_from_documents(request_context, documents, declarations)
 
 
@@ -62,7 +78,26 @@ def render_work_start(
 ) -> str:
     """Render the work-start answer (cards + honest coverage + one verdict per check) as text."""
 
+    authority_notices: tuple[str, ...] = ()
+    authority_declarations: list[AuthorityDecl] | None = None
+    if authority_path is None:
+        authority = load_team_authority(project_root, allow_dirty=inputs.semantics_allow_dirty)
+        authority_notices = semantics_notices(
+            authority=authority.file, allow_dirty=inputs.semantics_allow_dirty
+        )
+        authority_declarations = authority.declarations
     answer = work_start_answer(
-        inputs, observed_at=observed_at, authority_path=authority_path, project_root=project_root
+        inputs,
+        observed_at=observed_at,
+        authority_path=authority_path,
+        project_root=project_root,
+        authority_declarations=authority_declarations,
     )
-    return render_broker_answer(answer)
+    return render_with_config_notices(
+        (*inputs.semantics_notices, *authority_notices),
+        render_broker_answer(answer),
+    )
+
+
+def render_config_failure(exc: Exception) -> str:
+    return format_config_failure(exc)

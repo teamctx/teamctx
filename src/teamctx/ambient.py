@@ -293,9 +293,20 @@ def compute_key(
     token_present: bool,
     config_bytes: bytes,
     authority_bytes: bytes,
+    config_state: str = "committed_clean",
+    authority_state: str = "committed_clean",
     version: str = __version__,
 ) -> str:
-    config_authority_digest = hashlib.sha256(config_bytes + authority_bytes).hexdigest()
+    config_authority_digest = hashlib.sha256(
+        b"config\0"
+        + config_state.encode("utf-8")
+        + b"\0"
+        + config_bytes
+        + b"\0authority\0"
+        + authority_state.encode("utf-8")
+        + b"\0"
+        + authority_bytes
+    ).hexdigest()
     payload = {
         "repo": repo,
         "forge": forge,

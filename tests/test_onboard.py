@@ -98,7 +98,17 @@ def test_atomic_write_is_failure_atomic(tmp_path: Path, monkeypatch) -> None:
 
 def _init_repo(root: Path, origin: str) -> None:
     subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
     subprocess.run(["git", "-C", str(root), "remote", "add", "origin", origin], check=True)
+
+
+def _has_git_repo(root: Path) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+        capture_output=True,
+        text=True,
+    ).returncode == 0
 
 
 def test_detect_returns_owner_name_for_github_origin(tmp_path: Path) -> None:
@@ -695,6 +705,11 @@ def _write_config(root: Path, repo: str | None, docs_root: str | None = None) ->
     if ws:
         body["work_start"] = ws
     (root / ".teamctx" / "config.json").write_text(json.dumps(body), encoding="utf-8")
+    if _has_git_repo(root):
+        subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+        subprocess.run(["git", "-C", str(root), "add", ".teamctx/config.json"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "config"], check=True)
 
 
 def test_run_onboard_url_config_repo_normalized_for_health(tmp_path: Path, monkeypatch) -> None:
@@ -738,8 +753,8 @@ def test_run_onboard_config_without_repo_falls_back_to_git(tmp_path: Path, monke
 
 
 def test_run_onboard_non_git_with_config_skips_gitignore(tmp_path: Path, monkeypatch) -> None:
-    # a non-git dir with a valid config: work-start works from config, so onboard skips gitignore
-    # (git check-ignore would error) rather than failing.
+    # In a non-git dir, onboard can still inspect an existing setup file, but there is no git
+    # tracking state to repair yet.
     _write_config(tmp_path, "acme/widgets")  # no git init
     monkeypatch.setenv("GITHUB_TOKEN", "x")
     urls: list[str] = []
@@ -771,6 +786,8 @@ def test_run_onboard_broken_config_does_not_health_check(tmp_path: Path, monkeyp
         _github_origin(tmp_path)
         (tmp_path / ".teamctx").mkdir(exist_ok=True)
         (tmp_path / ".teamctx" / "config.json").write_text(body, encoding="utf-8")
+        subprocess.run(["git", "-C", str(tmp_path), "add", ".teamctx/config.json"], check=True)
+        subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "broken config"], check=True)
         urls: list[str] = []
         result = run_onboard(
             tmp_path, repo_override=None, force=False, dry_run=False,
@@ -802,7 +819,7 @@ def test_onboard_effective_repo_matches_runtime_exactly(tmp_path: Path, monkeypa
     [
         ("acme/widgets", None),                          # git origin only
         ("acme/widgets", "other/project"),              # config wins over git
-        (None, "other/project"),                         # config in a non-git tree
+        (None, "other/project"),                         # config in a repo without origin
         ("acme/widgets", "https://github.com/o/p.git"),  # config as a URL, normalized
         ("acme/widgets", ""),                            # empty config repo -> git fallback
     ],

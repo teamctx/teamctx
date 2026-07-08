@@ -102,6 +102,11 @@ def _init_repo_with_origin(root: Path, url: str, branch: str) -> None:
     subprocess.run(["git", "-C", str(root), "remote", "add", "origin", url], check=True)
 
 
+def _commit_paths(root: Path, *paths: str) -> None:
+    subprocess.run(["git", "-C", str(root), "add", *paths], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+
+
 def test_work_start_resolves_repo_from_git_without_flag(monkeypatch, tmp_path: Path) -> None:
     _init_repo_with_origin(tmp_path, "git@github.com:acme/widgets.git", "feature")
     monkeypatch.chdir(tmp_path)
@@ -158,9 +163,11 @@ def test_work_start_reads_token_from_file(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_work_start_errors_on_malformed_config(monkeypatch, tmp_path: Path) -> None:
+    _init_repo_with_origin(tmp_path, "git@github.com:acme/widgets.git", "feature")
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".teamctx").mkdir()
     (tmp_path / ".teamctx" / "config.json").write_text("{ not valid json", encoding="utf-8")
+    _commit_paths(tmp_path, ".teamctx/config.json")
     result = CliRunner().invoke(
         main, ["work-start", "--github-repo", "acme/widgets", "--path", "src/x.py"]
     )
@@ -169,9 +176,11 @@ def test_work_start_errors_on_malformed_config(monkeypatch, tmp_path: Path) -> N
 
 
 def test_work_start_errors_on_malformed_authority(monkeypatch, tmp_path: Path) -> None:
+    _init_repo_with_origin(tmp_path, "git@github.com:acme/widgets.git", "feature")
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".teamctx").mkdir()
     (tmp_path / ".teamctx" / "authority.json").write_text("{ not valid json", encoding="utf-8")
+    _commit_paths(tmp_path, ".teamctx/authority.json")
 
     result = CliRunner().invoke(
         main,
@@ -191,12 +200,94 @@ def test_work_start_errors_on_malformed_authority(monkeypatch, tmp_path: Path) -
     assert "Traceback" not in result.output
 
 
+def test_work_start_allow_dirty_uses_working_tree_config_and_authority(
+    monkeypatch, tmp_path: Path
+) -> None:
+    import json
+
+    import teamctx.connectors.github as gh
+    import teamctx.connectors.github_checks as gc
+    from teamctx.config_failure import ALLOW_DIRTY_CONFIG_BANNER
+    from teamctx.connectors.github import ForgeReviewFetch
+    from teamctx.connectors.github_checks import CheckRunsFetch
+
+    _init_repo_with_origin(tmp_path, "git@github.com:acme/widgets.git", "feature")
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "config.json").write_text(
+        json.dumps(
+            {"schema_version": "teamctx.project_config.v0", "work_start": {"repo": "acme/widgets"}}
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / ".teamctx" / "authority.json").write_text(
+        json.dumps(
+            [
+                {
+                    "subject": "rounding-cap",
+                    "source": "confluence:Policy",
+                    "priority": 10,
+                    "value": "3",
+                    "fresh": True,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    _commit_paths(tmp_path, ".teamctx/config.json", ".teamctx/authority.json")
+    (tmp_path / ".teamctx" / "config.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "work_start": {"repo": "acme/widgets", "docs_root": "docs"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / ".teamctx" / "authority.json").write_text(
+        json.dumps(
+            [
+                {
+                    "subject": "rounding-cap",
+                    "source": "confluence:Policy",
+                    "priority": 10,
+                    "value": "99",
+                    "fresh": True,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "old.md").write_text(
+        "---\nsuperseded_by: docs/new.md\n---\n", encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", lambda **kw: ForgeReviewFetch([]))
+    monkeypatch.setattr(
+        gc,
+        "fetch_failing_check_runs",
+        lambda **kw: CheckRunsFetch(failing=[], truncated=False, pending=False),
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+    result = CliRunner().invoke(
+        main,
+        ["work-start", "--allow-dirty", "--path", "docs/old.md"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result.output.startswith(ALLOW_DIRTY_CONFIG_BANNER)
+    assert "old.md was superseded by docs/new.md" in result.output
+    assert "- rounding-cap: resolved (value 99)" in result.output
+
+
 def test_work_start_finds_config_from_subdirectory(monkeypatch, tmp_path: Path) -> None:
     """Run from a subdirectory: the committed config at the repo root is still found, because
     root resolution uses the git toplevel, not the process cwd."""
     import json
 
-    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    _init_repo_with_origin(tmp_path, "git@github.com:owner/name.git", "feature")
     (tmp_path / ".teamctx").mkdir()
     (tmp_path / ".teamctx" / "config.json").write_text(
         json.dumps(
@@ -204,6 +295,7 @@ def test_work_start_finds_config_from_subdirectory(monkeypatch, tmp_path: Path) 
         ),
         encoding="utf-8",
     )
+    _commit_paths(tmp_path, ".teamctx/config.json")
     sub = tmp_path / "src"
     sub.mkdir()
     monkeypatch.chdir(sub)
