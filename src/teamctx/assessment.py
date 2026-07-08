@@ -54,6 +54,7 @@ class WorkStartAssessment:
     kind: Literal["ready", "heads_up", "cant_verify"]
     checks: tuple[CheckState, ...]
     findings: tuple[ContextCard, ...]
+    important_checks: frozenset[CheckId] = frozenset()
     # What changed since the session baseline. The kind above is the CURRENT world and never moves
     # because of a delta; deltas are a separate lane the render speaks first.
     deltas: tuple[Delta, ...] = ()
@@ -65,7 +66,9 @@ AnswerClass = Literal["GOOD", "GAP-KNOWN", "NONE"]
 def class_of_answer(assessment: WorkStartAssessment) -> AnswerClass:
     """Classify whether an ambient baseline can legally serve silence for important checks."""
 
-    important = [state for state in assessment.checks if state.check in IMPORTANT_CHECKS]
+    important = [
+        state for state in assessment.checks if state.check in assessment.important_checks
+    ]
     if important and all(state.status in {"clear", "found"} for state in important):
         return "GOOD"
     if important:
@@ -112,20 +115,29 @@ def card_finding_key(card: ContextCard) -> str | None:
 
 def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     verdicts: dict[str, Valuation] = {label: val for label, val in answer.verdicts}
+    if answer.enabled_checks or answer.disabled_checks or answer.important_checks:
+        enabled_checks = answer.enabled_checks
+        important_checks = frozenset(answer.important_checks)
+    else:
+        enabled_checks = tuple(kind.check_id for kind in CARD_KINDS)
+        important_checks = IMPORTANT_CHECKS
+    enabled = set(enabled_checks)
     cards_by_check: dict[CheckId, list[ContextCard]] = {
-        kind.check_id: [] for kind in CARD_KINDS
+        kind.check_id: [] for kind in CARD_KINDS if kind.check_id in enabled
     }
     coverage_notes = _coverage_notes_by_family_and_status(answer)
     failing_by_family = _failing_source_ids_by_family(answer)
     findings: list[ContextCard] = []
     for card in answer.selection.cards:
         check = _check_of_card(card)
-        if check is not None:
+        if check is not None and check in enabled:
             cards_by_check[check].append(card)
             findings.append(card)
 
     states: list[CheckState] = []
     for label, check in LABEL_CHECK_PAIRS:
+        if check not in enabled:
+            continue
         valuation = verdicts.get(label)
         status: CheckStatus = _status_for(valuation) if valuation is not None else "not_configured"
         states.append(
@@ -146,7 +158,7 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
     if any(s.status == "found" for s in states):
         kind = "heads_up"
     elif any(
-        s.status in {"unreachable", "pending", "unbounded"} and s.check in IMPORTANT_CHECKS
+        s.status in {"unreachable", "pending", "unbounded"} and s.check in important_checks
         for s in states
     ):
         kind = "cant_verify"
@@ -156,6 +168,7 @@ def assess(answer: BrokerAnswer) -> WorkStartAssessment:
         kind=kind,
         checks=tuple(states),
         findings=tuple(findings),
+        important_checks=important_checks,
         deltas=deltas_from_signals(answer.source_signals),
     )
 

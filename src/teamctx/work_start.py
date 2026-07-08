@@ -66,7 +66,14 @@ def work_start_answer(
         declarations = load_team_authority(
             project_root, allow_dirty=inputs.semantics_allow_dirty
         ).declarations
-    return broker_answer_from_documents(request_context, documents, declarations)
+    return broker_answer_from_documents(
+        request_context,
+        documents,
+        declarations,
+        enabled_checks=inputs.enabled_checks,
+        important_checks=inputs.important_checks,
+        disabled_checks=inputs.disabled_checks,
+    )
 
 
 def render_work_start(

@@ -25,7 +25,7 @@ from teamctx.core.contracts import (
     SourceStatus,
 )
 from teamctx.core.evaluate import Valuation, evaluate
-from teamctx.core.kinds import CARD_KINDS
+from teamctx.core.kinds import CARD_KINDS, CheckId, resolve_check_selection
 from teamctx.core.select import ContextSelection, select_context
 
 
@@ -102,6 +102,9 @@ class BrokerAnswer:
     source_statuses: tuple[SourceStatus, ...] = ()
     open_targets: tuple[SourceOpenTarget, ...] = ()
     source_documents: tuple[SourceDocument, ...] = ()
+    enabled_checks: tuple[CheckId, ...] = ()
+    important_checks: tuple[CheckId, ...] = ()
+    disabled_checks: tuple[CheckId, ...] = ()
 
 
 def broker_answer(
@@ -112,6 +115,9 @@ def broker_answer(
     *,
     open_targets: Iterable[SourceOpenTarget] = (),
     source_documents: Iterable[SourceDocument] = (),
+    enabled_checks: Iterable[CheckId] | None = None,
+    important_checks: Iterable[CheckId] | None = None,
+    disabled_checks: Iterable[CheckId] | None = None,
 ) -> BrokerAnswer:
     """The one broker entry point. Derives the selection, then evaluates each card kind's
     universal against the certified claims under the coverage closure, so every consumer
@@ -121,12 +127,25 @@ def broker_answer(
     status_tuple = tuple(statuses)
     declaration_tuple = tuple(declarations)
     source_document_tuple = tuple(source_documents)
+    check_selection = resolve_check_selection(enabled_checks)
+    enabled_tuple = check_selection.enabled_checks
+    important_tuple = (
+        _ordered_subset(important_checks)
+        if important_checks is not None
+        else check_selection.important_checks
+    )
+    disabled_tuple = (
+        _ordered_subset(disabled_checks)
+        if disabled_checks is not None
+        else check_selection.disabled_checks
+    )
     selection = select_context(
         request,
         signal_tuple,
         status_tuple,
         declaration_tuple,
         source_documents=source_document_tuple,
+        enabled_checks=enabled_tuple,
     )
     verdicts = tuple(
         (
@@ -134,6 +153,7 @@ def broker_answer(
             evaluate(kind.query(request), selection.claim_cards, selection.closure),
         )
         for kind in CARD_KINDS
+        if kind.check_id in enabled_tuple
     )
     return BrokerAnswer(
         request=request,
@@ -143,6 +163,9 @@ def broker_answer(
         source_statuses=status_tuple,
         open_targets=tuple(open_targets),
         source_documents=source_document_tuple,
+        enabled_checks=enabled_tuple,
+        important_checks=important_tuple,
+        disabled_checks=disabled_tuple,
     )
 
 
@@ -150,6 +173,10 @@ def broker_answer_from_documents(
     request: RequestContext,
     documents: Iterable[CoreContractDocument],
     declarations: Iterable[AuthorityDecl] = (),
+    *,
+    enabled_checks: Iterable[CheckId] | None = None,
+    important_checks: Iterable[CheckId] | None = None,
+    disabled_checks: Iterable[CheckId] | None = None,
 ) -> BrokerAnswer:
     """Convenience: compose connector documents, then answer. The unified ``work-start`` and
     the MCP server both run several connectors and hand their documents here."""
@@ -162,4 +189,12 @@ def broker_answer_from_documents(
         declarations,
         open_targets=composed.open_targets,
         source_documents=composed.documents,
+        enabled_checks=enabled_checks,
+        important_checks=important_checks,
+        disabled_checks=disabled_checks,
     )
+
+
+def _ordered_subset(checks: Iterable[CheckId]) -> tuple[CheckId, ...]:
+    allowed = set(checks)
+    return tuple(kind.check_id for kind in CARD_KINDS if kind.check_id in allowed)

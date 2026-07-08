@@ -98,6 +98,26 @@ def test_branch_enables_gate(monkeypatch) -> None:
     assert called == ["collision", "gate"]
 
 
+def test_only_enabled_checks_resolve_documents(monkeypatch) -> None:
+    called = _record_calls(monkeypatch)
+    inputs = WorkStartInputs(
+        repo="teamctx/teamctx",
+        paths=("src/x.py",),
+        branch="feature",
+        issues=("#42",),
+        since=OBSERVED,
+        docs_root="docs",
+        enabled_checks=("conflict", "gate"),
+        important_checks=("conflict", "gate"),
+        disabled_checks=("criteria", "docs"),
+    )
+
+    _, documents = run_work_start_connectors(inputs, observed_at=OBSERVED)
+
+    assert called == ["collision", "gate"]
+    assert len(documents) == 2
+
+
 def test_empty_paths_skip_github_collision_probe_and_mark_conflict_not_applicable(
     monkeypatch,
 ) -> None:

@@ -25,7 +25,14 @@ from teamctx.core.contracts import (
     SourceSignal,
     SourceStatus,
 )
-from teamctx.core.kinds import CARD_KINDS, CardKind, ClaimCard, deps_for
+from teamctx.core.kinds import (
+    CARD_KINDS,
+    CardKind,
+    CheckId,
+    ClaimCard,
+    deps_for,
+    resolve_check_selection,
+)
 from teamctx.core.prop import Prop
 from teamctx.core.snapshot import snapshot_digest as _snapshot_digest
 
@@ -48,14 +55,19 @@ class Hint:
 
 
 def derive_claims(
-    request: RequestContext, signals: Iterable[SourceSignal]
+    request: RequestContext,
+    signals: Iterable[SourceSignal],
+    *,
+    enabled_checks: Iterable[CheckId] | None = None,
 ) -> list[ClaimCard]:
     """Derive typed claims from the P-visible signals, dispatching by registered card kind."""
 
+    check_selection = resolve_check_selection(enabled_checks)
+    enabled = set(check_selection.enabled_checks)
     claims: list[ClaimCard] = []
     for signal in project_visible_signals(signals):
         kind = _KIND_BY_SIGNAL_TYPE.get(signal.signal_type)
-        if kind is None:
+        if kind is None or kind.check_id not in enabled:
             continue
         claim_card = kind.derive(request, signal)
         if claim_card is not None:
@@ -75,10 +87,18 @@ def render_claim(claim_card: ClaimCard) -> ContextCard:
     return _RENDER_BY_PREDICATE[claim_card.claim.predicate](claim_card)
 
 
-def derive_cards(request: RequestContext, signals: Iterable[SourceSignal]) -> list[ContextCard]:
+def derive_cards(
+    request: RequestContext,
+    signals: Iterable[SourceSignal],
+    *,
+    enabled_checks: Iterable[CheckId] | None = None,
+) -> list[ContextCard]:
     """Derive context cards: typed claims rendered via their kind's renderer."""
 
-    return [render_claim(claim_card) for claim_card in derive_claims(request, signals)]
+    return [
+        render_claim(claim_card)
+        for claim_card in derive_claims(request, signals, enabled_checks=enabled_checks)
+    ]
 
 
 def _is_surfaceable(signal: SourceSignal) -> bool:
@@ -237,6 +257,7 @@ def select_context(
     declarations: Iterable[AuthorityDecl] = (),
     *,
     source_documents: Iterable[SourceDocument] = (),
+    enabled_checks: Iterable[CheckId] | None = None,
 ) -> ContextSelection:
     """Broker entry point: derive typed claims, render cards, report coverage + closure,
     resolve authority, and bind the inputs with a verifiable-replay digest."""
@@ -245,11 +266,15 @@ def select_context(
     status_list = list(statuses)
     declaration_list = list(declarations)
     source_document_list = list(source_documents)
+    check_selection = resolve_check_selection(enabled_checks)
+    enabled = set(check_selection.enabled_checks)
     coverage = build_coverage(status_list, source_documents=source_document_list)
-    claim_cards = tuple(derive_claims(request, signal_list))
+    claim_cards = tuple(
+        derive_claims(request, signal_list, enabled_checks=check_selection.enabled_checks)
+    )
     cards = tuple(render_claim(claim_card) for claim_card in claim_cards)
     closure = tuple(
-        _closure_entry(kind, request, coverage)
+        _closure_entry(kind, request, coverage, enabled=kind.check_id in enabled)
         for kind in CARD_KINDS
     )
     subjects = sorted({decl.subject for decl in declaration_list})
@@ -271,11 +296,21 @@ def select_context(
     )
 
 
-def _closure_entry(kind: CardKind, request: RequestContext, coverage: Coverage) -> ClosureEntry:
+def _closure_entry(
+    kind: CardKind, request: RequestContext, coverage: Coverage, *, enabled: bool
+) -> ClosureEntry:
     query = kind.query(request)
     if query.predicate not in kind.closure.propositions:
         raise ValueError(
             f"check {kind.check_id} query {query.predicate!r} is not declared in closure"
+        )
+    if not enabled:
+        return ClosureEntry(
+            check_id=kind.check_id,
+            proposition=query.predicate,
+            consumed_document_ids=(),
+            closure_status="disabled-by-team",
+            reason=f"check {kind.check_id} is not enabled by the team",
         )
     return ClosureEntry(
         check_id=kind.check_id,

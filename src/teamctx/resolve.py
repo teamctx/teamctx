@@ -23,7 +23,9 @@ from teamctx.git_context import (
     repo_relative_path,
 )
 from teamctx.project_config import (
+    ProjectConfig,
     WorkStartConfig,
+    check_selection_for_project_config,
     maybe_load_project_config,
 )
 from teamctx.runner import WorkStartInputs
@@ -97,9 +99,11 @@ def resolve_work_start_inputs(
     config_path: Path | None = None,
     allow_dirty: bool = False,
 ) -> WorkStartInputs:
-    config, notices, config_state, config_key_bytes = _load_work_start_config(
+    project_config, notices, config_state, config_key_bytes = _load_project_config(
         root, config_path, allow_dirty=allow_dirty
     )
+    config = project_config.work_start if project_config is not None else None
+    check_selection = check_selection_for_project_config(project_config)
 
     resolved, repo_error = resolve_forge_repo(
         repo,
@@ -157,24 +161,27 @@ def resolve_work_start_inputs(
         semantics_allow_dirty=allow_dirty,
         config_state=config_state,
         config_key_bytes=config_key_bytes,
+        enabled_checks=check_selection.enabled_checks,
+        important_checks=check_selection.important_checks,
+        disabled_checks=check_selection.disabled_checks,
     )
 
 
-def _load_work_start_config(
+def _load_project_config(
     root: Path, config_path: Path | None, *, allow_dirty: bool
-) -> tuple[WorkStartConfig | None, tuple[str, ...], SemanticsState, bytes]:
+) -> tuple[ProjectConfig | None, tuple[str, ...], SemanticsState, bytes]:
     if config_path is not None:
         path = config_path if config_path.is_absolute() else root / config_path
         project = maybe_load_project_config(path)
         return (
-            project.work_start if project is not None else None,
+            project,
             (),
             "allow_dirty" if allow_dirty else "committed_clean",
             path.read_bytes() if path.exists() and path.is_file() else b"",
         )
     loaded = load_team_project_config(root, allow_dirty=allow_dirty)
     return (
-        loaded.config.work_start if loaded.config is not None else None,
+        loaded.config,
         semantics_notices(config=loaded.file, allow_dirty=allow_dirty),
         loaded.file.state,
         loaded.file.key_bytes,

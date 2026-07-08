@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 from teamctx.project_config import (
+    TEAMCTX_VERSION,
+    CheckConfig,
     ProjectConfigError,
     build_work_start_project_config,
     load_project_config,
@@ -47,6 +49,50 @@ def test_project_config_loads_work_start_section(tmp_path: Path) -> None:
     assert config.work_start.docs_root == "docs"
 
 
+def test_project_config_loads_checks_block_with_v1_real_ids(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "work_start": {"repo": "acme/widgets"},
+                "checks": {
+                    "conflict": {"enabled": True},
+                    "docs": {"enabled": False},
+                    "gate": {"enabled": True, "lane": "fyi"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_project_config(config_path)
+
+    assert config.checks == {
+        "conflict": CheckConfig(enabled=True),
+        "docs": CheckConfig(enabled=False),
+        "gate": CheckConfig(enabled=True, lane="fyi"),
+    }
+
+
+def test_project_config_accepts_satisfied_requires_teamctx(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "requires_teamctx": TEAMCTX_VERSION,
+                "work_start": {"repo": "acme/widgets"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_project_config(config_path)
+
+    assert config.requires_teamctx == TEAMCTX_VERSION
+
+
 def test_project_config_without_work_start_is_none(tmp_path: Path) -> None:
     config_path = tmp_path / "config.json"
     config_path.write_text(
@@ -69,6 +115,76 @@ def test_work_start_section_rejects_unknown_fields(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     with pytest.raises(ProjectConfigError):
+        load_project_config(config_path)
+
+
+def test_checks_block_rejects_unknown_check_id_with_upgrade_line(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "work_start": {"repo": "acme/widgets"},
+                "checks": {"x_future": {"enabled": True}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProjectConfigError, match="behind this repo's team config"):
+        load_project_config(config_path)
+
+
+def test_checks_block_rejects_unknown_option_with_upgrade_line(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "work_start": {"repo": "acme/widgets"},
+                "checks": {"conflict": {"enabled": True, "surprise": True}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProjectConfigError, match="behind this repo's team config"):
+        load_project_config(config_path)
+
+
+def test_checks_block_rejects_unknown_lane_with_upgrade_line(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "work_start": {"repo": "acme/widgets"},
+                "checks": {"conflict": {"enabled": True, "lane": "urgent"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProjectConfigError, match="behind this repo's team config"):
+        load_project_config(config_path)
+
+
+def test_project_config_rejects_future_requires_teamctx_with_upgrade_line(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "requires_teamctx": "999.0.0",
+                "work_start": {"repo": "acme/widgets"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProjectConfigError, match="behind this repo's team config"):
         load_project_config(config_path)
 
 

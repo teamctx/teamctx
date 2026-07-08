@@ -72,6 +72,8 @@ ClosureStatus = Literal[
     "incomplete[unbounded]",
     "incomplete[unmodeled-ref]",
     "not_applicable[out-of-scope]",
+    "disabled-by-team",
+    "profile-skipped",
 ]
 SectionName = Literal[
     "Needs attention",
