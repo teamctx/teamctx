@@ -3,8 +3,7 @@
 ## Status
 **BUILT (2026-07-08).** Revision 5 landed through the catalog spine slices: slice 1
 `24909bd`, slice 2 `c488f35`, slice 3 `9780f64`, slice 4 `c5064c8`, slice 5 `e8b5f5a`,
-slice 6 `a0c5798`. Slice 7 is built on `feat/spine-cleanup`; its merge hash is assigned by
-the CTO merge, which this builder must not perform. Four adversarial rounds (codex 1, 2, 4;
+slice 6 `a0c5798`. Slice 7 merged as `ab7df26`. Four adversarial rounds (codex 1, 2, 4;
 Opus fresh-eyes 3) accepted and pinned every finding. Two CPO laws locked 2026-07-07.
 
 ## The two laws (locked, not revisitable in review)
