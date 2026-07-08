@@ -87,6 +87,13 @@ def write_file(root: Path, rel_path: str, text: str) -> None:
     target.write_text(text, encoding="utf-8")
 
 
+def commit_files(root: Path, *rel_paths: str, message: str = "fixture config") -> None:
+    """Commit explicit fixture files in a lab repo."""
+
+    _git(root, "add", *rel_paths)
+    _git(root, "commit", "-qm", message)
+
+
 @dataclass(frozen=True)
 class LabRepo:
     """A local git clone that looks, to teamctx, like a checkout of the lab repo."""
