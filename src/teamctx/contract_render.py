@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 from teamctx.ambient import Delta, FindingMaterial
 from teamctx.assessment import CheckState, WorkStartAssessment, assess, card_finding_key
 from teamctx.core.authority import AuthorityEntry
@@ -43,10 +41,14 @@ if set(RENDER_COPY) != {kind.check_id for kind in CARD_KINDS}:
 
 
 def _pending_phrase(check: CheckId) -> str:
+    if check not in RENDER_COPY:
+        return f"{check} (still running, not confirmed yet)"
     return RENDER_COPY[check].coverage.pending
 
 
 def _not_applicable_phrase(check: CheckId) -> str:
+    if check not in RENDER_COPY:
+        return f"{check} (not applicable to the files in scope)"
     return RENDER_COPY[check].coverage.not_applicable
 
 
@@ -60,6 +62,8 @@ def _pending_bullet(check: CheckId) -> str:
 
 
 def check_clear_copy(check: CheckId, forge: str) -> str:
+    if check not in RENDER_COPY:
+        return check
     copy = RENDER_COPY[check]
     if forge == "gitlab" and copy.gitlab_clear is not None:
         return copy.gitlab_clear
@@ -67,6 +71,8 @@ def check_clear_copy(check: CheckId, forge: str) -> str:
 
 
 def check_unreachable_copy(check: CheckId, forge: str) -> str:
+    if check not in RENDER_COPY:
+        return check
     copy = RENDER_COPY[check]
     if forge == "gitlab" and copy.gitlab_unreachable is not None:
         return copy.gitlab_unreachable
@@ -74,6 +80,8 @@ def check_unreachable_copy(check: CheckId, forge: str) -> str:
 
 
 def check_hook_clear_copy(check: CheckId, forge: str) -> str:
+    if check not in RENDER_COPY:
+        return check
     copy = RENDER_COPY[check]
     if forge == "gitlab" and copy.gitlab_hook_clear is not None:
         return copy.gitlab_hook_clear
@@ -81,6 +89,8 @@ def check_hook_clear_copy(check: CheckId, forge: str) -> str:
 
 
 def check_hook_gap_copy(check: CheckId, forge: str) -> str | None:
+    if check not in RENDER_COPY:
+        return check
     copy = RENDER_COPY[check]
     if forge == "gitlab" and copy.gitlab_hook_gap is not None:
         return copy.gitlab_hook_gap
@@ -193,7 +203,7 @@ def bullet_suppressed(card: ContextCard, keys: frozenset[str], checks: frozenset
 
 
 def _as_check(check: str) -> CheckId:
-    return cast("CheckId", check)
+    return check
 
 
 def _authority_line(entry: AuthorityEntry) -> str:
@@ -265,6 +275,8 @@ def _finding_bullets(assessment: WorkStartAssessment, forge: str) -> list[str]:
 
 
 def _finding_text(state: CheckState, card: ContextCard) -> str:
+    if state.declared_copy is not None:
+        return card.text
     action = RENDER_COPY[state.check].finding_action
     base = f"{card.text.rstrip('.')}: {action}" if action else card.text
     pr = _gh_hint(card) if state.check == "conflict" else ""
@@ -373,6 +385,7 @@ def _not_enabled_line(answer: BrokerAnswer) -> str:
         for check in answer.disabled_checks
         if check in _NOT_ENABLED_PHRASE
     ]
+    phrases.extend(check.copy.not_enabled for check in answer.disabled_declared_checks)
     if not phrases:
         return ""
     return (
@@ -383,6 +396,8 @@ def _not_enabled_line(answer: BrokerAnswer) -> str:
 
 
 def _clear_phrase(answer: BrokerAnswer, state: CheckState) -> str:
+    if state.declared_copy is not None:
+        return state.declared_copy.clear
     phrase = check_clear_copy(state.check, answer.request.forge)
     if state.check == "criteria":
         suffix = _criteria_provenance_suffix(answer)
@@ -439,7 +454,7 @@ def _couldnt_check_line(assessment: WorkStartAssessment, forge: str) -> str:
         for s in assessment.checks
         if s.status == "unreachable"
         and s.check not in shrank  # a coverage-shrank delta already speaks this check
-        and not (in_bullets and s.check in assessment.important_checks)
+        and not (in_bullets and s.check in assessment.important_checks and s.check in RENDER_COPY)
     ]
     if not gaps:
         return ""
@@ -453,6 +468,10 @@ _DOCS_FAILURE_COPY = DOCS_FAILURE_COPY
 
 
 def _unreachable_gap_copy(state: CheckState, forge: str) -> str:
+    if state.declared_copy is not None:
+        if state.note:
+            return f"{state.declared_copy.couldnt_check} ({state.note.rstrip('.')})"
+        return state.declared_copy.couldnt_check
     if state.check == "docs" and state.failing_sources:
         reasons = [
             _DOCS_FAILURE_COPY[pair] for pair in state.failing_sources if pair in _DOCS_FAILURE_COPY

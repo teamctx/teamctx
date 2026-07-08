@@ -17,6 +17,7 @@ from typing import Literal
 
 from teamctx.connectors._contract import document_identity, unavailable_document
 from teamctx.connectors.confluence import run_confluence_docs_probe
+from teamctx.connectors.declared_file import DeclaredFileSource, run_declared_file_sources
 from teamctx.connectors.docs import run_docs_supersession_probe
 from teamctx.connectors.docs_supersession import unavailable_docs_document
 from teamctx.connectors.forge_review import forge_review_source_status
@@ -27,6 +28,7 @@ from teamctx.connectors.gitlab import run_gitlab_mr_probe, run_gitlab_pipeline_p
 from teamctx.connectors.issue_criteria import unavailable_issues_document
 from teamctx.connectors.jira import run_jira_issues_probe
 from teamctx.core.contracts import CoreContractDocument, RequestContext, SourceFamily
+from teamctx.core.declared import DeclaredCheckDefinition
 from teamctx.core.kinds import DEFAULT_CHECK_IDS, DEFAULT_IMPORTANT_CHECKS, CheckId
 from teamctx.git_context import ForgeProvider, parse_github_repo, parse_gitlab_repo
 from teamctx.team_semantics import SemanticsState
@@ -106,6 +108,9 @@ class WorkStartInputs:
     enabled_checks: tuple[CheckId, ...] = DEFAULT_CHECK_IDS
     important_checks: tuple[CheckId, ...] = DEFAULT_IMPORTANT_CHECKS
     disabled_checks: tuple[CheckId, ...] = ()
+    declared_sources: tuple[DeclaredFileSource, ...] = ()
+    declared_checks: tuple[DeclaredCheckDefinition, ...] = ()
+    disabled_declared_checks: tuple[DeclaredCheckDefinition, ...] = ()
 
     def __post_init__(self) -> None:
         normalized = _parse_repo_for_forge(self.repo, self.forge)
@@ -241,6 +246,15 @@ def run_work_start_connectors(
     if _check_enabled(inputs, "criteria"):
         documents.extend(_run_issue_tracker_documents(inputs, request_context, observed_at))
 
+    documents.extend(
+        run_declared_file_sources(
+            _declared_sources_to_fetch(inputs),
+            request_context=request_context,
+            observed_at=observed_at,
+            project_root=project_root,
+        )
+    )
+
     confluence_configured = (
         inputs.confluence_base_url is not None and inputs.confluence_space_key is not None
     )
@@ -283,6 +297,23 @@ def run_work_start_connectors(
             )
 
     return request_context, documents
+
+
+def _declared_sources_to_fetch(inputs: WorkStartInputs) -> tuple[DeclaredFileSource, ...]:
+    active_checks = tuple(
+        check
+        for check in inputs.declared_checks
+        if check.profile == "reflex" or inputs.profile == "full"
+    )
+    consumed = {check.consumes for check in active_checks}
+    seen: set[str] = set()
+    selected: list[DeclaredFileSource] = []
+    for source in inputs.declared_sources:
+        if source.id not in consumed or source.id in seen:
+            continue
+        seen.add(source.id)
+        selected.append(source)
+    return tuple(selected)
 
 
 def _check_enabled(inputs: WorkStartInputs, check: CheckId) -> bool:

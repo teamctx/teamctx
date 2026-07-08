@@ -416,6 +416,9 @@ def finding_key(check: str, scope: Mapping[str, Any]) -> str:
     if fields:
         parts = [f"{field}={scope.get(field)!r}" for field in fields]
         return f"{check}:{'|'.join(parts)}"
+    declared_key = scope.get("teamctx_identity_key")
+    if isinstance(declared_key, str) and declared_key:
+        return f"{check}:{declared_key}"
     return f"{check}:None"
 
 

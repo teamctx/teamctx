@@ -30,7 +30,7 @@ from teamctx.core.contracts import (
 from teamctx.core.prop import Prop, PropShape, RefutesMatch, SubjectRef, Witness, witnesses_with
 from teamctx.core.severity import compute_severity
 
-CheckId = Literal["conflict", "criteria", "docs", "gate"]
+CheckId = str
 CheckProfile = Literal["reflex", "full"]
 CheckLane = Literal["important", "fyi"]
 
@@ -738,9 +738,13 @@ def resolve_check_selection(
 
     if enabled is None:
         return default_check_selection()
-    enabled_set = set(enabled)
+    enabled_tuple = tuple(enabled)
+    enabled_set = set(enabled_tuple)
     overrides = lane_overrides or {}
     enabled_checks = tuple(kind.check_id for kind in CARD_KINDS if kind.check_id in enabled_set)
+    enabled_checks = enabled_checks + tuple(
+        check_id for check_id in enabled_tuple if check_id not in CHECKS_BY_ID
+    )
     important_checks = tuple(
         kind.check_id
         for kind in CARD_KINDS
