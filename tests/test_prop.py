@@ -1,0 +1,105 @@
+"""Unit tests for the typed-proposition seam."""
+
+from __future__ import annotations
+
+import pytest
+
+from teamctx.core.kinds import REFUTES_PAIRS, shape_of, witnesses
+from teamctx.core.prop import Prop, SubjectRef
+
+
+def test_prop_shape_comes_from_the_predicate_registry() -> None:
+    existential = Prop(
+        predicate="pr_conflicts_with_path",
+        subject=SubjectRef(repo="svc", paths=("a.py",)),
+    )
+    universal = Prop(
+        predicate="no_pr_conflicts_with_paths",
+        subject=SubjectRef(repo="svc", paths=("a.py",)),
+    )
+    assert shape_of(existential) == "existential"
+    assert shape_of(universal) == "universal"
+
+
+def test_unregistered_predicate_is_rejected() -> None:
+    bad = Prop(predicate="not_a_real_predicate", subject=SubjectRef(repo="svc"))
+    with pytest.raises(ValueError, match="unregistered predicate"):
+        shape_of(bad)
+
+
+def test_collision_claim_refutes_the_no_conflict_universal() -> None:
+    claim = Prop(
+        predicate="pr_conflicts_with_path",
+        subject=SubjectRef(repo="svc", paths=("src/auth/token.py",)),
+        args=("sig_pr_482_collision",),
+    )
+    query = Prop(
+        predicate="no_pr_conflicts_with_paths",
+        subject=SubjectRef(repo="svc", paths=("src/auth/token.py", "src/other.py")),
+    )
+    # A single existential counterexample refutes the universal; the polarity trap the
+    # paper flags (a single-witness "True-only" scheme would mis-handle this universal).
+    assert witnesses(claim, query) == "refutes"
+
+
+def test_claim_over_unrelated_paths_is_not_a_witness() -> None:
+    claim = Prop(
+        predicate="pr_conflicts_with_path",
+        subject=SubjectRef(repo="svc", paths=("src/auth/token.py",)),
+    )
+    query = Prop(
+        predicate="no_pr_conflicts_with_paths",
+        subject=SubjectRef(repo="svc", paths=("src/unrelated.py",)),
+    )
+    assert witnesses(claim, query) == "unrelated"
+
+
+def test_claim_in_a_different_repo_is_not_a_witness() -> None:
+    claim = Prop(
+        predicate="pr_conflicts_with_path",
+        subject=SubjectRef(repo="svc-a", paths=("src/auth/token.py",)),
+    )
+    query = Prop(
+        predicate="no_pr_conflicts_with_paths",
+        subject=SubjectRef(repo="svc-b", paths=("src/auth/token.py",)),
+    )
+    assert witnesses(claim, query) == "unrelated"
+
+
+def test_witnesses_is_not_symmetric() -> None:
+    claim = Prop(
+        predicate="pr_conflicts_with_path",
+        subject=SubjectRef(repo="svc", paths=("a.py",)),
+    )
+    query = Prop(
+        predicate="no_pr_conflicts_with_paths",
+        subject=SubjectRef(repo="svc", paths=("a.py",)),
+    )
+    assert witnesses(claim, query) == "refutes"
+    assert witnesses(query, claim) == "unrelated"  # argument order matters
+
+
+def test_claim_with_empty_paths_is_unrelated() -> None:
+    claim = Prop(
+        predicate="pr_conflicts_with_path",
+        subject=SubjectRef(repo="svc", paths=()),
+    )
+    query = Prop(
+        predicate="no_pr_conflicts_with_paths",
+        subject=SubjectRef(repo="svc", paths=("a.py",)),
+    )
+    assert witnesses(claim, query) == "unrelated"
+
+
+def test_every_refutes_pair_is_registered_and_distinct() -> None:
+    from teamctx.core.kinds import PREDICATE_REGISTRY
+
+    for card_pred, query_pred in REFUTES_PAIRS:
+        assert card_pred in PREDICATE_REGISTRY
+        assert query_pred in PREDICATE_REGISTRY
+        assert card_pred != query_pred
+
+
+def test_witnesses_is_total_and_never_double_witnesses() -> None:
+    for card_pred, query_pred in REFUTES_PAIRS:
+        assert (query_pred, card_pred) not in REFUTES_PAIRS

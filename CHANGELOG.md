@@ -1,0 +1,101 @@
+# Changelog
+
+All notable changes to `teamctx` will be documented in this file.
+
+This project follows Semantic Versioning. During the `0.x` series, public APIs
+may change while the product is hardened.
+
+## [Unreleased]
+
+### Changed
+
+- Slice 1 (`24909bd`): work-start, hook, and MCP output stayed unchanged while every check began carrying explicit closure evidence for the catalog spine.
+- Slice 2 (`c488f35`): source health and check verifiedness are tracked separately, so one source result can honestly support more than one check without changing existing answers.
+- Slice 3 (`9780f64`): the built-in checks now run through the check contract with the same rendered text, and invalid check declarations fail conformance before they can register.
+- Slice 4 (`c5064c8`): normal work-start, MCP, and hook surfaces read team semantics from committed `.teamctx/config.json` and `.teamctx/authority.json`; uncommitted or dirty changes are named in output.
+- Slice 5 (`e8b5f5a`): committed config can enable, disable, and lane checks for the team, and disabled checks appear in the coverage output instead of disappearing.
+- Slice 6 (`a0c5798`): committed JSON record files can feed data-only team checks; invalid declarations, unsafe paths, or untracked records report as failures instead of becoming clears.
+- Slice 7 (`feat/spine-cleanup`): breaking pre-1.0 MCP change: `work_start` no longer accepts `repo` or `docs_root`; normal work-start override flags are documented as diagnostic, and fixtures exercise committed config.
+
+## [0.1.0] - 2026-07-04
+
+### Added
+
+- The ambient behaviors are proven like everything else: pinned zero-network silence and request budgets in the suite, and four delta scenario rows in the emulation matrix (16 rows total).
+- Mid-session changes are spoken as exactly the change ("since you started: ..."), once, and the session's first prompt now grounds the work before any edit.
+- The pre-edit check is now continuous: it quietly re-checks at an interval (default 90s) and speaks again only when the answer actually changed or a known gap needs re-stating; silence now means "checked, nothing new", never "not looking".
+- Confluence support: pages in a configured space that carry the teamctx.superseded_by property fire the docs check with an openable link, beside local docs in one honest coverage picture.
+- Emulation harness: the Confluence docs row now runs offline against a bundled Confluence v2 mock
+  through the normal `work_start.confluence.base_url` config seam, including superseded-page,
+  space-key typo, clean-space, and reflex-skip/hook-silence cases.
+- Jira support: acceptance-criteria changes on PROJ-123 style issues derived from your branch or commits, with field-level change detail, alongside GitHub issues in one honest coverage picture.
+- Emulation harness: the Jira criteria row now runs offline against a bundled Jira REST mock through
+  the normal `work_start.jira.base_url` config seam, including changed, unconfigured, and mixed
+  GitHub-plus-Jira coverage cases.
+- GitLab support: open merge requests (collisions, with the own-MR FYI) and pipeline state (never assumed green) for repos whose origin is gitlab.com, with the same honest budgets and coverage reporting as GitHub.
+- Repos hosted on GitLab now resolve, onboard, and report honestly, laying the forge seam; config gains forge/jira/confluence blocks.
+- An emulation harness (`emulation/`) that drives the team-validation scenario matrix through the
+  real CLI, hook, and MCP; GitHub rows run offline against a bundled mock; provider rows arrive
+  with their connectors.
+- Emulation harness: the GitLab collision (MR wording, no gh-hint, own-MR FYI) and GitLab gate
+  rows (failed pipeline with a named job, canceled-with-zero-jobs, running/pending, and the
+  zero-pipelines disabled note that is the other half of the GitHub/GitLab gate asymmetry) now run
+  offline against a bundled GitLab REST mock (`mockgl.py`) over the `TEAMCTX_GITLAB_API_ROOT` seam,
+  with expected blocks quoting the real renderer output.
+
+- `TEAMCTX_GITHUB_API_ROOT` env override for the GitHub API root, so validation harnesses can
+  drive fabricated payloads through the real pipeline against a local mock server.
+
+- `teamctx onboard` detects a conventional docs/ folder and configures it, and the CLAUDE.md
+  snippet now claims all four checks with their conditions stated; `teamctx status` reports the
+  docs configuration.
+
+- work-start now derives the linked issue and the start time from your branch name, local commit trailers, and the merge-base, with the derivation named in the output; explicit --issue/--since override it.
+- `teamctx onboard`: a single command to set up a repo with zero flags and zero false confidence.
+  It detects the GitHub repo, writes a trackable `.teamctx/config.json`, installs the reflex hook,
+  writes an honest CLAUDE.md snippet (managed between markers, migration-safe, never overwriting
+  hand-edited content), reports the real credential path, and prints a live open-PR reachability
+  check that is never a verdict. Additive and idempotent, every write atomic; `--dry-run`,
+  `--force`, and `--repo` supported. A missing credential is reported, never fatal.
+- Initial product, architecture, security/privacy, and build-plan documents.
+- Python package skeleton with CLI entrypoint.
+- Initial project metadata and executable metadata tests.
+- Two core coverage states, additive within the `v0` contracts (no existing value is changed or
+  removed, so existing documents stay valid): `pending` and `not_applicable` on
+  `SourceStatusValue`, and `incomplete[pending]` and `not_applicable[out-of-scope]` on the
+  completeness closure. A gate whose CI checks are still running now reads as "still running",
+  not a false green. (The `not_applicable` states remain in the contract for future kinds; the
+  docs check no longer uses them, see Changed.)
+
+### Changed
+
+- The gate check is branch-scoped: failing checks and pipelines on your branch surface no matter which files you are editing.
+- The collision probe now fetches open PRs in batched GraphQL pages with a pinned budget; a repo busier than the budget reads "Partially checked", never a false "couldn't reach GitHub" and never a silent clear. The pre-edit hook is a single round-trip.
+- The docs check now covers the whole declared docs folder: any doc there that names a newer replacement is flagged at work-start, whether or not you are editing it. A clean scan is a real green.
+- Internal: card kinds are now a single registry (core/kinds.py); adding a kind is a one-entry change. No behavior change.
+- teamctx status now reports real setup state (config, hook, snippet, credential, live reachability) through the same resolvers onboard uses; the old placeholder text is gone.
+- The GitHub PR connector no longer builds display cards; collision cards derive in the core, so their copy has exactly one home.
+- Gate copy no longer claims checks are "required" (real branch-protection requiredness is not
+  yet verified); a clear gate reads "no failing checks found" instead of "CI is green".
+- `teamctx init` no longer auto-enables `docs_root`; docs fire only when set explicitly with
+  `--docs-root`, so init never promises to watch docs you did not ask it to.
+- Work-start request paths are normalized to repo-relative POSIX, so a `./path` still matches the
+  broker's repo-relative signal paths (previously an in-scope doc, PR, or gate could be missed).
+
+### Fixed
+
+- A work-start with no files in scope reports the conflict check as not applicable instead of a false clear.
+- The Claude Code reflex hook now installs to .claude/settings.local.json (personal, gitignored) instead of the committed settings file, and onboard migrates existing installs out; a committed hook would auto-run on teammates' machines.
+- A skipped check now says exactly which input is missing and how to provide it, and issue-change time comparisons are chronological, never lexical.
+- A malformed .teamctx/authority.json now fails closed with a plain message naming the file and the fix, instead of a traceback (CLI and MCP).
+- teamctx-mcp without the optional mcp dependency now prints an install hint instead of a raw ImportError.
+- work-start no longer flags the open PR of the branch you are on as a collision; it is set aside with an FYI line and recorded on the forge source status.
+- The `gh pr view N` hint on a conflict finding now carries `--repo owner/name`, so it works from
+  any directory and matches the `open-source` command.
+- A malformed GitHub check-runs response now fails closed to an honest "unavailable" instead of a
+  false all-clear (non-object runs, a failing run missing its name or url, or a non-integer
+  total_count).
+- In-progress CI runs are no longer silently skipped: a branch whose checks are still running no
+  longer reads as green.
+- A completed check whose conclusion is not success-like (cancelled, stale, or any value other
+  than success/neutral/skipped) is now surfaced as not-clear instead of reading as green.

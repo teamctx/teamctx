@@ -1,0 +1,86 @@
+"""teamctx MCP server: expose the work-start broker as an MCP tool.
+
+A thin transport over the same use case the CLI runs (``render_work_start``). An agent calls
+the ``work_start`` tool before touching a repo and receives the broker's answer: derived
+cards, honest coverage, and one verdict per check, as text it can read and factor into its
+plan. The GitHub token is read from the server environment (``GITHUB_TOKEN``), never passed
+through a tool call, so credentials stay server-side.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from mcp.server.fastmcp import FastMCP
+
+from teamctx.clock import utc_now_iso
+from teamctx.config_failure import format_config_failure
+from teamctx.connectors.declared_authority import DeclaredAuthorityError
+from teamctx.git_context import resolve_project_root
+from teamctx.project_config import ProjectConfigError
+from teamctx.resolve import WorkStartResolutionError, resolve_work_start_inputs
+from teamctx.tokens import resolve_github_token
+from teamctx.work_start import render_work_start
+
+mcp = FastMCP("teamctx")
+
+_WORK_START_DESCRIPTION = (
+    "Get current team context for a repo BEFORE editing files. Checks, in one call: open "
+    "pull requests that touch your paths (collisions), failing CI checks, changed "
+    "acceptance criteria on linked issues, and superseded docs you rely on. Returns cards + "
+    "an honest coverage report + one verdict per check (clear / NOT CLEAR / UNKNOWN). It "
+    "informs; it does not block. Read it and factor it into your plan. A source the inputs "
+    "cannot reach is reported UNKNOWN, never a false all-clear. Repo and docs root are read "
+    "from the working tree and committed .teamctx/config.json; branch is request context."
+)
+
+
+@mcp.tool(name="work_start", description=_WORK_START_DESCRIPTION)
+def work_start(
+    paths: list[str],
+    branch: str | None = None,
+    task: str = "Start work.",
+    issues: list[str] | None = None,
+    since: str | None = None,
+    ref: str | None = None,
+) -> str:
+    """Run the unified work-start broker and return its answer as text.
+
+    paths: files the work will touch (required). Team semantics come from the server's
+    working tree and committed ``.teamctx/config.json``.
+    """
+
+    root = _resolution_root()
+    try:
+        inputs = resolve_work_start_inputs(
+            paths=tuple(paths),
+            branch=branch,
+            task=task,
+            issues=tuple(issues or ()),
+            since=since,
+            ref=ref,
+            token=resolve_github_token(),
+            root=root,
+        )
+    except (WorkStartResolutionError, ProjectConfigError) as exc:
+        return format_config_failure(exc)
+    try:
+        return render_work_start(inputs, observed_at=utc_now_iso(), project_root=root)
+    except DeclaredAuthorityError as exc:
+        return format_config_failure(exc)
+
+
+def _resolution_root() -> Path:
+    override = os.environ.get("TEAMCTX_PROJECT_ROOT")
+    return resolve_project_root(override=Path(override) if override else None)
+
+
+def main() -> None:
+    """Run the teamctx MCP server over stdio."""
+
+    mcp.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    main()

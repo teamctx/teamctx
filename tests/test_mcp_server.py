@@ -1,0 +1,197 @@
+"""Tests for the teamctx MCP server (CURPLAN3: agents consume teamctx over MCP).
+
+The tool is a thin wrapper over the same use case the CLI runs, so these focus on the MCP
+seam: the tool is registered, callable, returns the broker's text, and degrades honestly.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import subprocess
+from inspect import signature
+from pathlib import Path
+
+import pytest
+
+pytest.importorskip("mcp", reason="the optional mcp extra is not installed")
+
+from teamctx.mcp_server import mcp, work_start
+
+
+def _init_repo(root: Path) -> None:
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "t"], check=True)
+    (root / "f.txt").write_text("x", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "i"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "remote", "add", "origin", "git@github.com:acme/widgets.git"],
+        check=True,
+    )
+
+
+def _commit_paths(root: Path, *paths: str) -> None:
+    subprocess.run(["git", "-C", str(root), "add", *paths], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+
+
+def _content_text(result: object) -> str:
+    """Flatten whatever call_tool returns (content blocks, or a (content, structured) tuple)
+    into a single string for assertions."""
+
+    items: object = result
+    if isinstance(result, tuple):
+        items = result[0]
+    if isinstance(items, list | tuple):
+        parts = [getattr(block, "text", "") for block in items]
+        return "\n".join(p for p in parts if p)
+    return str(items)
+
+
+def test_work_start_tool_is_directly_callable_and_degrades_without_token(
+    monkeypatch, tmp_path
+) -> None:
+    _init_repo(tmp_path)
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    output = work_start(paths=["src/app/core.py"])
+    # no token => conflict unreachable => cant_verify; never a false clear
+    assert "Heads up: I can't confirm the important things yet:" in output
+    assert "couldn't reach GitHub" in output
+
+
+def test_work_start_tool_surfaces_a_collision(monkeypatch, tmp_path) -> None:
+    _init_repo(tmp_path)
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
+    import teamctx.connectors.github as gh
+    import teamctx.connectors.github_checks as gc
+    from teamctx.connectors.forge_review import ForgeReviewPullRequest
+    from teamctx.connectors.github import ForgeReviewFetch
+    from teamctx.connectors.github_checks import CheckRunsFetch
+
+    def fake_prs(**kwargs):  # type: ignore[no-untyped-def]
+        return ForgeReviewFetch(
+            pull_requests=[
+                ForgeReviewPullRequest(
+                    provider="github",
+                    repo="acme/widgets",
+                    number=7,
+                    state="open",
+                    url="https://github.com/acme/widgets/pull/7",
+                    title=None,
+                    changed_paths=("src/app/core.py",),
+                    created_at="2026-06-25T10:00:00Z",
+                    updated_at="2026-06-25T11:00:00Z",
+                )
+            ],
+        )
+
+    monkeypatch.setattr(gh, "fetch_github_pull_requests", fake_prs)
+    monkeypatch.setattr(
+        gc,
+        "fetch_failing_check_runs",
+        lambda **kw: CheckRunsFetch(failing=[], truncated=False, pending=False),
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+    output = work_start(paths=["src/app/core.py"])
+    assert "Before you start, here is what to handle first:" in output
+    assert "PR #7" in output
+    assert "look at it before you edit" in output
+
+
+def test_list_tools_exposes_work_start() -> None:
+    tools = asyncio.run(mcp.list_tools())
+    names = {tool.name for tool in tools}
+    assert "work_start" in names
+    # the description tells the agent when to call it
+    work_start_tool = next(tool for tool in tools if tool.name == "work_start")
+    assert "before" in (work_start_tool.description or "").lower()
+
+
+def test_work_start_tool_schema_drops_team_semantic_overrides() -> None:
+    params = signature(work_start).parameters
+    assert "repo" not in params
+    assert "docs_root" not in params
+
+
+def test_call_tool_runs_the_broker_over_mcp(monkeypatch, tmp_path) -> None:
+    _init_repo(tmp_path)
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    result = asyncio.run(mcp.call_tool("work_start", {"paths": ["src/app/core.py"]}))
+    text = _content_text(result)
+    # no token => conflict unreachable => cant_verify
+    assert "Heads up: I can't confirm the important things yet:" in text
+    assert "couldn't reach GitHub" in text
+
+
+def test_work_start_resolves_repo_from_root(monkeypatch, tmp_path) -> None:
+    import teamctx.mcp_server as mcp_server
+
+    _init_repo(tmp_path)
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
+
+    captured: dict[str, object] = {}
+
+    def fake_render(inputs, *, observed_at, **kwargs):  # type: ignore[no-untyped-def]
+        captured["repo"] = inputs.repo
+        return "ok"
+
+    monkeypatch.setattr(mcp_server, "render_work_start", fake_render)
+    assert work_start(paths=["src/x.py"]) == "ok"
+    assert captured["repo"] == "acme/widgets"
+
+
+def test_work_start_returns_error_text_when_repo_unresolvable(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))  # non-git, no config
+    out = work_start(paths=["src/x.py"])
+    assert "could not determine the repository" in out
+
+
+def test_work_start_returns_error_text_for_malformed_authority(monkeypatch, tmp_path) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / ".teamctx").mkdir()
+    (tmp_path / ".teamctx" / "authority.json").write_text("{ not valid json", encoding="utf-8")
+    _commit_paths(tmp_path, ".teamctx/authority.json")
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(tmp_path))
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    out = work_start(paths=["src/x.py"])
+
+    assert "Fix or remove the file." in out
+
+
+def test_work_start_docs_scanned_from_project_root_not_cwd(monkeypatch, tmp_path) -> None:
+    import json
+
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    _init_repo(proj)
+    (proj / ".teamctx").mkdir(parents=True)
+    (proj / ".teamctx" / "config.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "teamctx.project_config.v0",
+                "work_start": {"repo": "acme/widgets", "docs_root": "docs"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (proj / "docs").mkdir()
+    (proj / "docs" / "old.md").write_text(
+        "---\nsuperseded_by: docs/new.md\n---\n", encoding="utf-8"
+    )
+    _commit_paths(proj, ".teamctx/config.json")
+    other = tmp_path / "other"
+    other.mkdir()
+    monkeypatch.chdir(other)  # cwd != project root
+    monkeypatch.setenv("TEAMCTX_PROJECT_ROOT", str(proj))
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    out = work_start(paths=["docs/old.md"])
+
+    assert "Before you start, here is what to handle first:" in out
+    assert "docs/new.md" in out  # names the superseding doc
+    assert "rely on the current one instead" in out

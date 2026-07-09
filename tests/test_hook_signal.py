@@ -1,0 +1,229 @@
+from __future__ import annotations
+
+from teamctx.connectors._contract import metadata_only_policy, source_status
+from teamctx.core.broker import broker_answer
+from teamctx.core.contracts import RequestContext, SourceSignal, SourceStatus
+from teamctx.hook_signal import hook_signal
+
+
+def _request(paths=("src/app.py",), forge: str = "github") -> RequestContext:
+    return RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id="t",
+        repo="acme/widgets",
+        forge=forge,
+        branch="feature",
+        task="work",
+        paths=list(paths),
+        linked_issues=[],
+        requested_at="2026-06-27T00:00:00Z",
+        requesting_principal=None,
+    )
+
+
+def _collision_signal() -> SourceSignal:
+    return SourceSignal(
+        schema_version="teamctx.source_signal.v0",
+        id="sig_pr_7",
+        signal_type="collision",
+        source_family="git_hosting",
+        scope={"repo": "acme/widgets", "files": ["src/app.py"]},
+        evidence_summary="PR #7 changes src/app.py",
+        source_display="github acme/widgets#7",
+        freshness="fresh",
+        confidence="high",
+        visibility="visible",
+        created_at="2026-06-27T00:00:00Z",
+        observed_at="2026-06-27T00:00:00Z",
+        expires_at="next_refresh",
+        policy=metadata_only_policy("pr metadata is evidence"),
+    )
+
+
+def _fresh_status(family: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe",
+        source_family=family,
+        scope={"repo": "acme/widgets"},
+        status="fresh",
+        observed_at="2026-06-27T00:00:00Z",
+        safe_user_message="checked",
+        visibility="silent",
+        policy_reason="status only",
+    )
+
+
+def _unavailable_status(family: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe",
+        source_family=family,
+        scope={"repo": "acme/widgets"},
+        status="unavailable",
+        observed_at="2026-06-27T00:00:00Z",
+        safe_user_message="no access",
+        visibility="silent",
+        policy_reason="status only",
+    )
+
+
+def _unbounded_status(family: str, message: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe",
+        source_family=family,
+        scope={"repo": "acme/widgets"},
+        status="unbounded",
+        observed_at="2026-06-27T00:00:00Z",
+        safe_user_message=message,
+        visibility="warning_when_relevant",
+        policy_reason="status only",
+    )
+
+
+def test_heads_up_when_a_collision_is_found() -> None:
+    answer = broker_answer(_request(), [_collision_signal()], [_fresh_status("git_hosting")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "src/app.py" in text
+    assert "PR #7" in text
+    assert "ground" not in text.lower() and "broker" not in text.lower()
+
+
+def test_cant_verify_when_github_unreachable_no_token() -> None:
+    answer = broker_answer(_request(), [], [_unavailable_status("git_hosting")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=False)
+    assert "GitHub" in text
+    assert "GITHUB_TOKEN" in text
+    assert "keep working" in text
+
+
+def test_cant_verify_when_gitlab_unreachable_no_token() -> None:
+    answer = broker_answer(_request(forge="gitlab"), [], [_unavailable_status("git_hosting")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=False)
+    assert "GitLab" in text
+    assert "GITLAB_TOKEN" in text
+    assert "open merge requests" in text
+    assert "GitHub" not in text
+    assert "GITHUB_TOKEN" not in text
+
+
+def test_cant_verify_with_token_present_is_transient() -> None:
+    answer = broker_answer(_request(), [], [_unavailable_status("git_hosting")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "GitHub" in text
+    assert "transient" in text
+    assert "install-hook" not in text  # the token-present message must not tell them to install
+
+
+def test_cant_verify_unbounded_conflict_uses_pinned_copy() -> None:
+    note = (
+        "Checked the 300 most recently updated open PRs; more exist, so this is not a "
+        "complete check."
+    )
+    answer = broker_answer(_request(), [], [_unbounded_status("git_hosting", note)])
+
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+
+    assert text == (
+        "teamctx checked the 300 most recently updated open PRs and found no collision, "
+        "but more open PRs exist. On a repo this busy, glance at GitHub if this file is "
+        "sensitive."
+    )
+
+
+def test_ready_names_the_clear_checks_no_lowstakes_hedge() -> None:
+    answer = broker_answer(_request(), [], [_fresh_status("git_hosting")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "looks clear" in text.lower()
+    assert "src/app.py" in text
+    assert "no other open pull requests touch these files" in text
+    assert "FYI:" not in text
+    assert "couldn't" not in text.lower()
+
+
+def test_gitlab_ready_names_open_merge_requests() -> None:
+    answer = broker_answer(_request(forge="gitlab"), [], [_fresh_status("git_hosting")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "no other open merge requests touch these files" in text
+    assert "pull requests" not in text
+
+
+def _pending_status(family: str) -> SourceStatus:
+    return source_status(
+        source_id=f"{family}-probe",
+        source_family=family,
+        scope={"repo": "acme/widgets"},
+        status="pending",
+        observed_at="2026-06-27T00:00:00Z",
+        safe_user_message="running",
+        visibility="warning_when_relevant",
+        policy_reason="status only",
+    )
+
+
+def test_pending_gate_says_checks_running_not_unreachable() -> None:
+    answer = broker_answer(_request(), [], [_pending_status("ci_deploy")])
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "still running" in text.lower()
+    assert "couldn't reach GitHub" not in text
+
+
+def test_found_conflict_plus_pending_gate_surfaces_both() -> None:
+    answer = broker_answer(
+        _request(),
+        [_collision_signal()],
+        [_fresh_status("git_hosting"), _pending_status("ci_deploy")],
+    )
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "PR #7" in text  # the finding
+    assert "still running" in text.lower()  # the pending gate is not dropped in heads_up
+
+
+def test_unreachable_conflict_plus_pending_gate_mentions_both() -> None:
+    answer = broker_answer(
+        _request(), [], [_unavailable_status("git_hosting"), _pending_status("ci_deploy")]
+    )
+    text = hook_signal(answer, file_path="src/app.py", token_present=True)
+    assert "GitHub" in text  # the unreachable conflict is surfaced
+    assert "still running" in text.lower()  # and the pending gate, not falsely "couldn't check"
+    # the gate is pending, not unreachable: don't claim we couldn't check failing checks.
+    assert "failing checks" not in text
+
+
+def test_hook_skipped_pipeline_never_claims_a_connection_problem() -> None:
+    # Live-run finding: a skipped GitLab pipeline (stale, reached) must carry the connector's
+    # message in the hook signal, never "couldn't reach GitLab".
+    from teamctx.connectors._contract import source_status
+    from teamctx.core.broker import broker_answer
+
+    msg = "The latest pipeline was skipped, so the gate could not be confirmed green."
+    status = source_status(
+        source_id="gitlab_pipeline_state", source_family="ci_deploy",
+        scope={"repo": "acme/widgets"}, status="stale", observed_at="2026-07-04T00:00:00Z",
+        safe_user_message=msg, visibility="silent", policy_reason="status only",
+    )
+    answer = broker_answer(_request(), [], [_fresh_status("git_hosting"), status])
+    signal = hook_signal(answer, file_path="src/x.py", token_present=True)
+    assert msg.rstrip(".") in signal
+    assert "couldn't reach" not in signal
+    assert "transient connection issue" not in signal
+
+
+def test_file_path_free_ready_copy_for_user_prompt_submit() -> None:
+    answer = broker_answer(_request(), [], [_fresh_status("git_hosting")])
+    assert hook_signal(answer, file_path=None, token_present=True) == (
+        "teamctx: looks clear to start (no other open pull requests touch these files)."
+    )
+
+
+def test_file_path_free_heads_up_lead_for_user_prompt_submit() -> None:
+    answer = broker_answer(_request(), [_collision_signal()], [_fresh_status("git_hosting")])
+    signal = hook_signal(answer, file_path=None, token_present=True)
+    assert signal.splitlines()[0] == "teamctx: before you start, from the team's current work:"
+    assert "before you edit" not in signal
+
+
+def test_pre_tool_use_copy_still_names_the_file() -> None:
+    answer = broker_answer(_request(), [], [_fresh_status("git_hosting")])
+    assert hook_signal(answer, file_path="src/app.py", token_present=True) == (
+        "teamctx: looks clear to start on src/app.py "
+        "(no other open pull requests touch these files)."
+    )

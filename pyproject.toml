@@ -1,0 +1,119 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# The published artifact ships the package and its proof, never internal working notes:
+# the repo carries plans, session logs, and validation evidence that do not belong in a
+# release (and must not: the audit that added this list found internal references there).
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/teamctx",
+  "tests",
+  "README.md",
+  "CHANGELOG.md",
+  "LICENSE",
+  "pyproject.toml",
+]
+# hatchling auto-includes README-named files and .gitignore even outside the include list;
+# the excludes keep internal directories out of the artifact no matter what.
+exclude = [
+  "docs",
+  "emulation",
+  "site",
+  ".github",
+  ".remember",
+  "AGENTS.md",
+  "tests/test_emulation_*.py",
+]
+# Known exception, accepted and verified: hatchling special-cases .gitignore and ships it
+# despite any exclude. Its contents are generic ignore rules (reviewed; nothing sensitive),
+# so the artifact carries this one file beyond the list above.
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/teamctx"]
+
+[project]
+name = "teamctx"
+version = "0.1.0"
+description = "Deterministic ambient context for software teams"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.12"
+authors = [
+    { name = "The teamctx Authors" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Version Control",
+    "Typing :: Typed",
+]
+keywords = [
+    "context",
+    "developer-tools",
+    "github",
+    "gitlab",
+    "jira",
+    "confluence",
+]
+dependencies = [
+    "click>=8.1,<9.0",
+    "pydantic>=2.7,<3.0",
+]
+
+[project.urls]
+Homepage = "https://teamctx.dev"
+Repository = "https://github.com/teamctx/teamctx"
+Issues = "https://github.com/teamctx/teamctx/issues"
+
+[project.scripts]
+teamctx = "teamctx.cli:main"
+teamctx-mcp = "teamctx.mcp_entry:main"
+teamctx-hook = "teamctx.hook:main"
+
+[project.optional-dependencies]
+mcp = [
+    "mcp>=1.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "mcp>=1.0",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+addopts = "--strict-markers -v"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.coverage.run]
+source = ["teamctx"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+]
+

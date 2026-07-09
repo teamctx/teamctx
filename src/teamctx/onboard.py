@@ -1,0 +1,1113 @@
+"""The onboard command: scaffold a repo for teamctx honestly, over the Part 1 resolvers.
+
+A minimal source-onboarder seam (one GithubOnboarder today, in a plain list) plus the flow that
+writes a trackable config, installs the reflex hook, writes an honest CLAUDE.md snippet, reports the
+real credential path, and prints a live reachability check. Every write is atomic and idempotent;
+the flow returns structured results the CLI renders. No LLM, no verdicts here.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import os
+import subprocess
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal, Protocol
+from urllib.parse import quote
+
+from teamctx.connectors.github import (
+    DEFAULT_OPENER,
+    GitHubProbeError,
+    HttpOpener,
+    get_json,
+    github_api_root,
+    split_repo,
+)
+from teamctx.git_context import ForgeProvider, detect_forge_repo
+from teamctx.project_config import (
+    ProjectConfig,
+    ProjectConfigError,
+    build_work_start_project_config,
+    load_project_config,
+)
+from teamctx.resolve import resolve_forge_repo
+from teamctx.tokens import resolve_github_token_with_source
+
+# The honest snippet, ambient-framed (the CPO's law: nobody runs commands in daily use):
+# context is RECEIVED; the run-it instruction exists only as the fallback for environments
+# without hooks. All four checks, with the two conditional ones stating their conditions.
+CLAUDE_MD_SNIPPET = (
+    "## Team context (teamctx)\n"
+    "Team context appears in this repo by itself: before the first file edit of a session, and "
+    "again whenever something relevant changes while you work, teamctx surfaces open pull "
+    "requests touching your files, failing checks on your branch, acceptance criteria that "
+    "changed when an issue is linked from your branch or commits, and superseded docs when a "
+    "docs folder is configured. Factor what appears into your plan and tell your human "
+    "collaborator anything relevant in plain terms so they can decide. If this environment does "
+    "not run hooks, get the same context by running `teamctx work-start` before you edit.\n"
+)
+
+# The first-edit-only ambient body (pre delta engine), kept verbatim for managed migration.
+_SNIPPET_BODY_2026_07_04B = (
+    "## Team context (teamctx)\n"
+    "Team context appears in this repo by itself: before the first file edit of a session, "
+    "teamctx surfaces open pull requests touching your files, failing checks on your branch, "
+    "acceptance criteria that changed when an issue is linked from your branch or commits, and "
+    "superseded docs when a docs folder is configured. Factor what appears into your plan and "
+    "tell your human collaborator anything relevant in plain terms so they can decide. If this "
+    "environment does not run hooks, get the same context by running `teamctx work-start` "
+    "before you edit.\n"
+)
+
+# The command-framed snippet body written with the auto-discovery slice, kept verbatim so the
+# upsert recognizes and refreshes an unedited managed block. Never used for new writes.
+_SNIPPET_BODY_2026_07_04 = (
+    "## Team context (teamctx)\n"
+    "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
+    "into your plan. It surfaces open pull requests touching your files, failing checks on your "
+    "branch, acceptance criteria that changed when an issue is linked from your branch or "
+    "commits, and superseded docs when a docs folder is configured. Tell your human collaborator "
+    "anything relevant in plain terms so they can decide.\n"
+)
+
+# The two-check snippet body written between Phase 3 and the auto-discovery slice, kept verbatim
+# so the upsert recognizes and refreshes an unedited managed block. Never used for new writes.
+_SNIPPET_BODY_2026_07 = (
+    "## Team context (teamctx)\n"
+    "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
+    "into your plan. It surfaces open pull requests touching your files and failing checks on your "
+    "branch. Tell your human collaborator anything relevant in plain terms so they can decide.\n"
+)
+
+# The pre-Phase-3 snippet body, kept verbatim so the upsert can recognize and migrate an old
+# unmarked block the user has NOT edited. Never used for new writes.
+_LEGACY_SNIPPET_BODY = (
+    "## Team context (teamctx)\n"
+    "Before you start editing files in this repo, run `teamctx work-start` and factor the result "
+    "into your plan. It surfaces open PRs touching your files, failing checks, changed specs, and "
+    "superseded docs. Tell your human collaborator anything relevant in plain terms so they can "
+    "decide.\n"
+)
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` atomically: a temp file in the same directory, then rename. A
+    crash mid-write never leaves a half-written file at ``path``. The temp file is on the same
+    filesystem as the target (``dir=path.parent``), so ``os.replace`` is atomic."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp_name, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
+
+
+@dataclass(frozen=True)
+class AuthStatus:
+    found: bool
+    source: str | None
+    message: str
+    token: str | None = None
+
+
+@dataclass(frozen=True)
+class HealthReport:
+    reachable: bool
+    open_pr_count: int | None
+    count_is_floor: bool
+    message: str
+
+
+StepStatus = Literal["wrote", "already", "skipped", "failed", "noted", "ok"]
+
+
+@dataclass(frozen=True)
+class StepResult:
+    name: str
+    status: StepStatus
+    detail: str
+
+
+# Un-ignore the .teamctx directory first (git can't re-include a file whose parent dir is ignored),
+# then re-ignore its contents, then re-include config.json. Overrides a blanket `.teamctx/` rule.
+_TRACKABLE_STANZA = (
+    "# teamctx (config is tracked; local state is not)\n"
+    "!.teamctx/\n"
+    ".teamctx/*\n"
+    "!.teamctx/config.json\n"
+)
+
+
+def _is_git_repo(root: Path) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+        capture_output=True, text=True,
+    ).returncode == 0
+
+
+def _config_is_trackable(root: Path) -> bool:
+    # git check-ignore exits 1 when the path is NOT ignored (i.e. trackable), 0 when ignored.
+    result = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "--no-index", ".teamctx/config.json"],
+        capture_output=True, text=True,
+    )
+    return result.returncode == 1
+
+
+def ensure_config_trackable(root: Path, *, dry_run: bool) -> StepResult:
+    """Make .teamctx/config.json trackable in the user repo, idempotently, verified by
+    git check-ignore. In a non-git tree there is nothing to track yet (git check-ignore errors),
+    so this setup step is skipped, not failed."""
+
+    if not _is_git_repo(root):
+        return StepResult(
+            "gitignore", "skipped", "not a git repo, so there is nothing to make trackable yet."
+        )
+    if _config_is_trackable(root):
+        return StepResult("gitignore", "already", ".teamctx/config.json is already trackable.")
+    if dry_run:
+        return StepResult(
+            "gitignore", "skipped",
+            "--dry-run: would patch .gitignore to track .teamctx/config.json.",
+        )
+    gitignore = root / ".gitignore"
+    existing = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
+    if "!.teamctx/config.json" not in existing:  # idempotent: never append the stanza twice
+        prefix = existing if existing == "" or existing.endswith("\n") else existing + "\n"
+        _atomic_write(gitignore, prefix + "\n" + _TRACKABLE_STANZA)
+    if _config_is_trackable(root):
+        return StepResult(
+            "gitignore", "wrote", "patched .gitignore so .teamctx/config.json is trackable."
+        )
+    detail = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "-v", "--no-index", ".teamctx/config.json"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    return StepResult(
+        "gitignore", "failed",
+        "couldn't make .teamctx/config.json trackable; a broader rule still ignores it "
+        f"({detail or 'see .gitignore'}). Edit .gitignore by hand.",
+    )
+
+
+def _auth_found_message(token_env: str, source: str | None) -> str:
+    if source == "env":
+        return f"using {token_env} from your environment."
+    if source == "file":
+        return f"using the token file in {token_env}_FILE."
+    if source == "gh":
+        return "using your gh CLI login."
+    return "credential found."
+
+
+def _auth_missing_message(token_env: str) -> str:
+    return (
+        f"no GitHub credential found. Set {token_env} in your environment (or {token_env}_FILE "
+        "with a path to a token file), or run `gh auth login`. Until then teamctx can't check "
+        "open PRs or failing checks and will say so, never a false all-clear."
+    )
+
+
+def _auth_missing_message_for_provider(
+    provider_name: str, token_env: str, checked_things: str, *, gh_hint: bool
+) -> str:
+    gh = ", or run `gh auth login`" if gh_hint else ""
+    return (
+        f"no {provider_name} credential found. Set {token_env} in your environment (or "
+        f"{token_env}_FILE with a path to a token file){gh}. Until then teamctx can't check "
+        f"{checked_things} and will say so, never a false all-clear."
+    )
+
+
+class SourceOnboarder(Protocol):
+    provider: ForgeProvider
+    default_token_env: str
+
+    def detect(self, root: Path) -> str | None: ...
+
+    def propose_config(self, repo: str) -> dict[str, str]: ...
+
+    def auth_status(self, token_env: str | None = None) -> AuthStatus: ...
+
+    def verify_health(
+        self, repo: str, *, token: str | None, opener: HttpOpener = DEFAULT_OPENER
+    ) -> HealthReport: ...
+
+
+class GithubOnboarder:
+    """GitHub source onboarder. Detection claims only github.com origins."""
+
+    provider: ForgeProvider = "github"
+    default_token_env = "GITHUB_TOKEN"
+
+    def detect(self, root: Path) -> str | None:
+        detected = detect_forge_repo(root)
+        if detected is None:
+            return None
+        repo, forge = detected
+        return repo if forge == self.provider else None
+
+    def propose_config(self, repo: str) -> dict[str, str]:
+        return {"repo": repo}
+
+    def auth_status(self, token_env: str | None = None) -> AuthStatus:
+        token_env = token_env or self.default_token_env
+        token, source = resolve_github_token_with_source(token_env)
+        if token:
+            return AuthStatus(True, source, _auth_found_message(token_env, source), token)
+        return AuthStatus(False, None, _auth_missing_message(token_env), None)
+
+    def verify_health(
+        self, repo: str, *, token: str | None, opener: HttpOpener = DEFAULT_OPENER
+    ) -> HealthReport:
+        """A live reachability check, never a verdict: count open PRs off the first page. A full
+        page (>= 100) is reported as a floor, so the number is never a false exact count."""
+
+        if not token:
+            return HealthReport(
+                False, None, False,
+                "no credential, so I couldn't reach GitHub to count open PRs.",
+            )
+        try:
+            owner, name = split_repo(repo)  # inside the try: a bad repo string must never crash
+            url = (
+                f"{github_api_root()}/repos/{quote(owner)}/{quote(name)}/pulls?state=open&per_page=100"
+            )
+            payload = get_json(url, token=token, opener=opener)
+        except (GitHubProbeError, OSError, ValueError):
+            # any bad-repo, network, HTTP, or decode failure: an honest unreachable report, never a
+            # crash and never a false all-clear (this is a reachability check, not a verdict).
+            return HealthReport(
+                False, None, False,
+                "couldn't reach GitHub just now (transient or access); teamctx will say so, "
+                "never a false all-clear.",
+            )
+        if not isinstance(payload, list):
+            return HealthReport(
+                False, None, False,
+                "GitHub returned an unexpected shape for open PRs; reporting it as unreachable "
+                "rather than guessing.",
+            )
+        count = len(payload)
+        if count >= 100:
+            return HealthReport(True, count, True, "reached GitHub: at least 100 open PRs (100+).")
+        return HealthReport(True, count, False, f"reached GitHub: {count} open PRs.")
+
+
+class GitlabOnboarder:
+    """GitLab source onboarder. Detection claims only gitlab.com origins."""
+
+    provider: ForgeProvider = "gitlab"
+    default_token_env = "GITLAB_TOKEN"
+
+    def detect(self, root: Path) -> str | None:
+        detected = detect_forge_repo(root)
+        if detected is None:
+            return None
+        repo, forge = detected
+        return repo if forge == self.provider else None
+
+    def propose_config(self, repo: str) -> dict[str, str]:
+        return {"repo": repo}
+
+    def auth_status(self, token_env: str | None = None) -> AuthStatus:
+        token_env = token_env or self.default_token_env
+        token, source = _resolve_env_file_token_with_source(token_env)
+        if token:
+            return AuthStatus(True, source, _auth_found_message(token_env, source), token)
+        return AuthStatus(
+            False,
+            None,
+            _auth_missing_message_for_provider(
+                "GitLab", token_env, "open MRs or pipeline state", gh_hint=False
+            ),
+            None,
+        )
+
+    def verify_health(
+        self, repo: str, *, token: str | None, opener: HttpOpener = DEFAULT_OPENER
+    ) -> HealthReport:
+        if not token:
+            return HealthReport(
+                False, None, False,
+                "no credential, so I couldn't reach GitLab to count open MRs.",
+            )
+        try:
+            url = (
+                "https://gitlab.com/api/v4/projects/"
+                f"{quote(repo, safe='')}/merge_requests?state=opened&per_page=100"
+            )
+            payload = get_json(url, token=token, opener=opener)
+        except (GitHubProbeError, OSError, ValueError):
+            return HealthReport(
+                False, None, False,
+                "couldn't reach GitLab just now (transient or access); teamctx will say so, "
+                "never a false all-clear.",
+            )
+        if not isinstance(payload, list):
+            return HealthReport(
+                False, None, False,
+                "GitLab returned an unexpected shape for open MRs; reporting it as unreachable "
+                "rather than guessing.",
+            )
+        count = len(payload)
+        if count >= 100:
+            return HealthReport(True, count, True, "reached GitLab: at least 100 open MRs (100+).")
+        return HealthReport(True, count, False, f"reached GitLab: {count} open MRs.")
+
+
+ONBOARDERS: list[SourceOnboarder] = [GithubOnboarder(), GitlabOnboarder()]
+
+
+def _resolve_env_file_token_with_source(token_env: str) -> tuple[str | None, str | None]:
+    token = os.environ.get(token_env)
+    if token:
+        return token, "env"
+    token_file = os.environ.get(f"{token_env}_FILE")
+    if token_file:
+        try:
+            value = Path(token_file).expanduser().read_text(encoding="utf-8").strip() or None
+        except OSError:
+            value = None
+        if value:
+            return value, "file"
+    return None, None
+
+
+def _detect_onboarder(root: Path) -> tuple[SourceOnboarder, str] | None:
+    for onboarder in ONBOARDERS:
+        repo = onboarder.detect(root)
+        if repo:
+            return onboarder, repo
+    return None
+
+
+def _detected_forge_repo(root: Path) -> tuple[str, ForgeProvider] | None:
+    detected = _detect_onboarder(root)
+    if detected is None:
+        return None
+    onboarder, repo = detected
+    return repo, onboarder.provider
+
+
+def _onboarder_for_provider(provider: ForgeProvider) -> SourceOnboarder:
+    for onboarder in ONBOARDERS:
+        if onboarder.provider == provider:
+            return onboarder
+    raise ValueError(f"unsupported forge provider: {provider}")
+
+
+def _token_env_for_onboarder(onboarder: SourceOnboarder, requested: str) -> str:
+    if requested == "GITHUB_TOKEN":
+        return onboarder.default_token_env
+    return requested
+
+
+def _provider_display(provider: ForgeProvider) -> str:
+    return "GitHub" if provider == "github" else "GitLab"
+
+
+_SNIPPET_START = "<!-- teamctx:start -->"
+_SNIPPET_END = "<!-- teamctx:end -->"
+_SNIPPET_HEADING = "## Team context (teamctx)"
+_KNOWN_BODIES = (
+    CLAUDE_MD_SNIPPET, _SNIPPET_BODY_2026_07_04B, _SNIPPET_BODY_2026_07_04,
+    _SNIPPET_BODY_2026_07, _LEGACY_SNIPPET_BODY,
+)
+SnippetState = Literal[
+    "current", "outdated", "edited", "conflicted_markers", "legacy", "edited_heading", "absent"
+]
+
+
+def _marked_block() -> str:
+    return f"{_SNIPPET_START}\n{CLAUDE_MD_SNIPPET}{_SNIPPET_END}\n"
+
+
+def _normalize_ws(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _marker_span(lines: list[str]) -> tuple[int, int] | None:
+    """The single well-formed teamctx marker pair, or None (absent, multiple, or out of order)."""
+
+    starts = [i for i, ln in enumerate(lines) if ln.strip() == _SNIPPET_START]
+    ends = [i for i, ln in enumerate(lines) if ln.strip() == _SNIPPET_END]
+    if len(starts) != 1 or len(ends) != 1 or ends[0] < starts[0]:
+        return None
+    return starts[0], ends[0]
+
+
+def classify_claude_md(existing: str) -> SnippetState:
+    """Classify the teamctx snippet state in a CLAUDE.md text. The one classifier used by
+    upsert (to decide the write) and status (to report), so they can never disagree."""
+
+    lines = existing.splitlines(keepends=True)
+    span = _marker_span(lines)
+    if span is None and (_SNIPPET_START in existing or _SNIPPET_END in existing):
+        return "conflicted_markers"
+    if span is not None:
+        start_i, end_i = span
+        body = "".join(lines[start_i + 1 : end_i])
+        if _normalize_ws(body) == _normalize_ws(CLAUDE_MD_SNIPPET):
+            return "current"
+        if _normalize_ws(body) in {_normalize_ws(b) for b in _KNOWN_BODIES}:
+            return "outdated"
+        return "edited"
+    if existing.count(_LEGACY_SNIPPET_BODY) == 1:
+        return "legacy"
+    if _SNIPPET_HEADING in existing:
+        return "edited_heading"
+    return "absent"
+
+
+def upsert_claude_md_snippet(root: Path, *, dry_run: bool) -> StepResult:
+    """Write or refresh the teamctx snippet in CLAUDE.md, never destroying user content: manage
+    only a single well-formed marker pair whose body teamctx generated, migrate an exact unedited
+    legacy block, and otherwise warn rather than guess a boundary."""
+
+    path = root / "CLAUDE.md"
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    lines = existing.splitlines(keepends=True)
+    block = _marked_block()
+    state = classify_claude_md(existing)
+
+    if state == "conflicted_markers":
+        return StepResult(
+            "claude_md", "skipped",
+            "found teamctx markers in CLAUDE.md that aren't a clean single start/end pair; fix or "
+            "remove them by hand, then re-run.",
+        )
+    if state == "current":
+        return StepResult("claude_md", "already", "CLAUDE.md snippet already current.")
+    if state == "edited":
+        return StepResult(
+            "claude_md", "skipped",
+            "the teamctx block in CLAUDE.md was hand-edited; left it untouched. Remove it and "
+            "re-run to let teamctx manage it.",
+        )
+    if state == "outdated":
+        if dry_run:
+            return StepResult(
+                "claude_md", "skipped", "--dry-run: would refresh the CLAUDE.md snippet."
+            )
+        span = _marker_span(lines)
+        assert span is not None
+        start_i, end_i = span
+        _atomic_write(path, "".join(lines[:start_i]) + block + "".join(lines[end_i + 1 :]))
+        return StepResult("claude_md", "wrote", "refreshed the CLAUDE.md snippet in place.")
+
+    if state == "legacy":
+        if dry_run:
+            return StepResult(
+                "claude_md", "skipped", "--dry-run: would migrate the old CLAUDE.md snippet."
+            )
+        _atomic_write(path, existing.replace(_LEGACY_SNIPPET_BODY, block, 1))
+        return StepResult(
+            "claude_md", "wrote", "migrated the old CLAUDE.md snippet to the marked block."
+        )
+
+    if state == "edited_heading":
+        return StepResult(
+            "claude_md", "skipped",
+            "found an edited '## Team context (teamctx)' block in CLAUDE.md; left it untouched. "
+            "Remove it by hand and re-run.",
+        )
+
+    assert state == "absent"
+    if dry_run:
+        return StepResult("claude_md", "skipped", "--dry-run: would add the CLAUDE.md snippet.")
+    prefix = existing if existing == "" or existing.endswith("\n") else existing + "\n"
+    joiner = "" if prefix == "" else "\n"
+    _atomic_write(path, prefix + joiner + block)
+    return StepResult("claude_md", "wrote", "added the teamctx snippet to CLAUDE.md.")
+
+
+@dataclass(frozen=True)
+class OnboardResult:
+    ok: bool
+    steps: tuple[StepResult, ...]
+    next_step: str
+
+
+@dataclass(frozen=True)
+class StatusReport:
+    steps: tuple[StepResult, ...]
+    next_step: str
+
+
+def _load_existing_config(path: Path) -> tuple[ProjectConfig | None, str | None]:
+    """(config, None) if a valid config exists, (None, error) if it exists but is malformed, or
+    (None, None) if absent."""
+
+    if not path.exists():
+        return None, None
+    try:
+        return load_project_config(path), None
+    except ProjectConfigError as exc:
+        return None, str(exc)
+
+
+def _config_step_and_effective_repo(
+    path: Path,
+    *,
+    override_repo: str | None,
+    detected: tuple[str, ForgeProvider] | None,
+    existing: ProjectConfig | None,
+    error: str | None,
+    force: bool,
+    dry_run: bool,
+    detected_docs_root: str | None = None,
+) -> tuple[StepResult, tuple[str, ForgeProvider] | None]:
+    """The config step plus the repo/forge work-start will actually resolve after onboard.
+
+    It calls the same provider-aware resolver as runtime, so onboard's report and health can never
+    drift from work-start. The returned pair is None when nothing resolves; an unusable config is a
+    failure here just as it is at runtime.
+    """
+
+    # A malformed existing config: runtime raises before it resolves any repo, so there is nothing
+    # to health-check (effective None) and it is a failure.
+    if error is not None and not force:
+        return (
+            StepResult(
+                "config", "failed",
+                f"{path} exists but is not valid teamctx config ({error}); fix it or pass --force "
+                "to overwrite.",
+            ),
+            None,
+        )
+    # Keeping a valid existing config: the repo is whatever runtime resolves from it, via the ONE
+    # shared resolver (config.repo normalized, else git-detect), and rejected exactly as runtime
+    # rejects it. No drift.
+    if existing is not None and not force:
+        config_raw = existing.work_start.repo if existing.work_start is not None else None
+        config_forge = existing.work_start.forge if existing.work_start is not None else None
+        effective, repo_error = resolve_forge_repo(None, config_raw, config_forge, detected)
+        if repo_error is not None:
+            return (
+                StepResult(
+                    "config", "failed",
+                    f"{path} configures a repo work-start can't use: {repo_error} Fix it or pass "
+                    "--force to overwrite.",
+                ),
+                None,
+            )
+        assert effective is not None
+        effective_repo, effective_forge = effective
+        if config_raw:
+            detail = f"{path} already configures {effective_repo}; pass --force to overwrite."
+            if override_repo is not None and override_repo != effective_repo:
+                detail = (
+                    f"{path} already configures {effective_repo}, not {override_repo}; pass "
+                    "--force to change it."
+                )
+        else:
+            detail = (
+                f"{path} exists with no repo set; work-start will use the git origin "
+                f"{effective_repo}."
+            )
+        return StepResult("config", "already", detail), (effective_repo, effective_forge)
+    # Writing a new config: the written repo is explicit-or-git-detect, resolved the same way, so
+    # the config we write is exactly what runtime will read back.
+    resolved, repo_error = resolve_forge_repo(override_repo, None, None, detected)
+    if repo_error is not None or resolved is None:
+        return (
+            StepResult(
+                "config", "failed",
+                "can't determine a repo to write: not a git repo with a github.com or gitlab.com "
+                "'origin', and no --repo. Pass --repo owner/name.",
+            ),
+            None,
+        )
+    write_repo, write_forge = resolved
+    if dry_run:
+        return (
+            StepResult(
+                "config", "skipped",
+                f"--dry-run: would write .teamctx/config.json for {write_repo}.",
+            ),
+            (write_repo, write_forge),
+        )
+    config = build_work_start_project_config(
+        repo=write_repo, forge=write_forge, docs_root=detected_docs_root
+    )
+    _atomic_write(
+        path, json.dumps(config.model_dump(mode="json", exclude_defaults=True), indent=2) + "\n"
+    )
+    return StepResult("config", "wrote", f"{path} (repo {write_repo})"), (
+        write_repo,
+        write_forge,
+    )
+
+
+DocsDirState = Literal["ok", "unsafe", "empty", "absent"]
+
+
+def _docs_dir_state(root: Path) -> DocsDirState:
+    """Whether a conventional top-level ``docs/`` folder is safely configurable, mirroring the
+    runtime scan's fail-closed rules (connectors/docs.py): the directory and every markdown file
+    in it must resolve inside the project root, else the runtime scan would read unavailable.
+    ``empty`` = the folder exists (safely) but holds no markdown; ``absent`` = no folder."""
+
+    docs_dir = root / "docs"
+    if not docs_dir.is_dir():
+        return "absent"
+    try:
+        base = root.resolve()
+        docs_dir.resolve().relative_to(base)
+        markdown = list(docs_dir.rglob("*.md"))
+        if not markdown:
+            return "empty"
+        for path in markdown:
+            path.resolve().relative_to(base)
+    except (OSError, ValueError):
+        return "unsafe"
+    return "ok"
+
+
+def _detect_docs_root(root: Path) -> str | None:
+    """``"docs"`` when a conventional docs folder is safely configurable, else None."""
+
+    return "docs" if _docs_dir_state(root) == "ok" else None
+
+
+_DOCS_FOUND = "found a docs/ folder; superseded docs there will be flagged."
+_DOCS_NOT_FOUND = (
+    "no docs/ folder found; set work_start.docs_root in .teamctx/config.json to flag "
+    "superseded docs."
+)
+_DOCS_EXISTS_UNCONFIGURED = (
+    "a docs/ folder exists but the existing config has no docs_root; add work_start.docs_root "
+    "to .teamctx/config.json (or re-run with --force) to flag superseded docs."
+)
+_DOCS_UNSAFE = (
+    "a docs/ folder exists but couldn't be safely configured (it or a file in it resolves "
+    "outside the repo); set work_start.docs_root by hand if this is intended."
+)
+_DOCS_EMPTY = "a docs/ folder exists but has no markdown files in it; nothing to scan yet."
+_HOOK_MIGRATED_DETAIL = (
+    "moved the reflex hook out of the committed .claude/settings.json into "
+    ".claude/settings.local.json (a committed hook would auto-run on teammates' machines; "
+    "the hook is a personal opt-in)."
+)
+_COMMITTED_HOOK_STATUS_DETAIL = (
+    "the reflex hook is in the committed .claude/settings.json; re-run `teamctx onboard` "
+    "to move it to .claude/settings.local.json (a committed hook auto-runs on teammates' "
+    "machines)."
+)
+_LOCAL_SETTINGS_IGNORE_WARNING = (
+    "note: .claude/settings.local.json is not gitignored here; add it to .gitignore so "
+    "the hook stays personal."
+)
+
+
+def _docs_step(
+    configured_docs_root: str | None, wrote_detected: bool, dir_state: DocsDirState
+) -> StepResult:
+    """Report the docs configuration honestly in every branch: what IS configured after the
+    config step, or the true reason nothing is, with the fix. Never claims a folder is absent
+    when it exists, and never blesses a root the runtime scan would fail closed on."""
+
+    if wrote_detected:
+        return StepResult("docs", "noted", _DOCS_FOUND)
+    if configured_docs_root:
+        return StepResult(
+            "docs", "noted",
+            f"docs_root '{configured_docs_root}' is configured; superseded docs there will be "
+            "flagged.",
+        )
+    if dir_state == "ok":
+        return StepResult("docs", "noted", _DOCS_EXISTS_UNCONFIGURED)
+    if dir_state == "unsafe":
+        return StepResult("docs", "noted", _DOCS_UNSAFE)
+    if dir_state == "empty":
+        return StepResult("docs", "noted", _DOCS_EMPTY)
+    return StepResult("docs", "noted", _DOCS_NOT_FOUND)
+
+
+def _install_hook_step(root: Path, *, dry_run: bool) -> StepResult:
+    from teamctx.cli import (
+        install_hook_into_settings,  # local: cli imports onboard, break the cycle
+        remove_hook_from_settings,
+    )
+
+    settings_path = root / ".claude" / "settings.local.json"
+    committed_settings_path = root / ".claude" / "settings.json"
+    if dry_run:
+        return StepResult("hook", "skipped", "--dry-run: would install the PreToolUse reflex hook.")
+    try:
+        wrote = install_hook_into_settings(settings_path)
+        migrated = remove_hook_from_settings(committed_settings_path)
+    except Exception as exc:  # a malformed settings file: fail only this step, keep going
+        return StepResult("hook", "failed", f"could not update {settings_path}: {exc}")
+    if migrated:
+        return StepResult(
+            "hook", "wrote", _with_local_settings_ignore_warning(root, _HOOK_MIGRATED_DETAIL)
+        )
+    return StepResult(
+        "hook",
+        "wrote" if wrote else "already",
+        _with_local_settings_ignore_warning(root, str(settings_path)),
+    )
+
+
+def _with_local_settings_ignore_warning(root: Path, detail: str) -> str:
+    if not _is_git_repo(root):
+        return detail
+    result = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", ".claude/settings.local.json"],
+        capture_output=True, text=True,
+    )
+    if result.returncode == 1:
+        return f"{detail} {_LOCAL_SETTINGS_IGNORE_WARNING}"
+    return detail
+
+
+def run_onboard(
+    root: Path,
+    *,
+    repo_override: str | None,
+    force: bool,
+    dry_run: bool,
+    token_env: str = "GITHUB_TOKEN",
+    opener: HttpOpener = DEFAULT_OPENER,
+) -> OnboardResult:
+    """Scaffold teamctx in ``root``. Additive and idempotent; each write atomic; a failed step
+    fails only itself (and flips ``ok``); a missing token is reported, not fatal."""
+
+    config_path = root / ".teamctx" / "config.json"
+    existing, config_error = _load_existing_config(config_path)
+    detected = _detected_forge_repo(root)
+
+    # An empty --repo is treated as absent (falls back to config/git), exactly as runtime treats a
+    # falsy explicit repo; only a truthy-but-invalid --repo is an error.
+    override_repo = repo_override or None
+    if override_repo:
+        resolved_override, override_error = resolve_forge_repo(override_repo, None, None, detected)
+        if resolved_override is None:
+            return OnboardResult(
+                False,
+                (StepResult(
+                    "detect", "failed",
+                    override_error or f"{repo_override!r} is not a supported repo.",
+                ),),
+                "re-run with --repo owner/name",
+            )
+
+    # Case A: genuinely nothing to onboard (no config file at all, no --repo, no git origin) ->
+    # stop and write nothing (spec 2.2 step 2). A config that EXISTS but is broken is handled by
+    # the config step (it fails, but the hook/snippet steps still run per the transaction model).
+    if existing is None and config_error is None and override_repo is None and detected is None:
+        return OnboardResult(
+            False,
+            (StepResult(
+                "detect", "failed",
+                "could not determine a repo: not a git repo with a github.com or gitlab.com "
+                "'origin', no .teamctx/config.json, and no --repo. Re-run with --repo owner/name.",
+            ),),
+            "re-run with --repo owner/name",
+        )
+
+    detected_docs = _detect_docs_root(root)
+    config_step, effective = _config_step_and_effective_repo(
+        config_path, override_repo=override_repo, detected=detected,
+        existing=existing, error=config_error, force=force, dry_run=dry_run,
+        detected_docs_root=detected_docs,
+    )
+    # The docs step reports what IS configured after the config step (never a wish): a fresh
+    # write includes the detection; an existing config keeps its own docs_root; dry-run previews.
+    wrote_fresh_config = config_step.status == "wrote"
+    would_write_config = config_step.status == "skipped" and dry_run
+    existing_docs = (
+        existing.work_start.docs_root
+        if existing is not None and existing.work_start is not None
+        else None
+    )
+    docs_dir_state = _docs_dir_state(root)
+    if detected_docs is not None and would_write_config:
+        docs_step = StepResult(
+            "docs", "skipped", f"--dry-run: would set docs_root to '{detected_docs}'."
+        )
+    elif detected_docs is not None and wrote_fresh_config:
+        docs_step = _docs_step(detected_docs, wrote_detected=True, dir_state=docs_dir_state)
+    else:
+        docs_step = _docs_step(existing_docs, wrote_detected=False, dir_state=docs_dir_state)
+
+    effective_onboarder = (
+        _onboarder_for_provider(effective[1])
+        if effective is not None
+        else _onboarder_for_provider(detected[1] if detected is not None else "github")
+    )
+    resolved_token_env = _token_env_for_onboarder(effective_onboarder, token_env)
+    auth_status = effective_onboarder.auth_status(resolved_token_env)
+    auth_found = auth_status.found
+    auth_message = auth_status.message
+    if effective is not None:
+        effective_repo, _ = effective
+        health = effective_onboarder.verify_health(
+            effective_repo, token=auth_status.token, opener=opener
+        )
+        health_message = health.message
+    else:
+        health_message = "no valid repo resolved, so no reachability check was run."
+
+    steps: list[StepResult] = [
+        config_step,
+        ensure_config_trackable(root, dry_run=dry_run),
+        docs_step,
+        StepResult("auth", "noted", auth_message),
+        _install_hook_step(root, dry_run=dry_run),
+        upsert_claude_md_snippet(root, dry_run=dry_run),
+        StepResult("health", "noted", health_message),
+    ]
+
+    ok = not any(step.status == "failed" for step in steps)
+    # The ambient promise is made only when setup actually happened: a dry run wrote nothing,
+    # and a failed step (a hook that did not install) makes "context appears" false.
+    if dry_run:
+        next_step = (
+            "Dry run: nothing was written. Run `teamctx onboard` without --dry-run to set up."
+        )
+    elif not ok:
+        next_step = (
+            "Fix the FAILED line above (or re-run with --force), then re-run `teamctx onboard`."
+        )
+    elif not auth_found:
+        next_step = (
+            f"Set a {_provider_display(effective_onboarder.provider)} credential "
+            "(see the auth line above); after that, team context appears by itself: before your "
+            "first edit, and again whenever something changes while you work."
+        )
+    else:
+        next_step = (
+            "You're set. Team context now appears by itself: before your first edit, and again "
+            "whenever something changes while you work (agents get the same over MCP). To see "
+            "it right now: "
+            "`teamctx work-start --path <a file you're about to edit>`."
+        )
+    return OnboardResult(ok, tuple(steps), next_step)
+
+
+def _hook_status_step(local_settings_path: Path, committed_settings_path: Path) -> StepResult:
+    from teamctx.cli import _has_hook_entry, _load_settings  # local: break the cli<->onboard cycle
+
+    local_error = False
+    try:
+        local_settings = _load_settings(local_settings_path)
+    except Exception:
+        local_error = True
+        local_settings = {}
+    local_has_hook = _has_hook_entry(local_settings)
+
+    committed_error = False
+    try:
+        committed_settings = _load_settings(committed_settings_path)
+    except Exception:
+        committed_error = True
+        committed_settings = {}
+    if _has_hook_entry(committed_settings):
+        return StepResult("hook", "noted", _COMMITTED_HOOK_STATUS_DETAIL)
+
+    if local_has_hook:
+        return StepResult(
+            "hook", "ok", f"the reflex hook is installed in {local_settings_path}."
+        )
+    if local_error:
+        return StepResult(
+            "hook", "noted",
+            f"couldn't read {local_settings_path}; can't tell if the hook is installed.",
+        )
+    if committed_error:
+        return StepResult(
+            "hook", "noted",
+            f"couldn't read {committed_settings_path}; can't tell if an old committed hook is "
+            "still installed.",
+        )
+    return StepResult(
+        "hook", "noted",
+        f"the reflex hook is not installed in {local_settings_path}; `teamctx onboard` "
+        "installs it.",
+    )
+
+
+SnippetStatusMark = Literal["ok", "noted"]
+
+
+_SNIPPET_STATUS_DETAIL: dict[SnippetState, tuple[SnippetStatusMark, str]] = {
+    "current": ("ok", "the CLAUDE.md snippet is current."),
+    "outdated": ("noted", "the CLAUDE.md snippet is outdated; `teamctx onboard` refreshes it."),
+    "edited": (
+        "noted", "the teamctx block in CLAUDE.md was hand-edited; teamctx leaves it to you."
+    ),
+    "conflicted_markers": (
+        "noted",
+        "CLAUDE.md has teamctx markers that aren't a clean single start/end pair; fix or remove "
+        "them by hand.",
+    ),
+    "legacy": ("noted", "CLAUDE.md has the old unmarked snippet; `teamctx onboard` migrates it."),
+    "edited_heading": (
+        "noted",
+        "CLAUDE.md has an edited '## Team context (teamctx)' block; teamctx leaves it to you.",
+    ),
+    "absent": ("noted", "no teamctx snippet in CLAUDE.md; `teamctx onboard` adds it."),
+}
+
+
+def _snippet_status_step(state: SnippetState) -> StepResult:
+    mark, detail = _SNIPPET_STATUS_DETAIL[state]
+    return StepResult("claude_md", mark, detail)
+
+
+def _status_next_step(
+    steps: list[StepResult], auth_found: bool, provider: ForgeProvider
+) -> str:
+    if any(s.status == "failed" for s in steps):
+        return "Fix the failed line above (or run `teamctx onboard --force`)."
+    if any(s.name in {"config", "hook", "claude_md"} and s.status == "noted" for s in steps):
+        return "Run `teamctx onboard` to finish setup."
+    if not auth_found:
+        return f"Set a {_provider_display(provider)} credential (see the credential line above)."
+    return (
+        "You're set. Team context appears by itself: before your first edit, and again "
+        "whenever something changes while you work."
+    )
+
+
+def run_status(
+    root: Path,
+    *,
+    token_env: str = "GITHUB_TOKEN",
+    opener: HttpOpener = DEFAULT_OPENER,
+) -> StatusReport:
+    """The read-only twin of run_onboard: report exactly what onboard would find, through the
+    same resolvers, writing nothing. Never a verdict; reachability is a live check, not a health
+    judgment."""
+
+    config_path = root / ".teamctx" / "config.json"
+    existing, config_error = _load_existing_config(config_path)
+    detected = _detected_forge_repo(root)
+
+    steps: list[StepResult] = []
+    effective: tuple[str, ForgeProvider] | None = None
+    if config_error is not None:
+        steps.append(StepResult(
+            "config", "failed",
+            f"{config_path} exists but is not valid teamctx config ({config_error}).",
+        ))
+    elif existing is not None:
+        config_raw = existing.work_start.repo if existing.work_start is not None else None
+        config_forge = existing.work_start.forge if existing.work_start is not None else None
+        effective, repo_error = resolve_forge_repo(None, config_raw, config_forge, detected)
+        if repo_error is not None:
+            steps.append(StepResult(
+                "config", "failed",
+                f"{config_path} configures a repo work-start can't use: {repo_error}",
+            ))
+        elif config_raw:
+            assert effective is not None
+            effective_repo, _ = effective
+            steps.append(StepResult(
+                "config", "ok", f"{config_path} configures {effective_repo}."
+            ))
+        else:
+            assert effective is not None
+            effective_repo, _ = effective
+            steps.append(StepResult(
+                "config", "ok",
+                f"{config_path} exists with no repo set; work-start will use the git origin "
+                f"{effective_repo}.",
+            ))
+    else:
+        effective, repo_error = resolve_forge_repo(None, None, None, detected)
+        if effective is not None:
+            effective_repo, _ = effective
+            steps.append(StepResult(
+                "config", "noted",
+                f"no {config_path}; work-start will use the git origin {effective_repo}. "
+                "Run `teamctx onboard` to make it explicit and shareable.",
+            ))
+        else:
+            steps.append(StepResult(
+                "config", "noted",
+                f"no {config_path} and no git origin to detect a repo from. "
+                "Run `teamctx onboard --repo owner/name`.",
+            ))
+
+    if not _is_git_repo(root):
+        steps.append(StepResult("tracking", "noted", "not a git repo; nothing to track."))
+    elif _config_is_trackable(root):
+        steps.append(StepResult("tracking", "ok", ".teamctx/config.json is trackable in git."))
+    else:
+        steps.append(StepResult(
+            "tracking", "noted",
+            ".teamctx/config.json is ignored by .gitignore; `teamctx onboard` can fix that.",
+        ))
+
+    configured_docs = (
+        existing.work_start.docs_root
+        if existing is not None and existing.work_start is not None
+        else None
+    )
+    if configured_docs:
+        steps.append(StepResult(
+            "docs", "ok",
+            f"docs_root '{configured_docs}' is configured; superseded docs there will be "
+            "flagged.",
+        ))
+    else:
+        docs_state = _docs_dir_state(root)
+        if docs_state == "ok" and existing is None and config_error is None:
+            # genuinely no config: a fresh onboard WILL write the detection, so the promise is
+            # true. A malformed config also parses to existing=None but onboard will NOT write
+            # over it without --force, so it takes the add-or-force copy below instead.
+            steps.append(StepResult(
+                "docs", "noted",
+                "a docs/ folder exists but no docs_root is configured; `teamctx onboard` sets "
+                "it.",
+            ))
+        elif docs_state == "ok":
+            # an existing config is never modified by onboard, so say the real fix
+            steps.append(StepResult("docs", "noted", _DOCS_EXISTS_UNCONFIGURED))
+        elif docs_state == "unsafe":
+            steps.append(StepResult("docs", "noted", _DOCS_UNSAFE))
+        elif docs_state == "empty":
+            steps.append(StepResult("docs", "noted", _DOCS_EMPTY))
+        else:
+            steps.append(StepResult("docs", "noted", _DOCS_NOT_FOUND))
+
+    local_settings_path = root / ".claude" / "settings.local.json"
+    committed_settings_path = root / ".claude" / "settings.json"
+    steps.append(_hook_status_step(local_settings_path, committed_settings_path))
+
+    claude_md = root / "CLAUDE.md"
+    existing_text = claude_md.read_text(encoding="utf-8") if claude_md.exists() else ""
+    steps.append(_snippet_status_step(classify_claude_md(existing_text)))
+
+    provider = effective[1] if effective is not None else (detected[1] if detected else "github")
+    onboarder = _onboarder_for_provider(provider)
+    resolved_token_env = _token_env_for_onboarder(onboarder, token_env)
+    auth_status = onboarder.auth_status(resolved_token_env)
+    auth_found = auth_status.found
+    steps.append(StepResult(
+        "credential", "ok" if auth_found else "noted",
+        auth_status.message,
+    ))
+
+    if effective is not None:
+        effective_repo, _ = effective
+        health = onboarder.verify_health(effective_repo, token=auth_status.token, opener=opener)
+        steps.append(StepResult("reachability", "noted", health.message))
+    else:
+        steps.append(StepResult(
+            "reachability", "noted", "no valid repo resolved, so no reachability check was run."
+        ))
+
+    return StatusReport(tuple(steps), _status_next_step(steps, auth_found, provider))

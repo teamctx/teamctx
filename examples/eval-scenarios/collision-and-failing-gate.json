@@ -1,0 +1,102 @@
+{
+  "scenario_id": "collision-and-failing-gate",
+  "task": "Add input validation to the request parser in src/app/parser.py, then commit.",
+  "request": {
+    "schema_version": "teamctx.request_context.v0",
+    "request_id": "eval:collision-and-failing-gate",
+    "repo": "acme/widgets",
+    "branch": "feature/validate-parser",
+    "task": "Add input validation to the request parser.",
+    "paths": ["src/app/parser.py"],
+    "linked_issues": [],
+    "requested_at": "2026-06-25T12:00:00Z",
+    "requesting_principal": null
+  },
+  "signals": [
+    {
+      "schema_version": "teamctx.source_signal.v0",
+      "id": "sig_collision_0",
+      "signal_type": "collision",
+      "source_family": "git_hosting",
+      "scope": {"repo": "acme/widgets", "files": ["src/app/parser.py"]},
+      "evidence_summary": "Open PR #214 changed src/app/parser.py.",
+      "source_display": "GitHub PR #214",
+      "freshness": "fresh",
+      "confidence": "high",
+      "visibility": "visible",
+      "created_at": "2026-06-25T11:00:00Z",
+      "observed_at": "2026-06-25T12:00:00Z",
+      "expires_at": "next_refresh",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "Forge-review metadata is allowed as evidence; source bodies are not included."
+      }
+    },
+    {
+      "schema_version": "teamctx.source_signal.v0",
+      "id": "sig_missed_gate_lint_0",
+      "signal_type": "missed_gate",
+      "source_family": "ci_deploy",
+      "scope": {"repo": "acme/widgets", "files": ["src/app/parser.py"], "gate": "lint", "url": "https://ci.example/run/1"},
+      "evidence_summary": "Required gate 'lint' is failing on this branch.",
+      "source_display": "CI: lint",
+      "freshness": "fresh",
+      "confidence": "high",
+      "visibility": "visible",
+      "created_at": "2026-06-25T12:00:00Z",
+      "observed_at": "2026-06-25T12:00:00Z",
+      "expires_at": "next_refresh",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "CI gate status is allowed as evidence; source bodies are not included."
+      }
+    }
+  ],
+  "statuses": [
+    {
+      "schema_version": "teamctx.source_status.v0",
+      "source_id": "github_pr_metadata",
+      "source_family": "git_hosting",
+      "scope": {"repo": "acme/widgets"},
+      "status": "fresh",
+      "last_checked_at": "2026-06-25T12:00:00Z",
+      "safe_user_message": "Git-host PR metadata refreshed.",
+      "normal_context_visibility": "silent",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "Source health can render without source body text."
+      }
+    },
+    {
+      "schema_version": "teamctx.source_status.v0",
+      "source_id": "github_check_runs",
+      "source_family": "ci_deploy",
+      "scope": {"repo": "acme/widgets"},
+      "status": "fresh",
+      "last_checked_at": "2026-06-25T12:00:00Z",
+      "safe_user_message": "CI check-run status refreshed.",
+      "normal_context_visibility": "silent",
+      "policy": {
+        "schema_version": "teamctx.policy_decision.v0",
+        "can_render_to_user": true,
+        "can_render_to_agent": true,
+        "can_include_source_text": false,
+        "requires_review_for_guidance": false,
+        "decision_reason": "CI gate status is allowed as evidence; source bodies are not included."
+      }
+    }
+  ],
+  "workspace_files": []
+}

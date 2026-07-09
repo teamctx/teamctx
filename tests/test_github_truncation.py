@@ -1,0 +1,345 @@
+"""Tests for GitHub truncation honesty: no false clear when PR list or file list is full.
+
+When the PR list or any PR's file list continues past what we fetched, we cannot know
+whether a collision exists past the budget, so the forge-review source status becomes
+unbounded, which routes to incomplete[unbounded] and makes the conflict verdict UNKNOWN
+(not clear). A visible collision in the fetched page still fires.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+from urllib.request import Request
+
+from teamctx.connectors.github import (
+    ForgeReviewFetch,
+    fetch_github_pull_requests,
+    run_github_pr_probe,
+)
+from teamctx.contract_render import render_broker_answer
+from teamctx.core.broker import broker_answer
+from teamctx.core.contracts import RequestContext
+from teamctx.core.evaluate import Valuation
+from teamctx.core.select import derive_cards
+
+OBS = "2026-06-28T00:00:00Z"
+REPO = "acme/widgets"
+TOKEN = "tok"
+
+
+def _request(paths: list[str] = ("src/x.py",)) -> RequestContext:
+    return RequestContext(
+        schema_version="teamctx.request_context.v0",
+        request_id="req-trunc",
+        repo=REPO,
+        branch="feature/x",
+        task="edit x",
+        paths=list(paths),
+        linked_issues=[],
+        requested_at=OBS,
+        requesting_principal=None,
+    )
+
+
+def _raw_pr(number: int, files: list[dict[str, str]], *, files_have_next: bool) -> dict[str, Any]:
+    """A minimal syntactically-valid GitHub GraphQL PR node."""
+    return {
+        "number": number,
+        "url": f"https://github.com/{REPO}/pull/{number}",
+        "createdAt": "2026-06-28T00:00:00Z",
+        "updatedAt": "2026-06-28T00:01:00Z",
+        "headRefName": "feature/other",
+        "headRepository": {"nameWithOwner": REPO},
+        "files": {
+            "nodes": files,
+            "pageInfo": {"hasNextPage": files_have_next},
+        },
+    }
+
+
+def _fake_file(filename: str) -> dict[str, str]:
+    return {"path": filename}
+
+
+class _FakeResponse:
+    def __init__(self, payload: object) -> None:
+        self._data = json.dumps(payload).encode()
+
+    def read(self) -> bytes:
+        return self._data
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        pass
+
+
+def _make_opener(
+    *,
+    num_prs: int,
+    colliding_pr_number: int | None = None,
+    colliding_path: str = "src/x.py",
+    files_per_pr: int = 1,
+    list_has_next: bool = False,
+    files_have_next: bool = False,
+) -> Any:
+    """Build an opener that returns `num_prs` PRs. If `colliding_pr_number` is given, PR
+    with that number has `colliding_path` in its file list. All other PRs get an unrelated
+    file. `files_per_pr` controls how many files to return for each PR's file call."""
+
+    pulls: list[dict[str, Any]] = []
+    for number in range(1, num_prs + 1):
+        if colliding_pr_number is not None and number == colliding_pr_number:
+            files = [_fake_file(colliding_path)]
+            while len(files) < files_per_pr:
+                files.append(_fake_file(f"other/file_{len(files)}.py"))
+        else:
+            files = [_fake_file(f"unrelated/file_{number}.py")]
+            while len(files) < files_per_pr:
+                files.append(_fake_file(f"unrelated/more_{len(files)}.py"))
+        pulls.append(_raw_pr(number, files, files_have_next=files_have_next))
+
+    def opener(request: Request) -> _FakeResponse:
+        assert request.full_url == "https://api.github.com/graphql"
+        return _FakeResponse(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequests": {
+                            "nodes": pulls,
+                            "pageInfo": {
+                                "hasNextPage": list_has_next,
+                                "endCursor": "cursor-1" if list_has_next else None,
+                            },
+                        }
+                    }
+                }
+            }
+        )
+
+    return opener
+
+
+def _page_payload(
+    nodes: list[dict[str, Any]], *, has_next: bool, end_cursor: str | None
+) -> dict[str, object]:
+    return {
+        "data": {
+            "repository": {
+                "pullRequests": {
+                    "nodes": nodes,
+                    "pageInfo": {"hasNextPage": has_next, "endCursor": end_cursor},
+                }
+            }
+        }
+    }
+
+
+class _PagedOpener:
+    def __init__(self, *payloads: object) -> None:
+        self._payloads = list(payloads)
+        self.calls = 0
+
+    def __call__(self, request: Request) -> _FakeResponse:
+        assert request.full_url == "https://api.github.com/graphql"
+        self.calls += 1
+        if not self._payloads:
+            raise AssertionError("unexpected extra GraphQL request")
+        return _FakeResponse(self._payloads.pop(0))
+
+
+# ---------------------------------------------------------------------------
+# Test 1: unbounded PR list, no collision -> forge-review status unbounded -> UNKNOWN verdict
+# ---------------------------------------------------------------------------
+
+
+def test_unbounded_pr_list_no_collision_gives_unbounded_status_and_unknown_verdict() -> None:
+    """100 PRs returned and GraphQL says more exist; none touch src/x.py.
+    The source status must be unbounded and the conflict verdict must be UNKNOWN."""
+
+    opener = _make_opener(num_prs=100, list_has_next=True)
+    request = _request()
+
+    document = run_github_pr_probe(
+        repo=REPO,
+        token=TOKEN,
+        request_context=request,
+        observed_at=OBS,
+        max_pages=1,
+        opener=opener,
+    )
+
+    # Source status must be non-fresh because the list exceeded the budget
+    assert document.source_statuses[0].status == "unbounded", (
+        f"expected unbounded, got {document.source_statuses[0].status!r}"
+    )
+    # No collision card (nothing overlaps in the fetched page)
+    assert derive_cards(document.request_context, document.source_signals) == []
+    assert document.context_cards == []
+
+    # End-to-end: the conflict verdict through the real broker is UNKNOWN, not clear
+    answer = broker_answer(request, document.source_signals, document.source_statuses)
+    conflict_verdict = dict(answer.verdicts)["Conflict check"]
+    assert conflict_verdict == Valuation("unknown", "incomplete[unbounded]"), (
+        f"expected UNKNOWN, got {conflict_verdict!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 2: unbounded list WITH a visible collision -> collision card still fires
+# ---------------------------------------------------------------------------
+
+
+def test_unbounded_pr_list_with_visible_collision_still_emits_collision_card() -> None:
+    """100 PRs returned and GraphQL says more exist. PR #3 touches src/x.py.
+    The collision card must still be present even under an unbounded list."""
+
+    opener = _make_opener(
+        num_prs=100,
+        colliding_pr_number=3,
+        colliding_path="src/x.py",
+        list_has_next=True,
+    )
+    request = _request()
+
+    document = run_github_pr_probe(
+        repo=REPO,
+        token=TOKEN,
+        request_context=request,
+        observed_at=OBS,
+        max_pages=1,
+        opener=opener,
+    )
+
+    # Status is unbounded because more PRs exist past the budget
+    assert document.source_statuses[0].status == "unbounded"
+    # Collision card for PR #3 must be present
+    cards = derive_cards(document.request_context, document.source_signals)
+    assert len(cards) == 1
+    assert "PR #3" in cards[0].text
+    assert "src/x.py" in cards[0].text
+    assert cards[0].source_body == "status_only"
+    assert cards[0].reason_code == "collision.same_path"
+    assert cards[0].source_open_target_id is None
+    assert document.source_open_targets[0].id == "open_github_pr_3"
+
+    # End-to-end: a visible collision falsifies the conflict universal even under
+    # truncation. The verdict is FALSE (collision found), not UNKNOWN.
+    answer = broker_answer(request, document.source_signals, document.source_statuses)
+    conflict_verdict = dict(answer.verdicts)["Conflict check"]
+    assert conflict_verdict == Valuation("false"), (
+        f"expected FALSE (collision found), got {conflict_verdict!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 3: complete list, no collision -> status fresh -> clear
+# ---------------------------------------------------------------------------
+
+
+def test_small_pr_list_no_collision_gives_fresh_status() -> None:
+    """2 PRs returned (well under 100). No collision -> status must be fresh."""
+
+    opener = _make_opener(num_prs=2)
+    request = _request()
+
+    document = run_github_pr_probe(
+        repo=REPO,
+        token=TOKEN,
+        request_context=request,
+        observed_at=OBS,
+        opener=opener,
+    )
+
+    assert document.source_statuses[0].status == "fresh"
+    assert derive_cards(document.request_context, document.source_signals) == []
+    assert document.context_cards == []
+
+
+# ---------------------------------------------------------------------------
+# Test 4: single PR whose file list has another page -> unbounded_files_prs
+# ---------------------------------------------------------------------------
+
+
+def test_full_files_page_marks_unbounded_when_graphql_says_more_exist() -> None:
+    """A single PR whose file list comes back with 100 entries signals that more files
+    exist; fetch_github_pull_requests must record that PR as unbounded."""
+
+    opener = _make_opener(num_prs=1, files_per_pr=100, files_have_next=True)
+
+    result = fetch_github_pull_requests(
+        repo=REPO,
+        token=TOKEN,
+        opener=opener,
+    )
+
+    assert isinstance(result, ForgeReviewFetch)
+    assert result.unbounded_files_prs == [1]
+
+
+# ---------------------------------------------------------------------------
+# Test 5: fetch_github_pull_requests returns ForgeReviewFetch with correct fields
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_github_pull_requests_returns_forge_review_fetch_not_truncated() -> None:
+    """2 PRs, 1 file each -> ForgeReviewFetch has complete coverage."""
+
+    opener = _make_opener(num_prs=2)
+
+    result = fetch_github_pull_requests(
+        repo=REPO,
+        token=TOKEN,
+        opener=opener,
+    )
+
+    assert isinstance(result, ForgeReviewFetch)
+    assert result.unbounded_list is False
+    assert result.unbounded_files_prs == []
+    assert len(result.pull_requests) == 2
+
+
+def test_three_hundred_one_prs_render_partial_never_clear_or_unreachable() -> None:
+    pages = []
+    for page_index in range(3):
+        start = page_index * 100 + 1
+        nodes = [
+            _raw_pr(number, [_fake_file(f"unrelated/file_{number}.py")], files_have_next=False)
+            for number in range(start, start + 100)
+        ]
+        pages.append(
+            _page_payload(
+                nodes,
+                has_next=True,
+                end_cursor=f"cursor-{page_index + 1}",
+            )
+        )
+    opener = _PagedOpener(*pages)
+    request = _request()
+
+    document = run_github_pr_probe(
+        repo=REPO,
+        token=TOKEN,
+        request_context=request,
+        observed_at=OBS,
+        max_pages=3,
+        opener=opener,
+    )
+    answer = broker_answer(request, document.source_signals, document.source_statuses)
+    text = render_broker_answer(answer)
+
+    assert opener.calls == 3
+    assert document.source_statuses[0].status == "unbounded"
+    assert document.source_statuses[0].safe_user_message == (
+        "Checked the 300 most recently updated open PRs; more exist, so this is not a "
+        "complete check."
+    )
+    assert dict(answer.verdicts)["Conflict check"] == Valuation(
+        "unknown", "incomplete[unbounded]"
+    )
+    assert text.startswith("Heads up: I can't confirm the important things yet:")
+    assert "Open PRs: Checked the 300 most recently updated open PRs" in text
+    assert "Looks clear to start." not in text
+    assert "couldn't reach GitHub" not in text

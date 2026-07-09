@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>teamctx: ambient team context for people and coding agents</title>
+<meta name="description" content="Before you or your coding agent touch a file, teamctx surfaces what moved: colliding PRs, failing CI, changed acceptance criteria, superseded docs. No language model in the content path. Same inputs, same result.">
+<style>
+:root{
+  --paper:#f4efe4; --paper-deep:#ebe4d3; --ink:#211c11; --ink-soft:#5b5342;
+  --rule:#cfc4ad; --rule-soft:#ddd4c1;
+  --ok:#1d6b45; --warn:#a2401f;
+  --term:#1a1710; --term-ink:#e9e2d0; --term-dim:#9a927c;
+  --serif:"Charter","Bitstream Charter","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --measure:66ch;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--paper);color:var(--ink);font-family:var(--serif);
+  font-size:1.0625rem;line-height:1.62;
+  -webkit-font-smoothing:antialiased;position:relative;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:3;opacity:.035;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+a{color:inherit}
+code{font-family:var(--mono);font-size:.86em;background:var(--paper-deep);padding:.08em .35em;border:1px solid var(--rule-soft);border-radius:2px}
+.wrap{max-width:76rem;margin:0 auto;padding:0 clamp(1.25rem,4vw,3rem)}
+
+/* ledger header */
+.masthead{border-bottom:1px solid var(--ink)}
+.masthead .wrap{display:flex;justify-content:space-between;align-items:baseline;padding-top:1.1rem;padding-bottom:1.1rem}
+.wordmark{font-family:var(--mono);font-size:1.05rem;letter-spacing:.14em;font-weight:600}
+.wordmark b{color:var(--ok);font-weight:600}
+.masthead-meta{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+
+/* hero */
+.hero{padding:clamp(3rem,8vw,5.5rem) 0 0}
+.kicker{font-family:var(--mono);font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--warn);margin-bottom:1.2rem}
+h1{font-size:clamp(2.4rem,5.4vw,4.1rem);line-height:1.06;font-weight:700;letter-spacing:-.015em;max-width:18ch}
+.lede{max-width:var(--measure);margin-top:1.6rem;font-size:1.15rem;color:var(--ink)}
+.hero-note{max-width:var(--measure);margin-top:1rem;color:var(--ink-soft);font-size:.98rem}
+.hero-grid{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,4fr);gap:clamp(1.5rem,4vw,4rem);align-items:end}
+.manifest{border:1px solid var(--ink);background:var(--paper);padding:1.1rem 1.2rem 1.2rem;position:relative}
+.manifest::after{content:"";position:absolute;inset:5px;border:1px solid var(--rule);pointer-events:none}
+.manifest h2{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;margin-bottom:.7rem;color:var(--ink-soft)}
+.manifest ol{list-style:none;counter-reset:m}
+.manifest li{counter-increment:m;font-size:.95rem;padding:.42rem 0;border-top:1px solid var(--rule-soft);display:flex;gap:.75rem;align-items:baseline}
+.manifest li::before{content:counter(m,decimal-leading-zero);font-family:var(--mono);font-size:.72rem;color:var(--warn)}
+.hero-rule{border:none;border-top:1px solid var(--ink);margin-top:clamp(2rem,5vw,3.4rem)}
+
+/* sections as numbered record entries */
+section{padding:clamp(2.6rem,6vw,4.2rem) 0;border-bottom:1px solid var(--rule)}
+.sec{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,9fr);gap:clamp(1.2rem,3.5vw,3.5rem)}
+.sec-head{position:relative}
+.sec-no{font-family:var(--mono);font-size:clamp(2.6rem,5vw,4rem);line-height:1;color:var(--rule);font-weight:400}
+.sec-kick{font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft);margin-top:.6rem;max-width:16ch}
+h2{font-size:clamp(1.5rem,2.6vw,2.1rem);line-height:1.18;letter-spacing:-.01em;margin-bottom:1rem;max-width:24ch}
+.sec p{max-width:var(--measure)}
+.sec p + p{margin-top:1rem}
+
+/* the four checks as a ledger table */
+.ledger{margin-top:1.6rem;border-top:1px solid var(--ink)}
+.ledger-row{display:grid;grid-template-columns:3.4rem minmax(0,17rem) minmax(0,1fr);gap:1.25rem;padding:1.05rem 0;border-bottom:1px solid var(--rule);position:relative}
+.ledger-row::before{content:"";position:absolute;left:-1rem;top:0;bottom:0;width:3px;background:transparent;transition:background .2s}
+.ledger-row:hover::before{background:var(--warn)}
+.ledger-no{font-family:var(--mono);font-size:.78rem;color:var(--warn);padding-top:.28rem}
+.ledger-row h3{font-size:1.06rem;font-weight:700;line-height:1.3}
+.ledger-row p{font-size:.98rem;color:var(--ink-soft);max-width:56ch}
+
+/* exhibits: the terminal record */
+.exhibit{margin-top:1.9rem;display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:clamp(1rem,2.5vw,2.4rem);align-items:start}
+.exhibit-cap .tag{font-family:var(--mono);font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;color:var(--warn)}
+.exhibit-cap h3{font-size:1.05rem;margin-top:.4rem}
+.exhibit-cap p{font-size:.94rem;color:var(--ink-soft);margin-top:.45rem;max-width:38ch}
+.term{background:var(--term);color:var(--term-ink);border:1px solid var(--ink);box-shadow:6px 6px 0 var(--paper-deep), 6px 6px 0 1px var(--rule)}
+.term-bar{display:flex;align-items:center;gap:.6rem;border-bottom:1px solid #363021;padding:.55rem .9rem}
+.term-bar span{font-family:var(--mono);font-size:.72rem;color:var(--term-dim);letter-spacing:.04em}
+.term pre{font-family:var(--mono);font-size:.82rem;line-height:1.55;padding:1rem 1.1rem 1.15rem;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+.c-ok{color:#7fc79b}.c-warn{color:#e2a184}.c-dim{color:var(--term-dim)}.cmt{color:var(--term-dim)}.prompt{color:#7fc79b}
+.sources-line{display:flex;flex-wrap:wrap;gap:.5rem 1.6rem;font-family:var(--mono);font-size:.8rem;letter-spacing:.06em;margin-top:1.2rem}
+.sources-line li{list-style:none}
+.sources-line li::before{content:"● ";color:var(--ok);font-size:.6rem;vertical-align:2px}
+
+/* trust clauses */
+.clauses{margin-top:1.4rem;counter-reset:c}
+.clause{counter-increment:c;padding:1rem 0;border-top:1px solid var(--rule);display:grid;grid-template-columns:3.4rem minmax(0,1fr);gap:1.25rem}
+.clause::before{content:"5." counter(c);font-family:var(--mono);font-size:.78rem;color:var(--warn);padding-top:.3rem}
+.clause h3{font-size:1.05rem;margin-bottom:.3rem}
+.clause p{font-size:.98rem;color:var(--ink-soft);max-width:60ch}
+.scope-note{margin-top:1.3rem;padding:1rem 1.2rem;border:1px solid var(--rule);background:var(--paper-deep);font-size:.96rem;max-width:calc(var(--measure) + 2.4rem)}
+
+footer{padding:2.2rem 0 3rem;font-family:var(--mono);font-size:.75rem;letter-spacing:.1em;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.8rem}
+
+@media (max-width:56rem){
+  .hero-grid,.sec,.exhibit{grid-template-columns:1fr}
+  .ledger-row{grid-template-columns:2.4rem 1fr;grid-template-rows:auto auto}
+  .ledger-row p{grid-column:2}
+  .manifest{max-width:28rem}
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="wordmark">teamctx<b>.</b></div>
+    <div class="masthead-meta">ambient team context &middot; pre-release</div>
+  </div>
+</header>
+
+<main>
+
+<div class="wrap hero">
+  <div class="hero-grid">
+    <div>
+      <div class="kicker">The record, delivered exactly</div>
+      <h1>See what changed before you touch the code.</h1>
+      <p class="lede">Before you or your coding agent edit a file, teamctx checks the systems your team already uses and shows what moved around the work: a pull request touching the same file, CI that is failing or still running, an acceptance criterion that changed on the linked issue, a design doc that was replaced. You stay the one who decides.</p>
+      <p class="hero-note">Every result says what teamctx checked and what it could not confirm. There is no language model between the record and you, so the same inputs give the same result every time.</p>
+    </div>
+    <aside class="manifest" aria-label="the four checks">
+      <h2>Checked before the first edit</h2>
+      <ol>
+        <li>Colliding pull and merge requests</li>
+        <li>Failing or unconfirmed CI</li>
+        <li>Acceptance criteria that moved</li>
+        <li>Design docs that were replaced</li>
+      </ol>
+    </aside>
+  </div>
+  <hr class="hero-rule">
+</div>
+
+<section id="why">
+  <div class="wrap sec">
+    <div class="sec-head"><div class="sec-no">01</div><div class="sec-kick">Why it exists</div></div>
+    <div>
+      <h2>Wrong context through a trusted terminal is the expensive failure.</h2>
+      <p>Coding agents made the work move faster than the team can track. So an agent edits a file an open pull request is already changing, builds on a spec that moved yesterday, or trusts a green build that is still running. Nothing crashed. Everything looked fine.</p>
+      <p>The context was wrong, and wrong context delivered through a terminal you trust is the expensive kind of failure. Two agents can be perfectly authenticated and still act on two different versions of reality. teamctx checks the record at the moment the work starts.</p>
+    </div>
+  </div>
+</section>
+
+<section id="checks">
+  <div class="wrap sec">
+    <div class="sec-head"><div class="sec-no">02</div><div class="sec-kick">The four checks</div></div>
+    <div>
+      <h2>Four checks before the first edit.</h2>
+      <p>At the start of a task, on a new branch or a resumed session, teamctx reads metadata from the systems of record your team already uses and surfaces four things on its own.</p>
+      <div class="ledger">
+        <div class="ledger-row"><div class="ledger-no">02.1</div><h3>Colliding pull requests and merge requests</h3><p>If someone else has an open PR or MR changing a file you are about to edit, you see it first. Your own PR for the branch you are on is set aside with a note, so it never reads as an alarm.</p></div>
+        <div class="ledger-row"><div class="ledger-no">02.2</div><h3>Failing or unconfirmed CI on your branch</h3><p>Failing checks are named. Checks that are still running are reported as unconfirmed, so a build in progress is never counted as green.</p></div>
+        <div class="ledger-row"><div class="ledger-no">02.3</div><h3>Acceptance criteria that moved</h3><p>teamctx finds the linked issue from your branch name or commits, names how it derived it so you can judge, and tells you if the criteria changed since you started work.</p></div>
+        <div class="ledger-row"><div class="ledger-no">02.4</div><h3>Design docs you rely on that were replaced</h3><p>A doc in your declared docs folder, or a Confluence page, that names a newer version surfaces before you build on the old one.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="appears">
+  <div class="wrap sec">
+    <div class="sec-head"><div class="sec-no">03</div><div class="sec-kick">What appears</div></div>
+    <div>
+      <h2>What you see before the first edit.</h2>
+      <p>After a one-time <code>teamctx onboard</code>, this check runs by itself: it grounds the session before the first edit, keeps watch while you work, and speaks again when something actually changed. Agents get the same answer over MCP. Nobody types a command before an edit. The output is rendered straight from the record; the samples below are real output from the pipeline.</p>
+
+      <div class="exhibit">
+        <div class="exhibit-cap"><span class="tag">Exhibit A</span><h3>A clear result is itemized</h3><p>When nothing is in the way, the output lists every check that ran. Each line is something teamctx actually looked at, so a clear result is something you can rely on.</p></div>
+        <div class="term" role="img" aria-label="teamctx context appearing before an edit: a clear result that lists every check that ran">
+          <div class="term-bar"><span>teamctx, before the session's first edit to src/auth/token.py</span></div>
+<pre><span class="c-ok">Looks clear to start.</span>
+  Checked: no other open PRs touch your files; the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.</pre>
+        </div>
+      </div>
+
+      <div class="exhibit">
+        <div class="exhibit-cap"><span class="tag">Exhibit B</span><h3>A finding names the action</h3><p>The colliding pull request, the exact command to open it, and what was still checked and clear.</p></div>
+        <div class="term" role="img" aria-label="teamctx context appearing before an edit: an open pull request changed the same file">
+          <div class="term-bar"><span>teamctx, before the session's first edit to src/auth/token.py</span></div>
+<pre><span class="c-act">Before you start, here is what to handle first:</span>
+  • Open PR #7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 7 --repo acme/widgets)
+  Also checked: the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.</pre>
+        </div>
+      </div>
+
+      <div class="exhibit">
+        <div class="exhibit-cap"><span class="tag">Exhibit C</span><h3>A gap is stated, with the fix</h3><p>Where teamctx could not look, it says so plainly and tells you how to turn the check on. A gap is never folded into a clear.</p></div>
+        <div class="term" role="img" aria-label="teamctx context appearing before an edit: it could not reach GitHub and says which checks were not run">
+          <div class="term-bar"><span>teamctx, before the session's first edit to src/auth/token.py</span></div>
+<pre><span class="c-warn">Heads up: I can't confirm the important things yet:</span>
+  • Open PRs and failing checks: teamctx couldn't reach GitHub. Either it has no access yet (set GITHUB_TOKEN, or GITHUB_TOKEN_FILE with a path to a token file) or it's a temporary connection issue. Until it's back you won't see colliding PRs or red CI on your files.
+  Not checked: spec changes (no issue could be derived from your branch or commits; name one with --issue); docs (no docs root is configured; set work_start.docs_root to enable).</pre>
+        </div>
+      </div>
+
+      <div class="exhibit">
+        <div class="exhibit-cap"><span class="tag">Exhibit D</span><h3>Your own PR is never an alarm</h3><p>The open PR for the branch you are standing on is set aside with a note, so the collision check keeps meaning someone else.</p></div>
+        <div class="term" role="img" aria-label="teamctx context appearing before an edit: the only overlapping pull request is your own, shown as an FYI">
+          <div class="term-bar"><span>teamctx, before the session's first edit to src/auth/token.py</span></div>
+<pre><span class="c-ok">Looks clear to start.</span>
+  Checked: no other open PRs touch your files; the linked issue's criteria are unchanged (issue #42 from your branch name); the docs you rely on are current; no failing checks found.
+  <span class="c-fyi">FYI: Your own open PR #12 for this branch touches these files; not flagged as a collision.</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="sources-one">
+  <div class="wrap sec">
+    <div class="sec-head"><div class="sec-no">04</div><div class="sec-kick">Wherever the work lives</div></div>
+    <div>
+      <h2>The same finding, wherever the work lives.</h2>
+      <p>One shape of answer across the four sources, validated live across GitHub, GitLab, Jira, and Confluence with a multi-actor test program and committed evidence.</p>
+      <div class="exhibit" style="margin-top:1.4rem">
+        <div class="exhibit-cap"><span class="tag">Exhibit E</span><h3>Four sources, one voice</h3><p>A colliding merge request, a moved Jira criterion, and a superseded Confluence page read the same way a GitHub finding does.</p></div>
+        <div class="term" role="img" aria-label="the same kind of finding from GitHub, GitLab, Jira and Confluence">
+          <div class="term-bar"><span>one finding, four sources</span></div>
+<pre><span class="c-dim">GitHub</span>    • Open PR #7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work (gh pr view 7 --repo acme/widgets)
+<span class="c-dim">GitLab</span>    • Open MR !7 changed src/auth/token.py: look at it before you edit so you don't undo each other's work
+<span class="c-dim">Jira</span>      • Jira PROJ-88 updated: description updated: re-check the criteria before you rely on them
+<span class="c-dim">Confl.</span>    • Auth service design was superseded by Auth service design v2: rely on the current one instead</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="trust">
+  <div class="wrap sec">
+    <div class="sec-head"><div class="sec-no">05</div><div class="sec-kick">Why you can trust it</div></div>
+    <div>
+      <h2>Built so a clear result is worth trusting.</h2>
+      <p>A tool you use to check your work has to be steadier than the work it checks. These four properties come from how teamctx is built.</p>
+      <div class="clauses">
+        <div class="clause"><div><h3>No language model in the content path</h3><p>teamctx normalizes, routes, and renders the record. It never rewrites what the record says, so what you read matches the source and cannot be talked into a false answer by anything in between.</p></div></div>
+        <div class="clause"><div><h3>Source-backed evidence</h3><p>Every finding traces back to its source. Each one carries a handle that opens the original record, down to the pull request, issue, gate, or page, so anything teamctx surfaces can be checked against the system it came from.</p></div></div>
+        <div class="clause"><div><h3>Same inputs, same result</h3><p>Given the same inputs, the verdict is identical every time. The result reproduces from a digest of what went in, which makes it something you can replay and audit.</p></div></div>
+        <div class="clause"><div><h3>Honest about coverage</h3><p>Where teamctx could not look, it says so and how to fix it. A coverage gap is always reported on its own line, and it is never folded into a clear result.</p></div></div>
+      </div>
+      <p class="scope-note">teamctx reports what is currently true in the record. Whether that is the right thing to do is your call, and teamctx does not claim the record itself is correct. It delivers the record exactly.</p>
+    </div>
+  </div>
+</section>
+
+<section id="sources">
+  <div class="wrap sec">
+    <div class="sec-head"><div class="sec-no">06</div><div class="sec-kick">Sources</div></div>
+    <div>
+      <h2>Reads what you already have. Read-only.</h2>
+      <p>teamctx reads metadata from the systems of record your team uses. It sees only what you can see. It does not read pull request bodies, comments, patches, or private messages, and it never writes to your source systems.</p>
+      <ul class="sources-line">
+        <li>GitHub</li><li>GitLab</li><li>Jira</li><li>Confluence</li>
+      </ul>
+      <p style="margin-top:1rem;color:var(--ink-soft);font-size:.95rem">Each source is added only after it proves the same honest coverage behavior. More sources follow the same bar.</p>
+    </div>
+  </div>
+</section>
+
+<section id="setup" style="border-bottom:1px solid var(--ink)">
+  <div class="wrap sec">
+    <div class="sec-head"><div class="sec-no">07</div><div class="sec-kick">Setup, once</div></div>
+    <div>
+      <h2>Set it up once. Then it just appears.</h2>
+      <p>teamctx is pre-release. Install from source and set it up once. That is the last command anyone runs: from then on, team context is ambient. It shows up on its own, before the work starts.</p>
+      <div class="term" style="margin-top:1.5rem" role="img" aria-label="install and one-time setup commands">
+        <div class="term-bar"><span>one-time setup</span></div>
+<pre><span class="prompt">$</span> git clone https://github.com/teamctx/teamctx
+<span class="prompt">$</span> cd teamctx
+<span class="prompt">$</span> pip install -e .
+
+<span class="cmt"># one-time setup: detects the repo, writes a shareable .teamctx/config.json,</span>
+<span class="cmt"># installs the Claude Code reflex hook, and reports your credential</span>
+<span class="prompt">$</span> teamctx onboard
+
+<span class="cmt"># that's it. you never run another command: from now on, team context</span>
+<span class="cmt"># appears by itself: at the start of a session, and again the moment</span>
+<span class="cmt"># something relevant changes while you work.</span></pre>
+      </div>
+      <p style="margin-top:1.5rem"><b>It runs by itself, and keeps watching.</b> The hook <code>teamctx onboard</code> installs is opt-in. It grounds the session before its first edit, then quietly re-checks at an interval and speaks again when the answer actually changed, re-stating any standing gap rather than forgetting it, so silence means checked and unchanged within the interval. It never blocks an edit. When the world moves mid-session, what appears is exactly the change:</p>
+      <div class="term" style="margin-top:1.2rem" role="img" aria-label="teamctx speaking a mid-session change: a pull request appeared touching the file">
+        <div class="term-bar"><span>teamctx, while you work</span></div>
+<pre>since you started: GitHub PR #7 appeared, touching src/auth/token.py</pre>
+      </div>
+      <p style="margin-top:1.5rem;color:var(--ink-soft);font-size:.98rem">Any agent can also call the <code>work_start</code> tool over MCP through <code>teamctx-mcp</code>, so credentials stay on the server side.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.8rem;padding:0 clamp(1.25rem,4vw,3rem)">
+    <span>teamctx &middot; the record, delivered exactly</span>
+    <span>Apache-2.0 &middot; pre-release</span>
+  </div>
+</footer>
+
+</body>
+</html>
