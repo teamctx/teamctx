@@ -214,6 +214,49 @@ Realistic data flow (corrected from the first draft):
 4. Separately, the Witness calls the Keeper as an MCP tool before composing a
    "Verified" line, and writes the checked result instead of a hand assertion.
 
+### Where it sits
+
+On gastown's own README diagram, the Keeper is a per-rig tool that hangs off the
+rig like the Witness and Hooks do, with two callers into it and one read out of
+it. The README diagram omits the Witness and Beads; they are added back here
+because they are where the Keeper connects. One Keeper per rig.
+
+```
+  Town Workspace (~/gt/)
+        │
+        ├───────────────►  The Mayor  (AI coordinator)
+        │
+        └───────────────►  Rig: Project A
+                               │
+      ┌────────────────┬───────┴────────┬─────────────────┐
+      │                │                │                 │
+  Crew Member      Polecats          Witness            Hooks
+ (your workspace) (worker agents)  (lifecycle,       (persistent
+                      │             writes            storage)
+                      │             "Verified")          ┊
+       (1) SessionStart│ hook           │ (2) calls       ┊ git
+           appends a   │ receipt        │ before writing  ┊ worktree
+           beside the  │                │ a "Verified"    ┊
+           injected    ▼                ▼ line            ▼
+           context ► ┌─────────────────────────┐     Git Repo A
+                     │   KEEPER of the SEEDS    │        │
+                     │  * new: read-only tool   │        │ reads
+                     │  (teamctx, own process)  │────────┤ (read-only)
+                     │                          │        │
+                     │  per structured field:   │───────►├─ git state
+                     │  verified /              │        └─ Beads (Dolt)
+                     │  contradicted /          │           via `bd`
+                     │  unconfirmed             │
+                     │  + pinned git SHA        │
+                     └─────────────────────────┘
+```
+
+Two callers point in: the Polecat SessionStart hook (appends a receipt beside the
+context gastown already injected, does not replace it) and the Witness (turns a
+hand-written "Verified" line into a checked one, the higher-value touch-point).
+One read points out: read-only into that rig's git state and Beads. The Keeper
+writes nothing and sits in no blocking path.
+
 Reads: git through normal git commands, Beads through the `bd` CLI. No direct
 Dolt access. Read-only throughout.
 
