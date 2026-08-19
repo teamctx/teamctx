@@ -262,6 +262,47 @@ mail formats. So "any MCP client can use it" is empty until a second adapter
 exists. The first release proves the adapter pattern with the gastown adapter. A
 signed, revocable distribution channel is a later phase, not part of this.
 
+## Adoption
+
+A tool users must find and wire up by hand gets close to zero organic adoption.
+So the plan is not "publish a recipe and hope." It is an evidence-first ladder,
+cheapest and most credible rung first. "Not a role PR" does not mean no upstream
+presence. gastown's own guide invites configuration-level contributions and
+states that integration is configuration, not compilation.
+
+1. Dogfood and generate evidence. Wire the Keeper into your own fleet, run the
+   seeded fault injection below, and produce a real number: how much drift it
+   catches that the one-line "re-derive first" instruction misses, at what cost,
+   with what false-positive rate. Nothing downstream moves without this. The
+   proof is the adoption strategy, not a separate step.
+
+2. Ship self-serve for early adopters. An MCP server plus a one-command hook
+   recipe, listed where gastown users already look (an MCP registry or plugin
+   marketplace). On its own this is weak distribution, and the plan does not lean
+   on it.
+
+3. Land a small upstream contribution, backed by the evidence. This is the real
+   adoption engine, and it is a different PR from adding a role. Two forms, both
+   worth doing:
+   - An optional preset or hook-template line in gastown, so a user enables the
+     Keeper with a config entry instead of hand-wiring it. This is the Tier 1
+     preset and Tier 2 hook path gastown already documents for outside tools.
+   - An optional check the Witness calls before it writes a "Verified" line. This
+     is the wedge. The Witness writing verification by hand is a real reliability
+     weakness in gastown, so a maintainer has reason to accept a change that fixes
+     their own weakness, especially with fault-injection numbers attached.
+
+The honest through-line: adoption does not come from the recipe. It comes from
+proving the Keeper catches drift gastown's current path misses, then contributing
+it back as optional config and an optional Witness check that maintainers want
+because it makes their own system more reliable. The recipe is the on-ramp while
+the evidence is built.
+
+Caution: even this depends on you championing it and on maintainers being
+receptive. If the evidence is weak, no rung moves, recipe or PR. The proof gates
+everything, and the upstream contribution is a per-item sign-off decision, your
+call.
+
 ## Proof: seeded fault injection
 
 Matched live cohorts do not work inside gastown. Its work is real, one-shot, and
