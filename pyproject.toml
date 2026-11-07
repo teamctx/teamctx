@@ -78,7 +78,7 @@ teamctx-hook = "teamctx.hook:main"
 
 [project.optional-dependencies]
 mcp = [
-    "mcp>=1.0",
+    "mcp>=1.0,<2",
 ]
 dev = [
     "pytest>=8.0",
@@ -86,7 +86,7 @@ dev = [
     "hypothesis>=6.100",
     "ruff>=0.6",
     "mypy>=1.10",
-    "mcp>=1.0",
+    "mcp>=1.0,<2",
 ]
 
 [tool.ruff]
