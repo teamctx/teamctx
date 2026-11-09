@@ -44,7 +44,13 @@ becomes supported only after it proves the same honest-coverage behavior.
 
 ## Install
 
-teamctx is pre-release. Install from source:
+teamctx is an early release. Install version 0.1.0 from PyPI:
+
+```bash
+pip install teamctx
+```
+
+To get the newest changes on `main`, install from source:
 
 ```bash
 git clone https://github.com/teamctx/teamctx
